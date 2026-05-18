@@ -1,65 +1,329 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+
+const features = [
+  {
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+    title: "14-Section Report",
+    desc: "Covers every angle — from critical findings and permit history to HOA health, negotiation leverage, and an overall property rating.",
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+    ),
+    title: "Severity-Rated Findings",
+    desc: "Every issue is rated Critical, High, Moderate, or Cosmetic — weighted by cost and active hazard, not gut instinct.",
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+    title: "Regional Cost Estimates",
+    desc: "A fresh cost reference library is built for each property's market — South Bay, SF, East Bay, LA, San Diego, and more.",
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+      </svg>
+    ),
+    title: "Confidence Tags",
+    desc: "Every finding is labeled High, Medium, or Low confidence so clients know what is a direct read versus an inference.",
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      </svg>
+    ),
+    title: "Agent QA Before Delivery",
+    desc: "Every report goes through a structured spot-check with the agent before the PDF is generated. No surprises for the client.",
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+      </svg>
+    ),
+    title: "Privacy by Design",
+    desc: "Seller PII — names, mortgage balances, lender details — is purged from temp storage after every report is delivered.",
+  },
+];
+
+const steps = [
+  {
+    number: "01",
+    title: "Upload the disclosure package",
+    desc: "Drop in the PDF from Disclosures.io or any other source. The tool reads the TDS, SPQ, AVID, NHD, HOA documents, inspection reports, and third-party disclosures — whatever is in the package.",
+  },
+  {
+    number: "02",
+    title: "Veroax AI runs the 14-section analysis",
+    desc: "Each section is analyzed against a fresh regional cost library pulled from live web sources for that property's market. Every finding is severity-rated, cost-estimated, and tagged with a confidence level.",
+  },
+  {
+    number: "03",
+    title: "You review, then the client gets a polished PDF",
+    desc: "Before anything goes to the client, you see a structured summary of every critical and high finding. Approve it, make corrections if needed, and your branded PDF is ready to send. We even prepare a client email you can copy straight into your CRM or inbox.",
+  },
+];
+
+const stats = [
+  { value: "14", label: "Sections per report" },
+  { value: "4", label: "Severity levels" },
+  { value: "12+", label: "California markets" },
+  { value: "7 yr", label: "Audit log retention" },
+];
 
 export default function Home() {
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitted(true);
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="flex flex-col min-h-screen bg-white text-gray-900">
+
+      {/* Nav */}
+      <header className="bg-slate-900 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <span className="text-white font-semibold text-lg tracking-tight">Veroax</span>
+          <nav className="hidden sm:flex items-center gap-8 text-sm text-slate-300">
+            <a href="#features" className="hover:text-white transition-colors">Features</a>
+            <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
+            <a href="#early-access" className="hover:text-white transition-colors">Early access</a>
+          </nav>
+          <a
+            href="#early-access"
+            className="text-sm font-medium bg-amber-400 text-slate-900 px-4 py-2 rounded-md hover:bg-amber-300 transition-colors"
+          >
+            Get early access
+          </a>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="bg-slate-900 text-white py-28 px-6 text-center">
+        <div className="max-w-3xl mx-auto space-y-7">
+          <p className="text-amber-400 text-sm font-semibold uppercase tracking-widest">
+            AI-Powered Real Estate Due Diligence
+          </p>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight">
+            Veroax — AI-assisted disclosure analysis for residential real estate
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
+          <p className="text-lg sm:text-xl text-slate-300 leading-relaxed max-w-2xl mx-auto">
+            Upload a disclosure package, get back a polished 14-section client ready buyer report — severity-rated
+            findings, regional cost estimates, negotiation guidance, and an overall property rating,
+            all grounded in what the documents actually say.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
             <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              href="#early-access"
+              className="inline-block bg-amber-400 text-slate-900 font-semibold px-7 py-3.5 rounded-md hover:bg-amber-300 transition-colors text-base"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
+              Request early access
+            </a>
             <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              href="#how-it-works"
+              className="inline-block border border-slate-600 text-white px-7 py-3.5 rounded-md hover:border-slate-400 hover:bg-slate-800 transition-colors text-base"
             >
-              Learning
-            </a>{" "}
-            center.
+              See how it works
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Stats bar */}
+      <section className="bg-slate-800 text-white py-10 px-6">
+        <div className="max-w-5xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
+          {stats.map((s) => (
+            <div key={s.label}>
+              <p className="text-3xl font-bold text-amber-400">{s.value}</p>
+              <p className="text-sm text-slate-400 mt-1">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Features grid */}
+      <section id="features" className="py-24 px-6 bg-white">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16 space-y-3">
+            <p className="text-amber-500 text-sm font-semibold uppercase tracking-widest">Features</p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
+              Everything a buyer needs to make a confident decision
+            </h2>
+            <p className="text-gray-500 max-w-xl mx-auto text-base leading-relaxed">
+              Built on California residential disclosure best practices, with safeguards that keep the
+              report defensible and the analysis honest. Florida, Texas, and Washington state are coming soon.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {features.map((f) => (
+              <div
+                key={f.title}
+                className="rounded-xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="w-11 h-11 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center mb-4">
+                  {f.icon}
+                </div>
+                <h3 className="font-semibold text-slate-900 mb-2">{f.title}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section id="how-it-works" className="py-24 px-6 bg-slate-50">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-16 space-y-3">
+            <p className="text-amber-500 text-sm font-semibold uppercase tracking-widest">How it works</p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
+              From disclosure package to client report in minutes
+            </h2>
+          </div>
+          <div className="space-y-12">
+            {steps.map((step, i) => (
+              <div
+                key={step.number}
+                className={`flex flex-col sm:flex-row gap-8 items-start ${
+                  i % 2 === 1 ? "sm:flex-row-reverse" : ""
+                }`}
+              >
+                <div className="flex-shrink-0">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-900 text-amber-400 flex items-center justify-center text-xl font-bold">
+                    {step.number}
+                  </div>
+                </div>
+                <div className="flex-1 pt-2">
+                  <h3 className="text-xl font-semibold text-slate-900 mb-3">{step.title}</h3>
+                  <p className="text-gray-500 leading-relaxed">{step.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* State availability table */}
+      <section className="py-24 px-6 bg-white">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-12 space-y-3">
+            <p className="text-amber-500 text-sm font-semibold uppercase tracking-widest">Availability</p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">Where Veroax is launching</h2>
+            <p className="text-gray-500 text-base">States listed in order of annual residential real estate transaction volume.</p>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-900 text-white">
+                <tr>
+                  <th className="px-6 py-4 font-semibold">State</th>
+                  <th className="px-6 py-4 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {[
+                  { state: "California", status: "live", note: "Live — accepting beta clients" },
+                  { state: "Texas", status: "launching soon", note: "" },
+                  { state: "Florida", status: "launching soon", note: "" },
+                  { state: "Washington", status: "launching soon", note: "" },
+                ].map((row) => (
+                  <tr key={row.state} className="bg-white hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 font-medium text-slate-900">{row.state}</td>
+                    <td className="px-6 py-4">
+                      {row.status === "live" ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                          {row.note}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                          Launching Soon
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* Early access / CTA */}
+      <section id="early-access" className="bg-slate-900 text-white py-24 px-6 text-center">
+        <div className="max-w-xl mx-auto space-y-6">
+          <p className="text-amber-400 text-sm font-semibold uppercase tracking-widest">Early access</p>
+          <h2 className="text-3xl sm:text-4xl font-bold">
+            Be in the Know
+          </h2>
+          <p className="text-slate-300 text-base leading-relaxed">
+            Veroax is launching first in California, with Florida, Texas, and Washington state close
+            behind. If you work with buyers in any of those markets and want to offer a sharper due
+            diligence experience, drop your email and we will be in touch when your state goes live.
+          </p>
+          {submitted ? (
+            <p className="text-amber-400 font-medium text-lg">
+              Thanks — we will be in touch.
+            </p>
+          ) : (
+            <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto pt-2">
+              <label htmlFor="email" className="sr-only">Email address</label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="flex-1 rounded-md bg-slate-800 border border-slate-700 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+              />
+              <button
+                type="submit"
+                className="rounded-md bg-amber-400 text-slate-900 px-5 py-3 text-sm font-semibold hover:bg-amber-300 transition-colors whitespace-nowrap"
+              >
+                Get early access
+              </button>
+            </form>
+          )}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-slate-950 text-slate-400 py-10 px-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
+          <span className="text-white font-semibold text-base">Veroax, Inc</span>
+          <p>
+            Customer Support &mdash;{" "}
+            <a
+              href="mailto:support@veroax.com"
+              className="hover:text-white underline underline-offset-2 transition-colors"
+            >
+              support@veroax.com
+            </a>
+          </p>
+          <p className="text-slate-600 text-xs">
+            &copy; {new Date().getFullYear()} Veroax. All rights reserved.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </footer>
+
     </div>
   );
 }
