@@ -116,17 +116,18 @@ export default function Home() {
     <div className="flex flex-col min-h-screen bg-white text-gray-900">
 
       {/* Nav */}
-      <header className="bg-slate-900 sticky top-0 z-50">
+      <header className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-md"
+        style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)" }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <span className="text-white font-semibold text-lg tracking-tight">Veroax</span>
-          <nav className="hidden sm:flex items-center gap-8 text-sm text-slate-300">
+          <span className="text-white font-bold text-xl tracking-tight">Veroax</span>
+          <nav className="hidden sm:flex items-center gap-8 text-sm text-indigo-200">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
             <a href="#contact" className="hover:text-white transition-colors">Contact</a>
           </nav>
           <a
             href="#contact"
-            className="text-sm font-medium bg-amber-400 text-slate-900 px-4 py-2 rounded-md hover:bg-amber-300 transition-colors"
+            className="text-sm font-semibold bg-amber-400 text-indigo-950 px-4 py-2 rounded-lg hover:bg-amber-300 transition-colors shadow-md"
           >
             Get in touch
           </a>
@@ -134,29 +135,46 @@ export default function Home() {
       </header>
 
       {/* Hero */}
-      <section className="bg-slate-900 text-white py-28 px-6 text-center">
-        <div className="max-w-3xl mx-auto space-y-7">
-          <p className="text-amber-400 text-sm font-semibold uppercase tracking-widest">
+      <section
+        className="relative overflow-hidden text-white py-32 px-6 text-center"
+        style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #1e3a5f 100%)" }}
+      >
+        {/* Dot grid overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        />
+        {/* Glow blobs */}
+        <div className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(251,191,36,0.15) 0%, transparent 70%)" }} />
+        <div className="absolute -bottom-32 -left-32 w-[500px] h-[500px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(99,102,241,0.25) 0%, transparent 70%)" }} />
+
+        <div className="relative max-w-3xl mx-auto space-y-7">
+          <span className="inline-block bg-amber-400/15 border border-amber-400/30 text-amber-300 text-xs font-semibold uppercase tracking-widest px-4 py-1.5 rounded-full">
             AI-Powered Real Estate Due Diligence
-          </p>
+          </span>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight">
             Veroax — AI-assisted disclosure analysis for residential real estate
           </h1>
-          <p className="text-lg sm:text-xl text-slate-300 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-indigo-200 leading-relaxed max-w-2xl mx-auto">
             Upload a disclosure package, get back a polished 14-section client ready buyer report — severity-rated
             findings, regional cost estimates, negotiation guidance, and an overall property rating,
             all grounded in what the documents actually say.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
             <a
-              href="#early-access"
-              className="inline-block bg-amber-400 text-slate-900 font-semibold px-7 py-3.5 rounded-md hover:bg-amber-300 transition-colors text-base"
+              href="#contact"
+              className="inline-block bg-amber-400 text-indigo-950 font-semibold px-7 py-3.5 rounded-lg hover:bg-amber-300 transition-colors text-base shadow-lg shadow-amber-400/20"
             >
               Request early access
             </a>
             <a
               href="#how-it-works"
-              className="inline-block border border-slate-600 text-white px-7 py-3.5 rounded-md hover:border-slate-400 hover:bg-slate-800 transition-colors text-base"
+              className="inline-block border border-indigo-400/40 text-white px-7 py-3.5 rounded-lg hover:bg-white/10 transition-colors text-base"
             >
               See how it works
             </a>
@@ -165,22 +183,26 @@ export default function Home() {
       </section>
 
       {/* Stats bar */}
-      <section className="bg-slate-800 text-white py-10 px-6">
+      <section className="bg-white border-b border-gray-100 py-12 px-6">
         <div className="max-w-5xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
           {stats.map((s) => (
             <div key={s.label}>
-              <p className="text-3xl font-bold text-amber-400">{s.value}</p>
-              <p className="text-sm text-slate-400 mt-1">{s.label}</p>
+              <p className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-amber-500 bg-clip-text text-transparent">
+                {s.value}
+              </p>
+              <p className="text-sm text-gray-500 mt-1.5 font-medium">{s.label}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Features grid */}
-      <section id="features" className="py-24 px-6 bg-white">
+      <section id="features" className="py-24 px-6 bg-gradient-to-b from-white to-indigo-50/50">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16 space-y-3">
-            <p className="text-amber-500 text-sm font-semibold uppercase tracking-widest">Features</p>
+            <span className="inline-block bg-indigo-100 text-indigo-700 text-xs font-semibold uppercase tracking-widest px-4 py-1.5 rounded-full">
+              Features
+            </span>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
               Everything a buyer needs to make a confident decision
             </h2>
@@ -189,13 +211,14 @@ export default function Home() {
               report defensible and the analysis honest. Florida, Texas, and Washington state are coming soon.
             </p>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((f) => (
               <div
                 key={f.title}
-                className="rounded-xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow"
+                className="rounded-2xl bg-white border border-indigo-100 p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
               >
-                <div className="w-11 h-11 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center mb-4">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 text-white shadow-md"
+                  style={{ background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)" }}>
                   {f.icon}
                 </div>
                 <h3 className="font-semibold text-slate-900 mb-2">{f.title}</h3>
@@ -206,29 +229,232 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Sample Report Preview */}
+      <section className="py-24 px-6 bg-white">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14 space-y-3">
+            <span className="inline-block bg-indigo-100 text-indigo-700 text-xs font-semibold uppercase tracking-widest px-4 py-1.5 rounded-full">
+              Sample Report
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
+              See what your clients receive
+            </h2>
+            <p className="text-gray-500 max-w-xl mx-auto text-base leading-relaxed">
+              Every report follows the same 14-section structure. Here is a sample from a South Bay property — real findings, real format.
+            </p>
+          </div>
+
+          {/* Browser chrome wrapper */}
+          <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
+            {/* Browser bar */}
+            <div className="bg-gray-100 px-4 py-3 flex items-center gap-3 border-b border-gray-200">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-red-400" />
+                <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                <div className="w-3 h-3 rounded-full bg-green-400" />
+              </div>
+              <div className="flex-1 mx-2 bg-white rounded px-3 py-1 text-xs text-gray-400 font-mono truncate">
+                1847_Crestview_Dr_San_Jose_Disclosure_Analysis.pdf
+              </div>
+            </div>
+
+            {/* Report body */}
+            <div className="bg-[#FAF8F2] p-6 sm:p-10 space-y-8 text-sm">
+
+              {/* Property snapshot */}
+              <div>
+                <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-[#C9A84C] mb-0.5">Disclosure Analysis Report</p>
+                    <h3 className="text-xl font-bold text-[#191970]">1847 Crestview Dr, San Jose, CA 95128</h3>
+                    <p className="text-[#4A4A4A] text-xs mt-1">SFR · 1962 · 1,847 sq ft · 3 bed / 2 bath · South Bay / Silicon Valley</p>
+                  </div>
+                  <div className="text-right text-xs text-[#4A4A4A] space-y-0.5 shrink-0">
+                    <p><span className="font-semibold">List Price:</span> $1,150,000</p>
+                    <p><span className="font-semibold">Days on Market:</span> 12</p>
+                    <p><span className="font-semibold">Analysis Date:</span> May 17, 2026</p>
+                    <p><span className="font-semibold">Cost Reference:</span> South Bay / Silicon Valley</p>
+                  </div>
+                </div>
+                <div className="h-px bg-[#C8C8DC]" />
+              </div>
+
+              {/* Section 4: Critical/High Issues */}
+              <div>
+                <div className="flex items-center gap-3 mb-4 rounded-sm overflow-hidden">
+                  <div className="bg-[#191970] text-[#C9A84C] text-xs font-bold px-3 py-2 uppercase tracking-widest shrink-0">Section 4</div>
+                  <p className="text-white bg-[#191970] font-bold text-sm py-2 pr-4 flex-1">Critical &amp; High-Priority Findings</p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Critical finding 1 */}
+                  <div className="border border-[#C8C8DC] rounded bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#C8C8DC]">
+                      <span className="font-bold text-[#191970] text-sm">Issue 1: Unpermitted Garage Conversion</span>
+                      <span className="text-xs font-bold text-white bg-[#7A2E2E] px-3 py-1 rounded-sm uppercase tracking-wide">Critical</span>
+                    </div>
+                    <div className="px-4 py-3 text-[#1A1A2E] text-xs leading-relaxed italic border-b border-[#C8C8DC] bg-[#FAF8F2]">
+                      "Garage has been converted to living space. No permit is on file with the City of San Jose. Conversion appears to predate current ownership and includes non-code electrical and drywall work." — AVID, p. 4; Permit History search, City of San Jose.
+                    </div>
+                    <div className="divide-y divide-[#C8C8DC]">
+                      {[
+                        ["Source", "AVID p.4 / City Permit Records"],
+                        ["Confidence", "High"],
+                        ["Est. Cost", "$18,000 to $45,000 (permit, remediation, or removal)"],
+                        ["Risk if Ignored", "Lender may refuse to fund; appraiser may exclude sq footage; city may require removal at close"],
+                        ["Recommended Action", "Request seller permit or demolish before close; get contractor bids during contingency"],
+                      ].map(([k, v]) => (
+                        <div key={k} className="grid grid-cols-[140px_1fr] text-xs">
+                          <div className="px-3 py-2 font-semibold text-[#2E4057] bg-[#F5F2EA]">{k}</div>
+                          <div className="px-3 py-2 text-[#1A1A2E]">{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Critical finding 2 */}
+                  <div className="border border-[#C8C8DC] rounded bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#C8C8DC]">
+                      <span className="font-bold text-[#191970] text-sm">Issue 2: Active Roof Leak — Master Bedroom</span>
+                      <span className="text-xs font-bold text-white bg-[#7A2E2E] px-3 py-1 rounded-sm uppercase tracking-wide">Critical</span>
+                    </div>
+                    <div className="px-4 py-3 text-[#1A1A2E] text-xs leading-relaxed italic border-b border-[#C8C8DC] bg-[#FAF8F2]">
+                      "Active moisture intrusion at ridge line above master bedroom. Insulation saturated. Visible water staining on drywall, approximately 6 ft × 3 ft area. Immediate repair recommended." — General Home Inspection, p. 8.
+                    </div>
+                    <div className="divide-y divide-[#C8C8DC]">
+                      {[
+                        ["Source", "General Home Inspection, p.8"],
+                        ["Confidence", "High"],
+                        ["Est. Cost", "$8,500 to $14,000 (roof repair, insulation, drywall)"],
+                        ["Risk if Ignored", "Accelerating structural damage; mold risk within 30 days"],
+                        ["Recommended Action", "Require seller repair or full credit before close"],
+                      ].map(([k, v]) => (
+                        <div key={k} className="grid grid-cols-[140px_1fr] text-xs">
+                          <div className="px-3 py-2 font-semibold text-[#2E4057] bg-[#F5F2EA]">{k}</div>
+                          <div className="px-3 py-2 text-[#1A1A2E]">{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* High finding */}
+                  <div className="border border-[#C8C8DC] rounded bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#C8C8DC]">
+                      <span className="font-bold text-[#191970] text-sm">Issue 3: Federal Pacific Stab-Lok Electrical Panel</span>
+                      <span className="text-xs font-bold text-white bg-[#8B5A2B] px-3 py-1 rounded-sm uppercase tracking-wide">High</span>
+                    </div>
+                    <div className="divide-y divide-[#C8C8DC]">
+                      {[
+                        ["Source", "General Home Inspection, p.12"],
+                        ["Confidence", "High"],
+                        ["Est. Cost", "$4,500 to $7,000 (full panel replacement)"],
+                        ["Risk if Ignored", "Fire risk; some insurers refuse to bind on FPE panels"],
+                        ["Recommended Action", "Budget for replacement; confirm insurability before removing contingency"],
+                      ].map(([k, v]) => (
+                        <div key={k} className="grid grid-cols-[140px_1fr] text-xs">
+                          <div className="px-3 py-2 font-semibold text-[#2E4057] bg-[#F5F2EA]">{k}</div>
+                          <div className="px-3 py-2 text-[#1A1A2E]">{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 10: Cost Summary */}
+              <div>
+                <div className="flex items-center gap-3 mb-4 rounded-sm overflow-hidden">
+                  <div className="bg-[#191970] text-[#C9A84C] text-xs font-bold px-3 py-2 uppercase tracking-widest shrink-0">Section 10</div>
+                  <p className="text-white bg-[#191970] font-bold text-sm py-2 pr-4 flex-1">Repair Cost Summary</p>
+                </div>
+                <div className="border border-[#C8C8DC] rounded overflow-hidden bg-white">
+                  <div className="grid grid-cols-[1fr_160px] bg-[#2E4057] text-white text-xs font-bold">
+                    <div className="px-4 py-2.5">Item</div>
+                    <div className="px-4 py-2.5 text-right">Est. Cost Range</div>
+                  </div>
+                  {[
+                    ["A. CRITICAL AND HIGH-PRIORITY REPAIRS", "", true],
+                    ["Unpermitted garage conversion", "$18,000 to $45,000", false],
+                    ["Active roof leak — repair, insulation, drywall", "$8,500 to $14,000", false],
+                    ["Federal Pacific panel replacement", "$4,500 to $7,000", false],
+                    ["Subtotal", "$31,000 to $66,000", "sub"],
+                    ["B. MODERATE REPAIRS (1 to 5 year horizon)", "", true],
+                    ["HVAC system replacement (16-year-old furnace)", "$7,500 to $12,000", false],
+                    ["Sewer lateral scope + spot repair", "$1,200 to $3,500", false],
+                    ["Subtotal", "$8,700 to $15,500", "sub"],
+                  ].map(([label, cost, type], i) => (
+                    <div
+                      key={i}
+                      className={`grid grid-cols-[1fr_160px] text-xs border-t border-[#C8C8DC] ${
+                        type === true ? "bg-[#2E4057]/10 font-bold text-[#2E4057]" :
+                        type === "sub" ? "bg-[#FAF8F2] font-bold text-[#191970]" :
+                        i % 2 === 0 ? "bg-white" : "bg-[#F5F2EA]"
+                      }`}
+                    >
+                      <div className="px-4 py-2">{label}</div>
+                      <div className="px-4 py-2 text-right">{cost}</div>
+                    </div>
+                  ))}
+                  <div className="grid grid-cols-[1fr_160px] text-xs border-t-2 border-[#191970] bg-[#191970] text-white font-bold">
+                    <div className="px-4 py-3">TOTAL ESTIMATED REPAIR EXPOSURE</div>
+                    <div className="px-4 py-3 text-right">$39,700 to $81,500</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 14: Rating */}
+              <div>
+                <div className="flex items-center gap-3 mb-4 rounded-sm overflow-hidden">
+                  <div className="bg-[#191970] text-[#C9A84C] text-xs font-bold px-3 py-2 uppercase tracking-widest shrink-0">Section 14</div>
+                  <p className="text-white bg-[#191970] font-bold text-sm py-2 pr-4 flex-1">Overall Property Rating</p>
+                </div>
+                <div className="border border-[#C8C8DC] rounded bg-white p-5 flex flex-col sm:flex-row items-start gap-5">
+                  <div className="shrink-0">
+                    <div className="bg-[#8B5A2B] text-white text-sm font-bold px-5 py-3 rounded text-center uppercase tracking-wide whitespace-nowrap">
+                      Significant Concerns
+                    </div>
+                  </div>
+                  <p className="text-[#1A1A2E] text-xs leading-relaxed">
+                    Two Critical findings — an unpermitted conversion that carries appraisal and lending risk and an active roof leak — combined with a fire-risk electrical panel push this property into Significant Concerns territory. All three issues are negotiable, but the buyer should not remove contingencies until contractor bids are in hand and the lender has confirmed it will fund subject to the permit condition. The underlying bones of the property are sound; the exposure is concentrated and addressable.
+                    <span className="block mt-2 italic text-[#4A4A4A]">This rating reflects the disclosure documents only. It is contingent on inspections confirming the document review and is not a substitute for licensed professional inspection of the property's physical condition.</span>
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* How it works */}
-      <section id="how-it-works" className="py-24 px-6 bg-slate-50">
+      <section id="how-it-works" className="py-24 px-6"
+        style={{ background: "linear-gradient(135deg, #eef2ff 0%, #f0fdf4 100%)" }}>
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16 space-y-3">
-            <p className="text-amber-500 text-sm font-semibold uppercase tracking-widest">How it works</p>
+            <span className="inline-block bg-emerald-100 text-emerald-700 text-xs font-semibold uppercase tracking-widest px-4 py-1.5 rounded-full">
+              How it works
+            </span>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
               From disclosure package to client report in minutes
             </h2>
           </div>
-          <div className="space-y-12">
+          <div className="space-y-10">
             {steps.map((step, i) => (
               <div
                 key={step.number}
-                className={`flex flex-col sm:flex-row gap-8 items-start ${
+                className={`flex flex-col sm:flex-row gap-6 items-start bg-white rounded-2xl p-8 shadow-sm border border-indigo-100/60 ${
                   i % 2 === 1 ? "sm:flex-row-reverse" : ""
                 }`}
               >
                 <div className="flex-shrink-0">
-                  <div className="w-16 h-16 rounded-2xl bg-slate-900 text-amber-400 flex items-center justify-center text-xl font-bold">
+                  <div
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold text-white shadow-lg"
+                    style={{ background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)" }}
+                  >
                     {step.number}
                   </div>
                 </div>
-                <div className="flex-1 pt-2">
+                <div className="flex-1 pt-1">
                   <h3 className="text-xl font-semibold text-slate-900 mb-3">{step.title}</h3>
                   <p className="text-gray-500 leading-relaxed">{step.desc}</p>
                 </div>
@@ -242,35 +468,37 @@ export default function Home() {
       <section className="py-24 px-6 bg-white">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12 space-y-3">
-            <p className="text-amber-500 text-sm font-semibold uppercase tracking-widest">Availability</p>
+            <span className="inline-block bg-amber-100 text-amber-700 text-xs font-semibold uppercase tracking-widest px-4 py-1.5 rounded-full">
+              Availability
+            </span>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">Where Veroax is launching</h2>
             <p className="text-gray-500 text-base">States listed in order of annual residential real estate transaction volume.</p>
           </div>
-          <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-indigo-100 shadow-sm">
             <table className="w-full text-sm text-left">
-              <thead className="bg-slate-900 text-white">
-                <tr>
-                  <th className="px-6 py-4 font-semibold">State</th>
-                  <th className="px-6 py-4 font-semibold">Status</th>
+              <thead>
+                <tr style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)" }}>
+                  <th className="px-6 py-4 font-semibold text-white">State</th>
+                  <th className="px-6 py-4 font-semibold text-white">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-indigo-50">
                 {[
                   { state: "California", status: "live", note: "Live — accepting beta clients" },
                   { state: "Texas", status: "launching soon", note: "" },
                   { state: "Florida", status: "launching soon", note: "" },
                   { state: "Washington", status: "launching soon", note: "" },
                 ].map((row) => (
-                  <tr key={row.state} className="bg-white hover:bg-slate-50 transition-colors">
+                  <tr key={row.state} className="bg-white hover:bg-indigo-50/40 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-900">{row.state}</td>
                     <td className="px-6 py-4">
                       {row.status === "live" ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
                           {row.note}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
                           Launching Soon
                         </span>
@@ -285,16 +513,48 @@ export default function Home() {
       </section>
 
       {/* Contact */}
-      <section id="contact" className="bg-slate-900 text-white py-24 px-6">
-        <div className="max-w-2xl mx-auto">
+      <section
+        id="contact"
+        className="relative overflow-hidden text-white py-24 px-6"
+        style={{ background: "linear-gradient(135deg, #1e3a5f 0%, #1e1b4b 50%, #312e81 100%)" }}
+      >
+        {/* Dot grid overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        />
+        {/* Glow */}
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(251,191,36,0.12) 0%, transparent 70%)" }} />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(99,102,241,0.2) 0%, transparent 70%)" }} />
+
+        <div className="relative max-w-2xl mx-auto">
           <div className="text-center mb-10 space-y-3">
-            <p className="text-amber-400 text-sm font-semibold uppercase tracking-widest">Get in touch</p>
+            <span className="inline-block bg-amber-400/15 border border-amber-400/30 text-amber-300 text-xs font-semibold uppercase tracking-widest px-4 py-1.5 rounded-full">
+              Get in touch
+            </span>
             <h2 className="text-3xl sm:text-4xl font-bold">Be in the Know</h2>
-            <p className="text-slate-300 text-base leading-relaxed">
+            <p className="text-indigo-200 text-base leading-relaxed">
               Veroax is launching first in California, with Florida, Texas, and Washington state close
               behind. If you work with buyers in any of those markets and want to offer a sharper due
               diligence experience, send us a message and we will be in touch.
             </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-x-8 gap-y-2 pt-3 text-sm text-indigo-200">
+              <a
+                href="tel:+18662478833"
+                className="hover:text-white transition-colors"
+              >
+                <span className="font-semibold text-amber-300">(866) AISTUFF</span>
+                <span className="text-indigo-400 mx-2">·</span>
+                (866) 247-8833
+              </a>
+              <span className="hidden sm:inline text-indigo-500">|</span>
+              <span>3964 Rivermark Plaza, Unit #2783, Santa Clara, CA 95054</span>
+            </div>
           </div>
 
           {status === "success" ? (
@@ -305,7 +565,7 @@ export default function Home() {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="grid sm:grid-cols-2 gap-5">
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-1.5">
+                  <label htmlFor="name" className="block text-sm font-medium text-indigo-200 mb-1.5">
                     Name
                   </label>
                   <input
@@ -316,11 +576,11 @@ export default function Home() {
                     value={form.name}
                     onChange={handleChange}
                     placeholder="Jane Smith"
-                    className="w-full rounded-md bg-slate-800 border border-slate-700 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-sm text-white placeholder-indigo-300 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 backdrop-blur-sm"
                   />
                 </div>
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
+                  <label htmlFor="email" className="block text-sm font-medium text-indigo-200 mb-1.5">
                     Email
                   </label>
                   <input
@@ -331,12 +591,12 @@ export default function Home() {
                     value={form.email}
                     onChange={handleChange}
                     placeholder="jane@brokerage.com"
-                    className="w-full rounded-md bg-slate-800 border border-slate-700 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-sm text-white placeholder-indigo-300 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 backdrop-blur-sm"
                   />
                 </div>
               </div>
               <div>
-                <label htmlFor="message" className="block text-sm font-medium text-slate-300 mb-1.5">
+                <label htmlFor="message" className="block text-sm font-medium text-indigo-200 mb-1.5">
                   Message
                 </label>
                 <textarea
@@ -347,7 +607,7 @@ export default function Home() {
                   value={form.message}
                   onChange={handleChange}
                   placeholder="Tell us about your market and what you're looking for..."
-                  className="w-full rounded-md bg-slate-800 border border-slate-700 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                  className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-sm text-white placeholder-indigo-300 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 backdrop-blur-sm resize-none"
                 />
               </div>
               {status === "error" && (
@@ -357,7 +617,7 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={status === "sending"}
-                  className="rounded-md bg-amber-400 text-slate-900 px-7 py-3 text-sm font-semibold hover:bg-amber-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="rounded-lg bg-amber-400 text-indigo-950 px-7 py-3 text-sm font-semibold hover:bg-amber-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-amber-400/20"
                 >
                   {status === "sending" ? "Sending…" : "Send message"}
                 </button>
@@ -368,21 +628,42 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-950 text-slate-400 py-10 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
-          <span className="text-white font-semibold text-base">Veroax, Inc</span>
-          <p>
-            Customer Support &mdash;{" "}
-            <a
-              href="mailto:support@veroax.com"
-              className="hover:text-white underline underline-offset-2 transition-colors"
-            >
-              support@veroax.com
-            </a>
-          </p>
-          <p className="text-slate-600 text-xs">
-            &copy; {new Date().getFullYear()} Veroax. All rights reserved.
-          </p>
+      <footer className="text-slate-400 py-10 px-6"
+        style={{ background: "linear-gradient(135deg, #0f0e2e 0%, #1e1b4b 100%)" }}>
+        <div className="max-w-6xl mx-auto space-y-6 text-sm">
+          <div className="grid gap-6 sm:grid-cols-3 sm:items-start">
+            <div className="space-y-2">
+              <span className="text-white font-bold text-base block">Veroax, Inc</span>
+              <p className="text-slate-400 leading-relaxed">
+                3964 Rivermark Plaza, Unit #2783<br />
+                Santa Clara, CA 95054
+              </p>
+            </div>
+            <div className="space-y-2 sm:text-center">
+              <p className="text-white font-semibold text-xs uppercase tracking-widest">Contact</p>
+              <p>
+                <a
+                  href="tel:+18662478833"
+                  className="hover:text-white transition-colors"
+                >
+                  <span className="font-semibold text-amber-300">(866) AISTUFF</span>
+                  <span className="text-slate-500 mx-1.5">·</span>
+                  (866) 247-8833
+                </a>
+              </p>
+              <p>
+                <a
+                  href="mailto:support@veroax.com"
+                  className="hover:text-white underline underline-offset-2 transition-colors"
+                >
+                  support@veroax.com
+                </a>
+              </p>
+            </div>
+            <p className="text-slate-600 text-xs sm:text-right">
+              &copy; {new Date().getFullYear()} Veroax, Inc. All rights reserved.
+            </p>
+          </div>
         </div>
       </footer>
 
