@@ -90,6 +90,7 @@ const plans = [
     name: "Solo",
     price: "$49",
     period: "/month",
+    perReport: "1 report included · $59 per additional",
     description: "For new agents and low-volume solos building a transaction at a time.",
     features: [
       "1 disclosure report included monthly",
@@ -107,10 +108,11 @@ const plans = [
     name: "Professional",
     price: "$149",
     period: "/month",
+    perReport: "8 reports included · works out to $18.60 each",
     description: "For active agents and small teams running multiple deals a month.",
     features: [
-      "5 disclosure reports included monthly",
-      "$49 per additional report",
+      "8 disclosure reports included monthly",
+      "$29 per additional report",
       "All supported states as they launch (CA, TX, FL, WA)",
       "Priority 12-hour turnaround",
       "Branded PDF — your logo, photo, and contact details",
@@ -125,6 +127,7 @@ const plans = [
     name: "Brokerage",
     price: "Custom",
     period: "",
+    perReport: "Volume pricing — typically under $15 each",
     description: "For brokerages and teams that want disclosure analysis as a built-in service.",
     features: [
       "Unlimited reports across the team",
@@ -667,7 +670,7 @@ export default function Home() {
                 )}
                 <div className="mb-6">
                   <h3 className="text-lg font-bold text-indigo-950 mb-3">{plan.name}</h3>
-                  <div className="flex items-baseline gap-1 mb-3">
+                  <div className="flex items-baseline gap-1 mb-2">
                     <span className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-amber-500 bg-clip-text text-transparent">
                       {plan.price}
                     </span>
@@ -675,6 +678,11 @@ export default function Home() {
                       <span className="text-gray-500 text-sm font-medium">{plan.period}</span>
                     )}
                   </div>
+                  {plan.perReport && (
+                    <p className="text-xs text-indigo-600 font-medium mb-3 min-h-[2rem]">
+                      {plan.perReport}
+                    </p>
+                  )}
                   <p className="text-sm text-gray-500 leading-relaxed min-h-[3rem]">
                     {plan.description}
                   </p>
@@ -711,6 +719,20 @@ export default function Home() {
                 </a>
               </div>
             ))}
+          </div>
+
+          {/* High-volume upsell */}
+          <div className="mt-10 max-w-2xl mx-auto rounded-xl border border-amber-200 bg-amber-50/70 p-5 text-center">
+            <p className="text-sm text-amber-900 leading-relaxed">
+              <span className="font-semibold">Running 15+ reports a month?</span>{" "}
+              <a
+                href="#contact"
+                className="font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-800"
+              >
+                Talk to us about a team plan
+              </a>{" "}
+              — per-report pricing drops meaningfully at higher volume.
+            </p>
           </div>
 
           <div className="mt-10 grid sm:grid-cols-3 gap-4 max-w-4xl mx-auto text-center text-xs text-gray-500">
