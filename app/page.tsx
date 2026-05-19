@@ -88,12 +88,12 @@ const stats = [
 const plans = [
   {
     name: "Solo",
-    price: "$99",
+    price: "$49",
     period: "/month",
-    description: "For individual agents handling one or two transactions a month.",
+    description: "For new agents and low-volume solos building a transaction at a time.",
     features: [
-      "2 disclosure reports included monthly",
-      "$79 per additional report",
+      "1 disclosure report included monthly",
+      "$59 per additional report",
       "California disclosures (TDS, SPQ, AVID, NHD, HOA)",
       "Standard 24-hour turnaround",
       "Email support",
@@ -105,12 +105,12 @@ const plans = [
   },
   {
     name: "Professional",
-    price: "$249",
+    price: "$149",
     period: "/month",
     description: "For active agents and small teams running multiple deals a month.",
     features: [
-      "6 disclosure reports included monthly",
-      "$59 per additional report",
+      "5 disclosure reports included monthly",
+      "$49 per additional report",
       "All supported states as they launch (CA, TX, FL, WA)",
       "Priority 12-hour turnaround",
       "Branded PDF — your logo, photo, and contact details",
@@ -183,10 +183,10 @@ export default function Home() {
             <a href="#contact" className="hover:text-white transition-colors">Contact</a>
           </nav>
           <a
-            href="#contact"
+            href="#pricing"
             className="text-sm font-semibold bg-amber-400 text-indigo-950 px-4 py-2 rounded-lg hover:bg-amber-300 transition-colors shadow-md"
           >
-            Get in touch
+            Try free
           </a>
         </div>
       </header>
@@ -224,10 +224,10 @@ export default function Home() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
             <a
-              href="#contact"
+              href="#pricing"
               className="inline-block bg-amber-400 text-indigo-950 font-semibold px-7 py-3.5 rounded-lg hover:bg-amber-300 transition-colors text-base shadow-lg shadow-amber-400/20"
             >
-              Request early access
+              Start your free report
             </a>
             <a
               href="#how-it-works"
@@ -236,6 +236,9 @@ export default function Home() {
               See how it works
             </a>
           </div>
+          <p className="text-xs text-indigo-300 pt-1">
+            One free report per DRE license · No credit card required
+          </p>
         </div>
       </section>
 
@@ -584,9 +587,67 @@ export default function Home() {
             </h2>
             <p className="text-gray-500 max-w-2xl mx-auto text-base leading-relaxed">
               A Veroax report replaces 3 to 5 hours of agent or paralegal disclosure review per
-              deal — at a defensible quality level the buyer can hold in their hands. Pick the
-              plan that fits your volume.
+              deal — at a defensible quality level the buyer can hold in their hands. Start with
+              one free report, then pick the plan that fits your volume.
             </p>
+          </div>
+
+          {/* Free Trial Banner */}
+          <div
+            className="relative overflow-hidden rounded-2xl mb-12 p-8 sm:p-10 text-white"
+            style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4f46e5 100%)" }}
+          >
+            {/* Glow */}
+            <div
+              className="absolute -top-24 -right-24 w-[300px] h-[300px] rounded-full pointer-events-none"
+              style={{ background: "radial-gradient(circle, rgba(251,191,36,0.20) 0%, transparent 70%)" }}
+            />
+            <div className="absolute -bottom-24 -left-24 w-[300px] h-[300px] rounded-full pointer-events-none"
+              style={{ background: "radial-gradient(circle, rgba(99,102,241,0.25) 0%, transparent 70%)" }} />
+            <div className="relative grid sm:grid-cols-[1fr_auto] items-center gap-6">
+              <div className="space-y-3">
+                <span className="inline-block bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">
+                  New agents start here
+                </span>
+                <h3 className="text-2xl sm:text-3xl font-bold leading-tight">
+                  Try Veroax free with your first report
+                </h3>
+                <p className="text-indigo-200 text-sm sm:text-base leading-relaxed max-w-xl">
+                  Upload a real disclosure package and see the full 14-section analysis before
+                  you pay anything. Verified by your California DRE license number. One trial
+                  per agent — no credit card required.
+                </p>
+                <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1 text-xs text-indigo-300">
+                  <span className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    DRE-verified
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    No credit card
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Full branded PDF
+                  </span>
+                </div>
+              </div>
+              <div className="sm:text-right">
+                <a
+                  href="#contact"
+                  className="inline-block bg-amber-400 text-indigo-950 font-semibold px-7 py-3.5 rounded-lg hover:bg-amber-300 transition-colors text-base shadow-lg shadow-amber-400/20 whitespace-nowrap"
+                >
+                  Claim your free report
+                </a>
+                <p className="text-xs text-indigo-300 mt-3">Takes about 60 seconds to request</p>
+              </div>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 lg:gap-8 items-stretch">
@@ -674,7 +735,7 @@ export default function Home() {
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-8 max-w-2xl mx-auto">
-            Pricing in USD. Annual prepay saves two months on Solo and Professional. Brokerage pricing scales with team size and integrations — contact sales for a tailored quote.
+            Pricing in USD. Free trial is one report per California DRE license number — no credit card required. Annual prepay saves two months on Solo and Professional. Brokerage pricing scales with team size and integrations — contact sales for a tailored quote.
           </p>
         </div>
       </section>
