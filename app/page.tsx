@@ -240,7 +240,7 @@ export default function Home() {
               See what your clients receive
             </h2>
             <p className="text-gray-500 max-w-xl mx-auto text-base leading-relaxed">
-              Every report follows the same 14-section structure. Here is a sample from a South Bay property — real findings, real format.
+              Every report follows the same 14-section structure. The example below is a fictional property used for illustration only — the format and finding types reflect what a real report contains, but the property, owners, and details do not exist.
             </p>
           </div>
 
@@ -254,8 +254,11 @@ export default function Home() {
                 <div className="w-3 h-3 rounded-full bg-green-400" />
               </div>
               <div className="flex-1 mx-2 bg-white rounded px-3 py-1 text-xs text-gray-400 font-mono truncate">
-                1847_Crestview_Dr_San_Jose_Disclosure_Analysis.pdf
+                Sample_Property_Disclosure_Analysis.pdf
               </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded shrink-0">
+                Fictional Example
+              </span>
             </div>
 
             {/* Report body */}
@@ -265,15 +268,15 @@ export default function Home() {
               <div>
                 <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-[#C9A84C] mb-0.5">Disclosure Analysis Report</p>
-                    <h3 className="text-xl font-bold text-[#191970]">1847 Crestview Dr, San Jose, CA 95128</h3>
-                    <p className="text-[#4A4A4A] text-xs mt-1">SFR · 1962 · 1,847 sq ft · 3 bed / 2 bath · South Bay / Silicon Valley</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-[#C9A84C] mb-0.5">Disclosure Analysis Report — Fictional Sample</p>
+                    <h3 className="text-xl font-bold text-[#191970]">123 Example Drive, Sample City, CA 95000</h3>
+                    <p className="text-[#4A4A4A] text-xs mt-1">SFR · 1962 · 1,650 sq ft · 3 bed / 2 bath · Illustrative example only</p>
                   </div>
                   <div className="text-right text-xs text-[#4A4A4A] space-y-0.5 shrink-0">
                     <p><span className="font-semibold">List Price:</span> $1,150,000</p>
                     <p><span className="font-semibold">Days on Market:</span> 12</p>
                     <p><span className="font-semibold">Analysis Date:</span> May 17, 2026</p>
-                    <p><span className="font-semibold">Cost Reference:</span> South Bay / Silicon Valley</p>
+                    <p><span className="font-semibold">Cost Reference:</span> Sample regional library</p>
                   </div>
                 </div>
                 <div className="h-px bg-[#C8C8DC]" />
@@ -294,7 +297,7 @@ export default function Home() {
                       <span className="text-xs font-bold text-white bg-[#7A2E2E] px-3 py-1 rounded-sm uppercase tracking-wide">Critical</span>
                     </div>
                     <div className="px-4 py-3 text-[#1A1A2E] text-xs leading-relaxed italic border-b border-[#C8C8DC] bg-[#FAF8F2]">
-                      "Garage has been converted to living space. No permit is on file with the City of San Jose. Conversion appears to predate current ownership and includes non-code electrical and drywall work." — AVID, p. 4; Permit History search, City of San Jose.
+                      "Garage has been converted to living space. No permit is on file with the local jurisdiction. Conversion appears to predate current ownership and includes non-code electrical and drywall work." — AVID, p. 4; Permit History search.
                     </div>
                     <div className="divide-y divide-[#C8C8DC]">
                       {[
