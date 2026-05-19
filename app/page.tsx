@@ -177,6 +177,22 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState("");
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("monthly");
 
+  function handlePlanSelect(planName: string, period: "monthly" | "annual") {
+    let message: string;
+    if (planName === "Brokerage") {
+      message = "I'd like to talk to sales about a Brokerage / team plan.";
+    } else if (planName === "Free trial") {
+      message = "I'd like to claim my free DRE-verified disclosure report.\n\nMy California DRE license number is: ";
+    } else if (planName === "High volume") {
+      message = "I run 15+ disclosure reports a month and would like to talk about a team / volume plan.";
+    } else {
+      const billingLabel = period === "annual" ? "annual" : "monthly";
+      message = `I'd like to sign up for the ${planName} plan (${billingLabel} billing).`;
+    }
+    setForm((prev) => ({ ...prev, message }));
+    setStatus("idle");
+  }
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
@@ -672,6 +688,7 @@ export default function Home() {
               <div className="sm:text-right">
                 <a
                   href="#contact"
+                  onClick={() => handlePlanSelect("Free trial", billingPeriod)}
                   className="inline-block bg-amber-400 text-indigo-950 font-semibold px-7 py-3.5 rounded-lg hover:bg-amber-300 transition-colors text-base shadow-lg shadow-amber-400/20 whitespace-nowrap"
                 >
                   Claim your free report
@@ -788,6 +805,7 @@ export default function Home() {
                 </ul>
                 <a
                   href="#contact"
+                  onClick={() => handlePlanSelect(plan.name, billingPeriod)}
                   className={`block text-center font-semibold px-6 py-3 rounded-lg transition-colors ${
                     plan.highlighted
                       ? "bg-amber-400 text-indigo-950 hover:bg-amber-300 shadow-lg shadow-amber-400/20"
@@ -806,6 +824,7 @@ export default function Home() {
               <span className="font-semibold">Running 15+ reports a month?</span>{" "}
               <a
                 href="#contact"
+                onClick={() => handlePlanSelect("High volume", billingPeriod)}
                 className="font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-800"
               >
                 Talk to us about a team plan
