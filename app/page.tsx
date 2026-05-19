@@ -85,10 +85,31 @@ const stats = [
   { value: "7 yr", label: "Audit log retention" },
 ];
 
-const plans = [
+type PricePoint = {
+  price: string;
+  billed: string | null;
+  savings: string | null;
+};
+
+type Plan = {
+  name: string;
+  pricing: { monthly: PricePoint; annual: PricePoint };
+  period: string;
+  perReport: string;
+  description: string;
+  features: string[];
+  cta: string;
+  highlighted: boolean;
+  badge: string | null;
+};
+
+const plans: Plan[] = [
   {
     name: "Solo",
-    price: "$49",
+    pricing: {
+      monthly: { price: "$49", billed: null, savings: null },
+      annual: { price: "$40", billed: "$480 billed annually", savings: "Save $108" },
+    },
     period: "/month",
     perReport: "1 report included · $59 per additional",
     description: "For new agents and low-volume solos building a transaction at a time.",
@@ -106,7 +127,10 @@ const plans = [
   },
   {
     name: "Professional",
-    price: "$149",
+    pricing: {
+      monthly: { price: "$149", billed: null, savings: null },
+      annual: { price: "$124", billed: "$1,488 billed annually", savings: "Save $300" },
+    },
     period: "/month",
     perReport: "8 reports included · works out to $18.60 each",
     description: "For active agents and small teams running multiple deals a month.",
@@ -125,7 +149,10 @@ const plans = [
   },
   {
     name: "Brokerage",
-    price: "Custom",
+    pricing: {
+      monthly: { price: "Custom", billed: null, savings: null },
+      annual: { price: "Custom", billed: null, savings: null },
+    },
     period: "",
     perReport: "Volume pricing — typically under $15 each",
     description: "For brokerages and teams that want disclosure analysis as a built-in service.",
@@ -148,6 +175,7 @@ export default function Home() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "annual">("monthly");
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -653,6 +681,45 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Billing period toggle */}
+          <div className="flex justify-center mb-12">
+            <div
+              role="tablist"
+              aria-label="Billing period"
+              className="inline-flex items-center p-1 bg-indigo-100 rounded-full shadow-sm"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={billingPeriod === "monthly"}
+                onClick={() => setBillingPeriod("monthly")}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                  billingPeriod === "monthly"
+                    ? "bg-white text-indigo-950 shadow-sm"
+                    : "text-indigo-700 hover:text-indigo-900"
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={billingPeriod === "annual"}
+                onClick={() => setBillingPeriod("annual")}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
+                  billingPeriod === "annual"
+                    ? "bg-white text-indigo-950 shadow-sm"
+                    : "text-indigo-700 hover:text-indigo-900"
+                }`}
+              >
+                Annual
+                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                  Save 2 months
+                </span>
+              </button>
+            </div>
+          </div>
+
           <div className="grid md:grid-cols-3 gap-6 lg:gap-8 items-stretch">
             {plans.map((plan) => (
               <div
@@ -670,12 +737,24 @@ export default function Home() {
                 )}
                 <div className="mb-6">
                   <h3 className="text-lg font-bold text-indigo-950 mb-3">{plan.name}</h3>
-                  <div className="flex items-baseline gap-1 mb-2">
+                  <div className="flex items-baseline gap-1 mb-1">
                     <span className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-amber-500 bg-clip-text text-transparent">
-                      {plan.price}
+                      {plan.pricing[billingPeriod].price}
                     </span>
                     {plan.period && (
                       <span className="text-gray-500 text-sm font-medium">{plan.period}</span>
+                    )}
+                  </div>
+                  <div className="min-h-[1.5rem] mb-2 flex items-center gap-2 flex-wrap">
+                    {plan.pricing[billingPeriod].billed && (
+                      <span className="text-xs text-gray-500">
+                        {plan.pricing[billingPeriod].billed}
+                      </span>
+                    )}
+                    {plan.pricing[billingPeriod].savings && (
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        {plan.pricing[billingPeriod].savings}
+                      </span>
                     )}
                   </div>
                   {plan.perReport && (
