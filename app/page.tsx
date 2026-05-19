@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, FormEvent } from "react";
 
 const features = [
   {
@@ -86,12 +86,30 @@ const stats = [
 ];
 
 export default function Home() {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setSubmitted(true);
+    setStatus("sending");
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Something went wrong.");
+      setStatus("success");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
+      setStatus("error");
+    }
   }
 
   return (
@@ -104,13 +122,13 @@ export default function Home() {
           <nav className="hidden sm:flex items-center gap-8 text-sm text-slate-300">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
-            <a href="#early-access" className="hover:text-white transition-colors">Early access</a>
+            <a href="#contact" className="hover:text-white transition-colors">Contact</a>
           </nav>
           <a
-            href="#early-access"
+            href="#contact"
             className="text-sm font-medium bg-amber-400 text-slate-900 px-4 py-2 rounded-md hover:bg-amber-300 transition-colors"
           >
-            Get early access
+            Get in touch
           </a>
         </div>
       </header>
@@ -266,40 +284,84 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Early access / CTA */}
-      <section id="early-access" className="bg-slate-900 text-white py-24 px-6 text-center">
-        <div className="max-w-xl mx-auto space-y-6">
-          <p className="text-amber-400 text-sm font-semibold uppercase tracking-widest">Early access</p>
-          <h2 className="text-3xl sm:text-4xl font-bold">
-            Be in the Know
-          </h2>
-          <p className="text-slate-300 text-base leading-relaxed">
-            Veroax is launching first in California, with Florida, Texas, and Washington state close
-            behind. If you work with buyers in any of those markets and want to offer a sharper due
-            diligence experience, drop your email and we will be in touch when your state goes live.
-          </p>
-          {submitted ? (
-            <p className="text-amber-400 font-medium text-lg">
-              Thanks — we will be in touch.
+      {/* Contact */}
+      <section id="contact" className="bg-slate-900 text-white py-24 px-6">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-10 space-y-3">
+            <p className="text-amber-400 text-sm font-semibold uppercase tracking-widest">Get in touch</p>
+            <h2 className="text-3xl sm:text-4xl font-bold">Be in the Know</h2>
+            <p className="text-slate-300 text-base leading-relaxed">
+              Veroax is launching first in California, with Florida, Texas, and Washington state close
+              behind. If you work with buyers in any of those markets and want to offer a sharper due
+              diligence experience, send us a message and we will be in touch.
+            </p>
+          </div>
+
+          {status === "success" ? (
+            <p className="text-center text-amber-400 font-medium text-lg">
+              Message sent — we will be in touch shortly.
             </p>
           ) : (
-            <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto pt-2">
-              <label htmlFor="email" className="sr-only">Email address</label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="flex-1 rounded-md bg-slate-800 border border-slate-700 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
-              />
-              <button
-                type="submit"
-                className="rounded-md bg-amber-400 text-slate-900 px-5 py-3 text-sm font-semibold hover:bg-amber-300 transition-colors whitespace-nowrap"
-              >
-                Get early access
-              </button>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="grid sm:grid-cols-2 gap-5">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-1.5">
+                    Name
+                  </label>
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    required
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="Jane Smith"
+                    className="w-full rounded-md bg-slate-800 border border-slate-700 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    value={form.email}
+                    onChange={handleChange}
+                    placeholder="jane@brokerage.com"
+                    className="w-full rounded-md bg-slate-800 border border-slate-700 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="message" className="block text-sm font-medium text-slate-300 mb-1.5">
+                  Message
+                </label>
+                <textarea
+                  id="message"
+                  name="message"
+                  required
+                  rows={5}
+                  value={form.message}
+                  onChange={handleChange}
+                  placeholder="Tell us about your market and what you're looking for..."
+                  className="w-full rounded-md bg-slate-800 border border-slate-700 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                />
+              </div>
+              {status === "error" && (
+                <p className="text-red-400 text-sm">{errorMsg}</p>
+              )}
+              <div className="text-right">
+                <button
+                  type="submit"
+                  disabled={status === "sending"}
+                  className="rounded-md bg-amber-400 text-slate-900 px-7 py-3 text-sm font-semibold hover:bg-amber-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {status === "sending" ? "Sending…" : "Send message"}
+                </button>
+              </div>
             </form>
           )}
         </div>
