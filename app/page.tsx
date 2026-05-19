@@ -85,6 +85,62 @@ const stats = [
   { value: "7 yr", label: "Audit log retention" },
 ];
 
+const plans = [
+  {
+    name: "Solo",
+    price: "$99",
+    period: "/month",
+    description: "For individual agents handling one or two transactions a month.",
+    features: [
+      "2 disclosure reports included monthly",
+      "$79 per additional report",
+      "California disclosures (TDS, SPQ, AVID, NHD, HOA)",
+      "Standard 24-hour turnaround",
+      "Email support",
+      "Month-to-month — cancel anytime",
+    ],
+    cta: "Start with Solo",
+    highlighted: false,
+    badge: null,
+  },
+  {
+    name: "Professional",
+    price: "$249",
+    period: "/month",
+    description: "For active agents and small teams running multiple deals a month.",
+    features: [
+      "6 disclosure reports included monthly",
+      "$59 per additional report",
+      "All supported states as they launch (CA, TX, FL, WA)",
+      "Priority 12-hour turnaround",
+      "Branded PDF — your logo, photo, and contact details",
+      "Buyer-ready summary email template included",
+      "Phone and email support",
+    ],
+    cta: "Choose Professional",
+    highlighted: true,
+    badge: "Most Popular",
+  },
+  {
+    name: "Brokerage",
+    price: "Custom",
+    period: "",
+    description: "For brokerages and teams that want disclosure analysis as a built-in service.",
+    features: [
+      "Unlimited reports across the team",
+      "Multi-agent admin dashboard",
+      "White-label branding (broker logo and colors)",
+      "Dedicated success manager",
+      "CRM, dotloop, and Skyslope integrations",
+      "Volume pricing on overages",
+      "Annual contract with quarterly business review",
+    ],
+    cta: "Talk to sales",
+    highlighted: false,
+    badge: null,
+  },
+];
+
 export default function Home() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
@@ -123,6 +179,7 @@ export default function Home() {
           <nav className="hidden sm:flex items-center gap-8 text-sm text-indigo-200">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
+            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <a href="#contact" className="hover:text-white transition-colors">Contact</a>
           </nav>
           <a
@@ -512,6 +569,113 @@ export default function Home() {
               </tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="py-24 px-6 bg-gradient-to-b from-white to-indigo-50/40">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16 space-y-3">
+            <span className="inline-block bg-indigo-100 text-indigo-700 text-xs font-semibold uppercase tracking-widest px-4 py-1.5 rounded-full">
+              Pricing
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
+              Pricing that pays for itself on the first transaction
+            </h2>
+            <p className="text-gray-500 max-w-2xl mx-auto text-base leading-relaxed">
+              A Veroax report replaces 3 to 5 hours of agent or paralegal disclosure review per
+              deal — at a defensible quality level the buyer can hold in their hands. Pick the
+              plan that fits your volume.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6 lg:gap-8 items-stretch">
+            {plans.map((plan) => (
+              <div
+                key={plan.name}
+                className={`relative rounded-2xl p-8 flex flex-col ${
+                  plan.highlighted
+                    ? "bg-white border-2 border-amber-400 shadow-2xl shadow-amber-400/15 md:-translate-y-2"
+                    : "bg-white border border-indigo-100 shadow-sm"
+                }`}
+              >
+                {plan.badge && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-indigo-950 text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md whitespace-nowrap">
+                    {plan.badge}
+                  </span>
+                )}
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold text-indigo-950 mb-3">{plan.name}</h3>
+                  <div className="flex items-baseline gap-1 mb-3">
+                    <span className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-amber-500 bg-clip-text text-transparent">
+                      {plan.price}
+                    </span>
+                    {plan.period && (
+                      <span className="text-gray-500 text-sm font-medium">{plan.period}</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500 leading-relaxed min-h-[3rem]">
+                    {plan.description}
+                  </p>
+                </div>
+                <ul className="space-y-3 mb-8 flex-1">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2.5 text-sm text-slate-700">
+                      <svg
+                        className="w-4 h-4 mt-0.5 text-emerald-500 shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      <span className="leading-relaxed">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <a
+                  href="#contact"
+                  className={`block text-center font-semibold px-6 py-3 rounded-lg transition-colors ${
+                    plan.highlighted
+                      ? "bg-amber-400 text-indigo-950 hover:bg-amber-300 shadow-lg shadow-amber-400/20"
+                      : "bg-indigo-950 text-white hover:bg-indigo-900"
+                  }`}
+                >
+                  {plan.cta}
+                </a>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-10 grid sm:grid-cols-3 gap-4 max-w-4xl mx-auto text-center text-xs text-gray-500">
+            <div className="flex items-center justify-center gap-2">
+              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+              </svg>
+              <span>Every plan includes the full 14-section analysis</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span>PII purged after every report — privacy by design</span>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Agent QA spot-check before every delivery</span>
+            </div>
+          </div>
+
+          <p className="text-center text-xs text-gray-400 mt-8 max-w-2xl mx-auto">
+            Pricing in USD. Annual prepay saves two months on Solo and Professional. Brokerage pricing scales with team size and integrations — contact sales for a tailored quote.
+          </p>
         </div>
       </section>
 
