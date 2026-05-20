@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AnalysisRunner } from "./_components/AnalysisRunner";
+import { RetryButton } from "./_components/RetryButton";
 import type {
   ReportData,
   Finding,
@@ -75,17 +76,24 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
 
       {/* Failed state */}
       {report.status === "failed" && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
-          <h2 className="text-base font-bold text-red-900 mb-1">
-            Analysis didn&apos;t complete
-          </h2>
-          <p className="text-sm text-red-800 mb-3">{report.failure_reason}</p>
-          <Link
-            href={`/dashboard/upload`}
-            className="text-xs font-semibold text-red-900 underline underline-offset-2"
-          >
-            Start a new report
-          </Link>
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 space-y-3">
+          <div>
+            <h2 className="text-base font-bold text-red-900 mb-1">
+              Analysis didn&apos;t complete
+            </h2>
+            <p className="text-sm text-red-800">{report.failure_reason}</p>
+          </div>
+          <RetryButton reportId={report.id} />
+          <p className="text-xs text-red-700/80">
+            Or{" "}
+            <Link
+              href="/dashboard/upload"
+              className="font-semibold underline underline-offset-2"
+            >
+              start a new report
+            </Link>{" "}
+            if you&apos;d rather upload different files.
+          </p>
         </div>
       )}
 
