@@ -867,7 +867,25 @@ export default function Home() {
             </div>
           </div>
 
-          <p className="text-center text-xs text-gray-400 mt-8 max-w-2xl mx-auto">
+          <p className="text-center text-xs text-gray-500 mt-8 max-w-2xl mx-auto">
+            By subscribing, you agree to our{" "}
+            <a
+              href="/terms"
+              className="text-indigo-700 underline underline-offset-2 hover:text-indigo-900"
+            >
+              Terms of Service
+            </a>{" "}
+            and{" "}
+            <a
+              href="/privacy"
+              className="text-indigo-700 underline underline-offset-2 hover:text-indigo-900"
+            >
+              Privacy Policy
+            </a>
+            .
+          </p>
+
+          <p className="text-center text-xs text-gray-400 mt-3 max-w-2xl mx-auto">
             Pricing in USD. Free trial is one report per California DRE license number — no credit card required. Annual prepay saves two months on Solo and Professional. Brokerage pricing scales with team size and integrations — contact sales for a tailored quote.
           </p>
         </div>
