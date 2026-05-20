@@ -1,19 +1,23 @@
 import { NextResponse } from "next/server";
 import AdmZip from "adm-zip";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { splitPdfIfNeeded, countPages, MAX_PAGES_PER_CHUNK } from "@/lib/pdf/split";
 
 // Called after client-side uploads to "disclosures/{user_id}/{report_id}/..."
 // finish. Server's job:
 //   1. Auth-check that the report belongs to the caller
 //   2. Find any uploaded ZIPs, download them, extract PDFs, re-upload as
 //      siblings, delete the ZIP
-//   3. Mark the report status as "analyzing" and (later) trigger analysis
+//   3. Split any PDFs over Anthropic's 100-page limit into chunks
+//   4. Mark the report status as "analyzing" and trigger analysis
 //
 // We use the service-role client for storage operations because the user's
 // session token isn't always available inside Vercel functions for large
 // downloads — but we keep RLS-respecting access for the reports table check.
 
-export const maxDuration = 60;
+// PDF splitting can take a few seconds per long document. 300s ceiling
+// gives us headroom for multi-document HOA packages.
+export const maxDuration = 300;
 
 export async function POST(
   request: Request,
@@ -100,8 +104,80 @@ export async function POST(
     }
   }
 
-  // List final set of PDFs in the report folder for the audit log.
   const folder = `${user.id}/${reportId}`;
+
+  // Split any PDF that exceeds Claude's 100-page-per-document limit into
+  // 90-page chunks. This makes HOA CC&Rs, Bylaws, and other long documents
+  // analyzable without ever bumping into the per-document page cap.
+  let pagesSplitTotal = 0;
+  let pdfsSplitCount = 0;
+  try {
+    const { data: extractedFiles } = await admin.storage
+      .from("disclosures")
+      .list(folder, { limit: 100 });
+    const pdfsToCheck = (extractedFiles ?? []).filter((f) =>
+      f.name.toLowerCase().endsWith(".pdf"),
+    );
+
+    for (const file of pdfsToCheck) {
+      const path = `${folder}/${file.name}`;
+      const { data: blob, error: dlErr } = await admin.storage
+        .from("disclosures")
+        .download(path);
+      if (dlErr || !blob) {
+        // Skip on download failure rather than fail the whole report —
+        // the analyze step will surface a clearer error if needed.
+        continue;
+      }
+      const buffer = Buffer.from(await blob.arrayBuffer());
+
+      let pageCount: number;
+      try {
+        pageCount = await countPages(buffer);
+      } catch {
+        // Unreadable PDF (encrypted, malformed). Leave it for analyze
+        // to handle/report; don't try to split.
+        continue;
+      }
+
+      if (pageCount <= MAX_PAGES_PER_CHUNK) continue;
+
+      const chunks = await splitPdfIfNeeded(buffer, file.name);
+      if (chunks.length <= 1) continue;
+
+      // Upload each chunk into the same folder.
+      for (const chunk of chunks) {
+        const chunkPath = `${folder}/${chunk.name}`;
+        const { error: upErr } = await admin.storage
+          .from("disclosures")
+          .upload(chunkPath, chunk.buffer, {
+            contentType: "application/pdf",
+            upsert: true,
+          });
+        if (upErr) {
+          throw new Error(
+            `Could not upload chunk ${chunk.name}: ${upErr.message}`,
+          );
+        }
+      }
+
+      // Remove the oversized original now that the chunks exist.
+      await admin.storage.from("disclosures").remove([path]);
+
+      pagesSplitTotal += pageCount;
+      pdfsSplitCount += 1;
+    }
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "PDF splitting failed.";
+    await supabase
+      .from("reports")
+      .update({ status: "failed", failure_reason: message })
+      .eq("id", reportId);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
+  // List final set of PDFs in the report folder for the audit log.
   const { data: finalFiles } = await admin.storage
     .from("disclosures")
     .list(folder, { limit: 100 });
@@ -128,12 +204,18 @@ export async function POST(
     user_id: user.id,
     report_id: reportId,
     event_type: "report.finalized",
-    metadata: { pdf_count: pdfCount, zip_count: zipPaths.length },
+    metadata: {
+      pdf_count: pdfCount,
+      zip_count: zipPaths.length,
+      pdfs_split: pdfsSplitCount,
+      pages_split: pagesSplitTotal,
+    },
   });
 
   return NextResponse.json({
     ok: true,
     pdf_count: pdfCount,
     zip_count_extracted: zipPaths.length,
+    pdfs_split: pdfsSplitCount,
   });
 }
