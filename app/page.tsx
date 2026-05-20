@@ -1025,6 +1025,23 @@ export default function Home() {
               &copy; {new Date().getFullYear()} Veroax, Inc. All rights reserved.
             </p>
           </div>
+          <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+            <div className="flex items-center gap-5">
+              <a
+                href="/terms"
+                className="hover:text-white transition-colors underline underline-offset-2"
+              >
+                Terms of Service
+              </a>
+              <a
+                href="/privacy"
+                className="hover:text-white transition-colors underline underline-offset-2"
+              >
+                Privacy Policy
+              </a>
+            </div>
+            <p>Built in California · Serving licensed real estate professionals</p>
+          </div>
         </div>
       </footer>
 
