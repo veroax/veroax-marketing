@@ -113,12 +113,15 @@ const USER_INSTRUCTION = `Analyze the attached disclosure package and submit the
 Use the property address hint (if provided) to set the market_region. Otherwise, extract the market_region from the address in the documents.`;
 
 type AnalyzeInput = {
-  // PDFs referenced by Anthropic file_id from the Files API. Uploading
-  // each PDF to Files first, then referencing by file_id in the
-  // analysis message, is the path Anthropic's Cowork app uses and the
-  // path that avoids the inline-document page total cap that affects
-  // base64- and URL-source attachments in a single Messages request.
-  files: Array<{ filename: string; file_id: string; pages: number }>;
+  // Each PDF's text content, extracted server-side. We send text rather
+  // than PDF document attachments because PDFs are ~1500 tokens per page
+  // (image + OCR layer), which puts a typical 500-800 page CA disclosure
+  // package well over Sonnet's 200K context window. Extracted text is
+  // ~300 tokens per page, keeping us comfortably under.
+  // Trade-off: we lose visual fidelity (form checkboxes, inspection
+  // photos, signature pages). Most analysis-relevant content is still in
+  // the text — narrative responses, findings, financials, legal terms.
+  documents: Array<{ filename: string; text: string; pages: number }>;
   propertyAddressHint?: string | null;
 };
 
@@ -136,21 +139,26 @@ export async function analyzeDisclosurePackage(
 ): Promise<AnalyzeResult> {
   const client = getAnthropicClient();
 
-  // Build the message content: each PDF as a document block referencing
-  // the uploaded Files API file_id, followed by the instruction text.
-  // The title field is what Claude uses for source citations. We use
-  // Anthropic's BETA messages API because the file_id document source
-  // is not yet in the stable types.
-  const content: Anthropic.Beta.Messages.BetaContentBlockParam[] = input.files.map(
-    (file) => ({
-      type: "document",
-      source: {
-        type: "file",
-        file_id: file.file_id,
-      },
-      title: file.filename,
-    }),
-  );
+  // Build the message content: one text block per document with clear
+  // delimiters so Claude can cite by filename, followed by the
+  // instruction text.
+  const content: Anthropic.Messages.ContentBlockParam[] = [];
+  for (const doc of input.documents) {
+    const body = doc.text
+      ? doc.text
+      : `[No text could be extracted from this PDF. It may be a scan without OCR. ` +
+        `Use other documents in the package to inform findings; cite this file only ` +
+        `when its filename or position in the package is itself informative.]`;
+    content.push({
+      type: "text",
+      text:
+        `===== BEGIN DOCUMENT =====\n` +
+        `Filename: ${doc.filename}\n` +
+        `Pages: ${doc.pages}\n\n` +
+        `${body}\n\n` +
+        `===== END DOCUMENT (${doc.filename}) =====`,
+    });
+  }
 
   content.push({
     type: "text",
@@ -162,31 +170,25 @@ export async function analyzeDisclosurePackage(
   });
 
   const response = await callWithRateLimitRetry(() =>
-    client.beta.messages.create(
-      {
-        model: ANALYSIS_MODEL,
-        max_tokens: 16000,
-        system: SYSTEM_PROMPT,
-        tools: [REPORT_TOOL_SCHEMA],
-        tool_choice: { type: "tool", name: REPORT_TOOL_SCHEMA.name },
-        messages: [
-          {
-            role: "user",
-            content,
-          },
-        ],
-        // Beta features used: files-api-2025-04-14 for file_id document
-        // sources. This is the same path Anthropic's Cowork app uses to
-        // bypass the 100-page total cap on inline document attachments.
-        betas: ["files-api-2025-04-14"],
-      },
-    ),
+    client.messages.create({
+      model: ANALYSIS_MODEL,
+      max_tokens: 16000,
+      system: SYSTEM_PROMPT,
+      tools: [REPORT_TOOL_SCHEMA],
+      tool_choice: { type: "tool", name: REPORT_TOOL_SCHEMA.name },
+      messages: [
+        {
+          role: "user",
+          content,
+        },
+      ],
+    }),
   );
 
   // Extract the tool_use block — there should be exactly one because we
   // forced tool_choice. Defensive: locate it explicitly.
   const toolUse = response.content.find(
-    (c): c is Anthropic.Beta.Messages.BetaToolUseBlock => c.type === "tool_use",
+    (c): c is Anthropic.Messages.ToolUseBlock => c.type === "tool_use",
   );
   if (!toolUse) {
     throw new Error(
