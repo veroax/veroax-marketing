@@ -43,7 +43,10 @@ const USER_INSTRUCTION = `Analyze the attached disclosure package and submit the
 Use the property address hint (if provided) to set the market_region. Otherwise, extract the market_region from the address in the documents.`;
 
 type AnalyzeInput = {
-  pdfs: Array<{ filename: string; base64: string }>;
+  // PDFs are passed as signed URLs that Anthropic fetches directly.
+  // Avoids the request body size limit that base64-encoded PDFs hit
+  // even for modest disclosure packages.
+  pdfs: Array<{ filename: string; url: string }>;
   propertyAddressHint?: string | null;
 };
 
@@ -61,14 +64,14 @@ export async function analyzeDisclosurePackage(
 ): Promise<AnalyzeResult> {
   const client = getAnthropicClient();
 
-  // Build the message content: each PDF as a document block, followed by
-  // the text instruction. Claude reads PDFs natively.
+  // Build the message content: each PDF as a URL document block, followed
+  // by the text instruction. Claude fetches the PDF from the signed URL
+  // and reads it natively.
   const content: Anthropic.Messages.ContentBlockParam[] = input.pdfs.map((pdf) => ({
     type: "document",
     source: {
-      type: "base64",
-      media_type: "application/pdf",
-      data: pdf.base64,
+      type: "url",
+      url: pdf.url,
     },
     // Title helps Claude reference the document by filename in citations.
     title: pdf.filename,

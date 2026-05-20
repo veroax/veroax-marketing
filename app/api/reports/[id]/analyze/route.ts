@@ -61,22 +61,25 @@ export async function POST(
     return await fail(supabase, reportId, "No PDF files found for this report.");
   }
 
-  // Download each PDF as base64.
-  const pdfPayloads: Array<{ filename: string; base64: string }> = [];
+  // Generate short-lived signed URLs for each PDF. Anthropic fetches the
+  // PDFs from these URLs during the analysis call. Using URLs instead of
+  // base64 avoids the request body size limit (5 MB) that base64-encoded
+  // PDFs blow past even on modest disclosure packages.
+  const SIGNED_URL_TTL_SECONDS = 3600; // 1 hour — plenty for a single analysis run
+  const pdfPayloads: Array<{ filename: string; url: string }> = [];
   for (const f of pdfs) {
     const path = `${folder}/${f.name}`;
-    const { data: blob, error: dlErr } = await admin.storage
+    const { data: signed, error: signErr } = await admin.storage
       .from("disclosures")
-      .download(path);
-    if (dlErr || !blob) {
+      .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+    if (signErr || !signed?.signedUrl) {
       return await fail(
         supabase,
         reportId,
-        `Could not download ${f.name}: ${dlErr?.message ?? "unknown error"}`,
+        `Could not create signed URL for ${f.name}: ${signErr?.message ?? "unknown error"}`,
       );
     }
-    const buffer = Buffer.from(await blob.arrayBuffer());
-    pdfPayloads.push({ filename: f.name, base64: buffer.toString("base64") });
+    pdfPayloads.push({ filename: f.name, url: signed.signedUrl });
   }
 
   // Run the Claude analysis.
