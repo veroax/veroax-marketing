@@ -1,13 +1,15 @@
 import { PDFDocument } from "pdf-lib";
 
-// Claude's hard limit is 100 pages per PDF document attachment. We split
-// to 60 pages — a 40% buffer below the hard limit — because Anthropic's
-// page counter disagrees with pdf-lib for image-heavy/scanned PDFs.
-// Observed failures with 90-page chunks where pdf-lib counted exactly 90
-// but Claude rejected with "100 pages" errors, most likely because
-// scanned pages with OCR overlays count as multiple logical pages on
-// Anthropic's side.
-export const MAX_PAGES_PER_CHUNK = 60;
+// Claude's per-PDF limit is ~100 pages (model-level constraint on PDF
+// rendering, independent of how the PDF reaches Anthropic). With the
+// Files API now handling the per-request total cap, the per-document
+// limit is our only remaining concern. 90 leaves a small safety margin
+// without over-fragmenting citations.
+//
+// We previously dropped this to 60 chasing what turned out to be a
+// per-request total cap, not a per-document one. Now that the Files
+// API path handles the per-request side, we can return to 90 here.
+export const MAX_PAGES_PER_CHUNK = 90;
 
 export type PdfChunk = {
   name: string;
