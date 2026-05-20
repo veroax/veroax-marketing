@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { analyzeDisclosurePackage } from "@/lib/anthropic/analyze";
+import { extractText, estimateTokens } from "@/lib/pdf/extract";
+
+// Sonnet context window. We leave headroom for the system prompt,
+// tool schema, and the model's reasoning, so we cap document content
+// at a value below the raw 200K limit.
+const DOCUMENT_TOKEN_BUDGET = 150_000;
 
 // Runs the disclosure analysis for a report whose source PDFs are already
 // in Supabase Storage. Called by the client AnalysisRunner component once
@@ -61,32 +67,84 @@ export async function POST(
     return await fail(supabase, reportId, "No PDF files found for this report.");
   }
 
-  // Generate short-lived signed URLs for each PDF. Anthropic fetches the
-  // PDFs from these URLs during the analysis call. Using URLs instead of
-  // base64 avoids the request body size limit (5 MB) that base64-encoded
-  // PDFs blow past even on modest disclosure packages.
-  const SIGNED_URL_TTL_SECONDS = 3600; // 1 hour — plenty for a single analysis run
-  const pdfPayloads: Array<{ filename: string; url: string }> = [];
+  // Extract text from each PDF. We send Claude the text content rather
+  // than PDF document attachments because Anthropic enforces a 100-page
+  // total cap across all PDF document blocks in a single request — a
+  // typical CA disclosure package (TDS, SPQ, AVID, NHD, HOA docs,
+  // inspection report) blows past that easily. Text content blocks
+  // have no equivalent page limit; only the model's context window
+  // applies. Trade-off: we lose form-field/checkbox visual fidelity
+  // (TDS/SPQ specifically), but pick that back up later via a hybrid
+  // approach that mixes a few short PDFs with text content.
+  const documents: Array<{ filename: string; text: string; pages: number }> = [];
+  let totalEstimatedTokens = 0;
+  const skipped: Array<{ filename: string; reason: string }> = [];
+
   for (const f of pdfs) {
     const path = `${folder}/${f.name}`;
-    const { data: signed, error: signErr } = await admin.storage
+    const { data: blob, error: dlErr } = await admin.storage
       .from("disclosures")
-      .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
-    if (signErr || !signed?.signedUrl) {
+      .download(path);
+    if (dlErr || !blob) {
       return await fail(
         supabase,
         reportId,
-        `Could not create signed URL for ${f.name}: ${signErr?.message ?? "unknown error"}`,
+        `Could not download ${f.name}: ${dlErr?.message ?? "unknown error"}`,
       );
     }
-    pdfPayloads.push({ filename: f.name, url: signed.signedUrl });
+    const buffer = Buffer.from(await blob.arrayBuffer());
+
+    let extracted;
+    try {
+      extracted = await extractText(buffer);
+    } catch (err) {
+      // Don't fail the whole analysis on one bad PDF — extract what we
+      // can and note the others in the audit log. The system prompt's
+      // grounded-in-source rule will keep findings tied to documents
+      // that DID extract cleanly.
+      skipped.push({
+        filename: f.name,
+        reason: err instanceof Error ? err.message : "parse failed",
+      });
+      continue;
+    }
+
+    const docTokens = estimateTokens(extracted.text);
+
+    // If adding this document would exceed budget, skip it and continue
+    // with what we have. Doing this in filename order gives reasonable
+    // behavior for typical packages where the most important documents
+    // come first (TDS, SPQ, inspections), with HOA package boilerplate
+    // last.
+    if (totalEstimatedTokens + docTokens > DOCUMENT_TOKEN_BUDGET) {
+      skipped.push({
+        filename: f.name,
+        reason: `Would exceed context budget (~${docTokens.toLocaleString()} tokens)`,
+      });
+      continue;
+    }
+
+    documents.push({
+      filename: f.name,
+      text: extracted.text,
+      pages: extracted.pages,
+    });
+    totalEstimatedTokens += docTokens;
+  }
+
+  if (documents.length === 0) {
+    return await fail(
+      supabase,
+      reportId,
+      "Could not extract text from any of the uploaded documents.",
+    );
   }
 
   // Run the Claude analysis.
   let result;
   try {
     result = await analyzeDisclosurePackage({
-      pdfs: pdfPayloads,
+      documents,
       propertyAddressHint: report.property_address,
     });
   } catch (err) {
@@ -119,7 +177,10 @@ export async function POST(
     report_id: reportId,
     event_type: "report.analyzed",
     metadata: {
-      pdf_count: pdfPayloads.length,
+      pdf_count: pdfs.length,
+      documents_used: documents.length,
+      documents_skipped: skipped,
+      estimated_input_tokens: totalEstimatedTokens,
       model: result.model,
       input_tokens: result.usage.input_tokens,
       output_tokens: result.usage.output_tokens,

@@ -113,10 +113,12 @@ const USER_INSTRUCTION = `Analyze the attached disclosure package and submit the
 Use the property address hint (if provided) to set the market_region. Otherwise, extract the market_region from the address in the documents.`;
 
 type AnalyzeInput = {
-  // PDFs are passed as signed URLs that Anthropic fetches directly.
-  // Avoids the request body size limit that base64-encoded PDFs hit
-  // even for modest disclosure packages.
-  pdfs: Array<{ filename: string; url: string }>;
+  // Extracted text content from each PDF. Sent as text blocks rather than
+  // PDF document attachments because Anthropic enforces a 100-page total
+  // limit across all PDF document blocks in a single request — which a
+  // typical 700-1000 page disclosure package exceeds. Text content has
+  // no such limit (only the model's context window applies).
+  documents: Array<{ filename: string; text: string; pages: number }>;
   propertyAddressHint?: string | null;
 };
 
@@ -134,18 +136,25 @@ export async function analyzeDisclosurePackage(
 ): Promise<AnalyzeResult> {
   const client = getAnthropicClient();
 
-  // Build the message content: each PDF as a URL document block, followed
-  // by the text instruction. Claude fetches the PDF from the signed URL
-  // and reads it natively.
-  const content: Anthropic.Messages.ContentBlockParam[] = input.pdfs.map((pdf) => ({
-    type: "document",
-    source: {
-      type: "url",
-      url: pdf.url,
-    },
-    // Title helps Claude reference the document by filename in citations.
-    title: pdf.filename,
-  }));
+  // Build the message content: one text block per document with clear
+  // delimiters Claude can use for source citations, followed by the
+  // instruction text.
+  const content: Anthropic.Messages.ContentBlockParam[] = [];
+
+  for (const doc of input.documents) {
+    const body = doc.text
+      ? doc.text
+      : `[No text could be extracted from this PDF. It may be a scan without OCR, or otherwise non-extractable. Use other documents in the package to inform findings; cite this file only when its filename or position in the package is itself informative.]`;
+    content.push({
+      type: "text",
+      text:
+        `===== BEGIN DOCUMENT =====\n` +
+        `Filename: ${doc.filename}\n` +
+        `Pages: ${doc.pages}\n\n` +
+        `${body}\n\n` +
+        `===== END DOCUMENT (${doc.filename}) =====`,
+    });
+  }
 
   content.push({
     type: "text",
