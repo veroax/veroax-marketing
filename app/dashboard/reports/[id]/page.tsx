@@ -33,27 +33,62 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
   const folder = `${user.id}/${report.id}`;
   const { data: files } = await supabase.storage.from("disclosures").list(folder);
   const pdfs = (files ?? []).filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+  const sourceGroups = groupSplitFiles(pdfs);
 
   const reportData = report.report_data as ReportData | null;
 
-  // Pull the most recent "report.analyzed" audit_log row so we can show
-  // token burn and cost on the page. Dev/debug visibility for now.
+  // Pull token/cost-related audit_log rows. We surface partial data even
+  // when the analysis didn't complete fully — if Claude succeeded but a
+  // later step failed we still want to see what it cost. We also fall
+  // back to the estimated-token count emitted before the Claude call,
+  // so the user has something to look at even after a rejection.
   type AnalyzedMeta = {
     input_tokens?: number;
     output_tokens?: number;
+    estimated_input_tokens?: number;
     model?: string;
     files_uploaded?: number;
     files_skipped?: Array<{ filename: string; reason: string }>;
   };
-  const { data: analyzedEvent } = await supabase
+  type StartedMeta = {
+    document_count?: number;
+    estimated_tokens?: number;
+  };
+  const { data: usageEvents } = await supabase
     .from("audit_log")
-    .select("metadata, created_at")
+    .select("event_type, metadata, created_at")
     .eq("report_id", id)
-    .eq("event_type", "report.analyzed")
+    .in("event_type", [
+      "report.analyzed",
+      "analysis.claude_completed",
+      "analysis.claude_started",
+    ])
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const usage = analyzedEvent?.metadata as AnalyzedMeta | undefined;
+    .limit(10);
+
+  const analyzedEvent = usageEvents?.find((e) => e.event_type === "report.analyzed");
+  const claudeCompletedEvent = usageEvents?.find(
+    (e) => e.event_type === "analysis.claude_completed",
+  );
+  const claudeStartedEvent = usageEvents?.find(
+    (e) => e.event_type === "analysis.claude_started",
+  );
+
+  const fullUsage = analyzedEvent?.metadata as AnalyzedMeta | undefined;
+  const completedUsage = claudeCompletedEvent?.metadata as AnalyzedMeta | undefined;
+  const startedUsage = claudeStartedEvent?.metadata as StartedMeta | undefined;
+
+  // Compose the best available token-burn snapshot.
+  const usage: AnalyzedMeta & { estimated_input_tokens?: number } | null =
+    fullUsage ||
+    (completedUsage
+      ? {
+          ...completedUsage,
+          estimated_input_tokens: startedUsage?.estimated_tokens,
+        }
+      : startedUsage
+        ? { estimated_input_tokens: startedUsage.estimated_tokens }
+        : null);
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -119,24 +154,19 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
       {/* Source documents — always shown */}
       <section className="bg-white rounded-2xl border border-slate-200 p-6">
         <h2 className="text-sm font-semibold text-slate-900 mb-3">
-          Source documents ({pdfs.length})
+          Source documents ({sourceGroups.length})
+          {sourceGroups.some((g) => g.parts.length > 1) && (
+            <span className="ml-2 text-xs font-normal text-gray-400">
+              · large files split for processing
+            </span>
+          )}
         </h2>
-        {pdfs.length === 0 ? (
+        {sourceGroups.length === 0 ? (
           <p className="text-sm text-gray-500">No PDFs found in the report folder.</p>
         ) : (
           <ul className="space-y-1.5 text-sm">
-            {pdfs.map((f) => (
-              <li key={f.name} className="flex items-center gap-3 text-slate-700">
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
-                  PDF
-                </span>
-                <span className="flex-1 truncate">{f.name}</span>
-                {f.metadata?.size != null && (
-                  <span className="text-xs text-gray-400">
-                    {Math.round(f.metadata.size / 1024)} KB
-                  </span>
-                )}
-              </li>
+            {sourceGroups.map((group) => (
+              <SourceGroupRow key={group.displayName} group={group} />
             ))}
           </ul>
         )}
@@ -152,14 +182,120 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
 }
 
 // Sonnet pricing — $3/M input, $15/M output. Update if we switch models.
-function estimateUsd(
-  input: number | undefined,
-  output: number | undefined,
-): string {
-  if (input == null || output == null) return "—";
-  const cost = (input / 1_000_000) * 3 + (output / 1_000_000) * 15;
-  return `$${cost.toFixed(4)}`;
+// ============================================================================
+// Source documents grouping (collapses _part_N.pdf chunks back under
+// the user's original filename in the UI)
+// ============================================================================
+
+type SourcePart = {
+  name: string;
+  sizeBytes: number;
+  partNumber?: number;
+};
+
+type SourceGroup = {
+  displayName: string; // e.g. "5._HOA_Docs.pdf"
+  parts: SourcePart[];
+  totalBytes: number;
+};
+
+type StorageFileLike = {
+  name: string;
+  metadata?: { size?: number | null } | null;
+};
+
+function groupSplitFiles(files: StorageFileLike[]): SourceGroup[] {
+  const groups = new Map<string, SourceGroup>();
+
+  for (const f of files) {
+    const sizeBytes = f.metadata?.size ?? 0;
+    // Match split-suffix pattern: anything ending in _part_<N>.pdf
+    const match = f.name.match(/^(.+)_part_(\d+)\.pdf$/i);
+    if (match) {
+      const baseName = `${match[1]}.pdf`;
+      const partNumber = parseInt(match[2], 10);
+      const existing = groups.get(baseName);
+      if (existing) {
+        existing.parts.push({ name: f.name, sizeBytes, partNumber });
+        existing.totalBytes += sizeBytes;
+      } else {
+        groups.set(baseName, {
+          displayName: baseName,
+          parts: [{ name: f.name, sizeBytes, partNumber }],
+          totalBytes: sizeBytes,
+        });
+      }
+    } else {
+      groups.set(f.name, {
+        displayName: f.name,
+        parts: [{ name: f.name, sizeBytes }],
+        totalBytes: sizeBytes,
+      });
+    }
+  }
+
+  // Sort parts within each group, and sort groups by displayName.
+  const result = Array.from(groups.values());
+  for (const g of result) {
+    g.parts.sort((a, b) => (a.partNumber ?? 0) - (b.partNumber ?? 0));
+  }
+  result.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  return result;
 }
+
+function fmtKb(bytes: number): string {
+  return `${Math.round(bytes / 1024)} KB`;
+}
+
+function PdfBadge() {
+  return (
+    <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded shrink-0">
+      PDF
+    </span>
+  );
+}
+
+function SourceGroupRow({ group }: { group: SourceGroup }) {
+  // Single-part files render as a flat row.
+  if (group.parts.length === 1) {
+    return (
+      <li className="flex items-center gap-3 text-slate-700">
+        <PdfBadge />
+        <span className="flex-1 truncate">{group.displayName}</span>
+        <span className="text-xs text-gray-400">{fmtKb(group.totalBytes)}</span>
+      </li>
+    );
+  }
+
+  // Multi-part files collapse into a native <details> disclosure.
+  return (
+    <li>
+      <details className="group">
+        <summary className="flex items-center gap-3 text-slate-700 cursor-pointer list-none hover:bg-slate-50 -mx-1 px-1 py-0.5 rounded">
+          <span className="text-gray-400 text-xs transition-transform group-open:rotate-90">
+            ▶
+          </span>
+          <PdfBadge />
+          <span className="flex-1 truncate font-medium">{group.displayName}</span>
+          <span className="text-xs text-gray-500">
+            {group.parts.length} parts · {fmtKb(group.totalBytes)}
+          </span>
+        </summary>
+        <ul className="mt-1.5 ml-8 space-y-1 text-xs text-slate-500">
+          {group.parts.map((p) => (
+            <li key={p.name} className="flex items-center gap-2.5">
+              <span className="text-gray-400">part {p.partNumber}</span>
+              <span className="flex-1 truncate font-mono text-gray-400">{p.name}</span>
+              <span className="text-gray-400">{fmtKb(p.sizeBytes)}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </li>
+  );
+}
+
+// ============================================================================
 
 function TokenBurnCard({
   usage,
@@ -167,16 +303,35 @@ function TokenBurnCard({
   usage: {
     input_tokens?: number;
     output_tokens?: number;
+    estimated_input_tokens?: number;
     model?: string;
     files_uploaded?: number;
     files_skipped?: Array<{ filename: string; reason: string }>;
   };
 }) {
+  const hasActual = usage.input_tokens != null;
+  const displayInput =
+    usage.input_tokens?.toLocaleString() ??
+    (usage.estimated_input_tokens != null
+      ? `~${usage.estimated_input_tokens.toLocaleString()} est.`
+      : "—");
+  const displayOutput = usage.output_tokens?.toLocaleString() ?? "—";
+  const displayCost = hasActual
+    ? estimateUsd(usage.input_tokens, usage.output_tokens)
+    : usage.estimated_input_tokens != null
+      ? `~${estimateUsd(usage.estimated_input_tokens, 5000)} est.`
+      : "—";
+
   return (
     <section className="bg-slate-900 rounded-2xl p-5 text-white text-sm space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="font-bold text-slate-100 text-base">
           Analysis cost
+          {!hasActual && usage.estimated_input_tokens != null && (
+            <span className="ml-2 text-[10px] uppercase tracking-widest text-amber-300 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
+              Estimate · not consumed
+            </span>
+          )}
           <span className="ml-2 text-[10px] uppercase tracking-widest text-amber-300 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
             Dev
           </span>
@@ -184,23 +339,10 @@ function TokenBurnCard({
         <span className="text-xs text-slate-400 font-mono">{usage.model ?? "—"}</span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-        <Stat
-          label="Input tokens"
-          value={usage.input_tokens?.toLocaleString() ?? "—"}
-        />
-        <Stat
-          label="Output tokens"
-          value={usage.output_tokens?.toLocaleString() ?? "—"}
-        />
-        <Stat
-          label="Est. cost"
-          value={estimateUsd(usage.input_tokens, usage.output_tokens)}
-          highlight
-        />
-        <Stat
-          label="Files used"
-          value={String(usage.files_uploaded ?? "—")}
-        />
+        <Stat label="Input tokens" value={displayInput} />
+        <Stat label="Output tokens" value={displayOutput} />
+        <Stat label="Est. cost" value={displayCost} highlight />
+        <Stat label="Files used" value={String(usage.files_uploaded ?? "—")} />
       </div>
       {usage.files_skipped && usage.files_skipped.length > 0 && (
         <details className="text-xs text-slate-300">
@@ -218,6 +360,15 @@ function TokenBurnCard({
       )}
     </section>
   );
+}
+
+function estimateUsd(
+  input: number | undefined,
+  output: number | undefined,
+): string {
+  if (input == null || output == null) return "—";
+  const cost = (input / 1_000_000) * 3 + (output / 1_000_000) * 15;
+  return `$${cost.toFixed(4)}`;
 }
 
 function Stat({
