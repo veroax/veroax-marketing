@@ -1,6 +1,76 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import Anthropic_ from "@anthropic-ai/sdk";
 import { getAnthropicClient, ANALYSIS_MODEL } from "./client";
 import { REPORT_TOOL_SCHEMA, type ReportData } from "./schema";
+
+// Total wait budget across all retry attempts. Set conservatively below the
+// route's maxDuration so we still have time for the final analysis call
+// itself to run (which typically takes 60-90s).
+const MAX_RETRY_WAIT_SECONDS = 150;
+const MAX_ATTEMPTS = 3;
+
+/**
+ * Runs the supplied function with retry-on-429 backoff. Honors Anthropic's
+ * Retry-After header when present; otherwise falls back to a sensible
+ * default. Other errors propagate immediately.
+ *
+ * Note: rate-limit errors caused by a single request exceeding the
+ * tier's per-minute limit will NOT be saved by retries — the request
+ * will fail again as soon as the window opens. The fix for that case is
+ * an Anthropic tier upgrade.
+ */
+async function callWithRateLimitRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let totalWaitedSec = 0;
+  let lastErr: unknown;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+
+      // Only retry rate-limit errors. Everything else fails fast.
+      const isRateLimit =
+        err instanceof Anthropic_.APIError && err.status === 429;
+      if (!isRateLimit) throw err;
+      if (attempt === MAX_ATTEMPTS) break;
+
+      const retryAfterHeader =
+        err instanceof Anthropic_.APIError
+          ? (err.headers as Record<string, string> | undefined)?.["retry-after"]
+          : undefined;
+      const waitSec = parseRetryAfter(retryAfterHeader) ?? 60;
+
+      // If honoring this wait would exceed our total budget, give up early
+      // rather than burn the whole maxDuration on backoff.
+      if (totalWaitedSec + waitSec > MAX_RETRY_WAIT_SECONDS) {
+        throw new Error(
+          `Anthropic rate limit (429) exceeded. Required wait (${waitSec}s) ` +
+            `would exceed our retry budget. This usually means a single ` +
+            `analysis request is larger than your tier's per-minute token ` +
+            `limit. Upgrading your Anthropic tier resolves this — see ` +
+            `https://console.anthropic.com/settings/limits.`,
+        );
+      }
+
+      totalWaitedSec += waitSec;
+      await sleep(waitSec * 1000);
+    }
+  }
+
+  throw lastErr ?? new Error("Anthropic call failed after retries.");
+}
+
+function parseRetryAfter(value: string | undefined): number | null {
+  if (!value) return null;
+  const asNum = parseInt(value, 10);
+  if (Number.isFinite(asNum) && asNum > 0) return asNum;
+  return null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 const SYSTEM_PROMPT = `You are Veroax, an AI-powered disclosure analysis assistant for real estate transactions in California.
 
@@ -86,19 +156,21 @@ export async function analyzeDisclosurePackage(
         : ""),
   });
 
-  const response = await client.messages.create({
-    model: ANALYSIS_MODEL,
-    max_tokens: 16000,
-    system: SYSTEM_PROMPT,
-    tools: [REPORT_TOOL_SCHEMA],
-    tool_choice: { type: "tool", name: REPORT_TOOL_SCHEMA.name },
-    messages: [
-      {
-        role: "user",
-        content,
-      },
-    ],
-  });
+  const response = await callWithRateLimitRetry(() =>
+    client.messages.create({
+      model: ANALYSIS_MODEL,
+      max_tokens: 16000,
+      system: SYSTEM_PROMPT,
+      tools: [REPORT_TOOL_SCHEMA],
+      tool_choice: { type: "tool", name: REPORT_TOOL_SCHEMA.name },
+      messages: [
+        {
+          role: "user",
+          content,
+        },
+      ],
+    }),
+  );
 
   // Extract the tool_use block — there should be exactly one because we
   // forced tool_choice. Defensive: locate it explicitly.
