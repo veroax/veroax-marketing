@@ -229,12 +229,20 @@ export default function Home() {
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <a href="#contact" className="hover:text-white transition-colors">Contact</a>
           </nav>
-          <a
-            href="#pricing"
-            className="text-sm font-semibold bg-amber-400 text-indigo-950 px-4 py-2 rounded-lg hover:bg-amber-300 transition-colors shadow-md"
-          >
-            Try free
-          </a>
+          <div className="flex items-center gap-4">
+            <a
+              href="/login"
+              className="hidden sm:inline text-sm text-indigo-200 hover:text-white transition-colors"
+            >
+              Sign in
+            </a>
+            <a
+              href="#pricing"
+              className="text-sm font-semibold bg-amber-400 text-indigo-950 px-4 py-2 rounded-lg hover:bg-amber-300 transition-colors shadow-md"
+            >
+              Try free
+            </a>
+          </div>
         </div>
       </header>
 
