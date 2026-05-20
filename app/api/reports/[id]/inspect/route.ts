@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { countPages, MAX_PAGES_PER_CHUNK } from "@/lib/pdf/split";
+import { extractText, estimateTokens } from "@/lib/pdf/extract";
 
 // Diagnostic endpoint: inspects every PDF in a report's storage folder
 // and reports each file's page count + whether it would be eligible
@@ -55,10 +56,23 @@ export async function GET(
     size_kb: number;
     pages?: number;
     exceeds_limit?: boolean;
+    text_chars?: number;
+    text_tokens?: number;
+    text_extract_error?: string;
     error?: string;
   };
 
   const results: Row[] = [];
+  let pdfParseImportError: string | null = null;
+
+  // Probe pdf-parse import once up front to surface bundling issues
+  // distinctly from per-file extraction failures.
+  try {
+    // The actual extract path imports lazily on first call.
+    await extractText(Buffer.from([0x25, 0x50, 0x44, 0x46])).catch(() => null);
+  } catch (err) {
+    pdfParseImportError = err instanceof Error ? err.message : String(err);
+  }
 
   for (const f of pdfs) {
     const path = `${folder}/${f.name}`;
@@ -78,21 +92,26 @@ export async function GET(
       }
       const buffer = Buffer.from(await blob.arrayBuffer());
 
+      const row: Row = { filename: f.name, size_kb };
+
       try {
-        const pages = await countPages(buffer);
-        results.push({
-          filename: f.name,
-          size_kb,
-          pages,
-          exceeds_limit: pages > MAX_PAGES_PER_CHUNK,
-        });
+        row.pages = await countPages(buffer);
+        row.exceeds_limit = row.pages > MAX_PAGES_PER_CHUNK;
       } catch (err) {
-        results.push({
-          filename: f.name,
-          size_kb,
-          error: err instanceof Error ? err.message : "PDF parse failed",
-        });
+        row.error = err instanceof Error ? err.message : "PDF parse failed";
       }
+
+      // Try text extraction too so we can verify pdf-parse works per-file.
+      try {
+        const ext = await extractText(buffer);
+        row.text_chars = ext.text.length;
+        row.text_tokens = estimateTokens(ext.text);
+      } catch (err) {
+        row.text_extract_error =
+          err instanceof Error ? err.message : "extractText failed";
+      }
+
+      results.push(row);
     } catch (err) {
       results.push({
         filename: f.name,
@@ -106,6 +125,7 @@ export async function GET(
     folder,
     pdf_count: pdfs.length,
     max_pages_per_chunk_threshold: MAX_PAGES_PER_CHUNK,
+    pdf_parse_import_error: pdfParseImportError,
     files: results,
   });
 }
