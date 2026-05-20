@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { analyzeDisclosurePackage } from "@/lib/anthropic/analyze";
-import { extractText, estimateTokens } from "@/lib/pdf/extract";
-
-// Sonnet context window. We leave headroom for the system prompt,
-// tool schema, and the model's reasoning, so we cap document content
-// at a value below the raw 200K limit.
-const DOCUMENT_TOKEN_BUDGET = 150_000;
+import { getAnthropicClient } from "@/lib/anthropic/client";
+import { toFile } from "@anthropic-ai/sdk";
+import { countPages } from "@/lib/pdf/split";
 
 // Runs the disclosure analysis for a report whose source PDFs are already
 // in Supabase Storage. Called by the client AnalysisRunner component once
@@ -67,17 +64,14 @@ export async function POST(
     return await fail(supabase, reportId, "No PDF files found for this report.");
   }
 
-  // Extract text from each PDF. We send Claude the text content rather
-  // than PDF document attachments because Anthropic enforces a 100-page
-  // total cap across all PDF document blocks in a single request — a
-  // typical CA disclosure package (TDS, SPQ, AVID, NHD, HOA docs,
-  // inspection report) blows past that easily. Text content blocks
-  // have no equivalent page limit; only the model's context window
-  // applies. Trade-off: we lose form-field/checkbox visual fidelity
-  // (TDS/SPQ specifically), but pick that back up later via a hybrid
-  // approach that mixes a few short PDFs with text content.
-  const documents: Array<{ filename: string; text: string; pages: number }> = [];
-  let totalEstimatedTokens = 0;
+  // Upload each PDF to Anthropic's Files API and collect the file_ids.
+  // This is the same path the Claude Cowork app uses. Referencing files
+  // by file_id avoids the inline-document 100-page total cap that hits
+  // when PDFs are attached via base64 or URL sources in a single
+  // Messages request.
+  const anthropic = getAnthropicClient();
+  const uploadedFiles: Array<{ filename: string; file_id: string; pages: number }> = [];
+  const uploadedIdsForCleanup: string[] = [];
   const skipped: Array<{ filename: string; reason: string }> = [];
 
   for (const f of pdfs) {
@@ -94,49 +88,38 @@ export async function POST(
     }
     const buffer = Buffer.from(await blob.arrayBuffer());
 
-    let extracted;
+    // Count pages best-effort for diagnostics; don't fail if we can't.
+    let pages = 0;
     try {
-      extracted = await extractText(buffer);
+      pages = await countPages(buffer);
+    } catch {
+      // ignore — pages remains 0
+    }
+
+    try {
+      const file = await anthropic.beta.files.upload(
+        {
+          file: await toFile(buffer, f.name, { type: "application/pdf" }),
+        },
+        {
+          headers: { "anthropic-beta": "files-api-2025-04-14" },
+        },
+      );
+      uploadedFiles.push({ filename: f.name, file_id: file.id, pages });
+      uploadedIdsForCleanup.push(file.id);
     } catch (err) {
-      // Don't fail the whole analysis on one bad PDF — extract what we
-      // can and note the others in the audit log. The system prompt's
-      // grounded-in-source rule will keep findings tied to documents
-      // that DID extract cleanly.
-      skipped.push({
-        filename: f.name,
-        reason: err instanceof Error ? err.message : "parse failed",
-      });
-      continue;
+      const reason =
+        err instanceof Error ? err.message : "Anthropic upload failed";
+      skipped.push({ filename: f.name, reason });
     }
-
-    const docTokens = estimateTokens(extracted.text);
-
-    // If adding this document would exceed budget, skip it and continue
-    // with what we have. Doing this in filename order gives reasonable
-    // behavior for typical packages where the most important documents
-    // come first (TDS, SPQ, inspections), with HOA package boilerplate
-    // last.
-    if (totalEstimatedTokens + docTokens > DOCUMENT_TOKEN_BUDGET) {
-      skipped.push({
-        filename: f.name,
-        reason: `Would exceed context budget (~${docTokens.toLocaleString()} tokens)`,
-      });
-      continue;
-    }
-
-    documents.push({
-      filename: f.name,
-      text: extracted.text,
-      pages: extracted.pages,
-    });
-    totalEstimatedTokens += docTokens;
   }
 
-  if (documents.length === 0) {
+  if (uploadedFiles.length === 0) {
     return await fail(
       supabase,
       reportId,
-      "Could not extract text from any of the uploaded documents.",
+      "Could not upload any documents to Anthropic. " +
+        (skipped.length > 0 ? `First reason: ${skipped[0].reason}` : ""),
     );
   }
 
@@ -144,13 +127,21 @@ export async function POST(
   let result;
   try {
     result = await analyzeDisclosurePackage({
-      documents,
+      files: uploadedFiles,
       propertyAddressHint: report.property_address,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed.";
+    // Best-effort cleanup of uploaded files on failure so we don't
+    // accumulate dead state in Anthropic's file store.
+    void cleanupFiles(uploadedIdsForCleanup);
     return await fail(supabase, reportId, message);
   }
+
+  // Successful analysis — schedule cleanup of the uploaded files. They've
+  // served their purpose; the structured report is now persisted in our
+  // DB and we don't need to retain copies on Anthropic's side.
+  void cleanupFiles(uploadedIdsForCleanup);
 
   // Pull the extracted property address back into the report row so it
   // shows up in the dashboard table even when the agent didn't enter one.
@@ -178,9 +169,8 @@ export async function POST(
     event_type: "report.analyzed",
     metadata: {
       pdf_count: pdfs.length,
-      documents_used: documents.length,
-      documents_skipped: skipped,
-      estimated_input_tokens: totalEstimatedTokens,
+      files_uploaded: uploadedFiles.length,
+      files_skipped: skipped,
       model: result.model,
       input_tokens: result.usage.input_tokens,
       output_tokens: result.usage.output_tokens,
@@ -204,4 +194,20 @@ async function fail(
     .update({ status: "failed", failure_reason: reason })
     .eq("id", reportId);
   return NextResponse.json({ error: reason }, { status: 500 });
+}
+
+// Best-effort cleanup of files uploaded to Anthropic for a single analysis.
+// Errors are swallowed because they shouldn't block the user-facing flow.
+async function cleanupFiles(fileIds: string[]): Promise<void> {
+  if (fileIds.length === 0) return;
+  const anthropic = getAnthropicClient();
+  for (const id of fileIds) {
+    try {
+      await anthropic.beta.files.delete(id, null, {
+        headers: { "anthropic-beta": "files-api-2025-04-14" },
+      });
+    } catch {
+      // ignore — files will age out per Anthropic's retention
+    }
+  }
 }
