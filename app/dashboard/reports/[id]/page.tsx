@@ -36,6 +36,25 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
 
   const reportData = report.report_data as ReportData | null;
 
+  // Pull the most recent "report.analyzed" audit_log row so we can show
+  // token burn and cost on the page. Dev/debug visibility for now.
+  type AnalyzedMeta = {
+    input_tokens?: number;
+    output_tokens?: number;
+    model?: string;
+    files_uploaded?: number;
+    files_skipped?: Array<{ filename: string; reason: string }>;
+  };
+  const { data: analyzedEvent } = await supabase
+    .from("audit_log")
+    .select("metadata, created_at")
+    .eq("report_id", id)
+    .eq("event_type", "report.analyzed")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const usage = analyzedEvent?.metadata as AnalyzedMeta | undefined;
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -123,8 +142,105 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
         )}
       </section>
 
+      {/* Token burn / cost — dev visibility */}
+      {usage && <TokenBurnCard usage={usage} />}
+
       {/* Rendered report */}
       {reportData && <RenderedReport data={reportData} />}
+    </div>
+  );
+}
+
+// Sonnet pricing — $3/M input, $15/M output. Update if we switch models.
+function estimateUsd(
+  input: number | undefined,
+  output: number | undefined,
+): string {
+  if (input == null || output == null) return "—";
+  const cost = (input / 1_000_000) * 3 + (output / 1_000_000) * 15;
+  return `$${cost.toFixed(4)}`;
+}
+
+function TokenBurnCard({
+  usage,
+}: {
+  usage: {
+    input_tokens?: number;
+    output_tokens?: number;
+    model?: string;
+    files_uploaded?: number;
+    files_skipped?: Array<{ filename: string; reason: string }>;
+  };
+}) {
+  return (
+    <section className="bg-slate-900 rounded-2xl p-5 text-white text-sm space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="font-bold text-slate-100 text-base">
+          Analysis cost
+          <span className="ml-2 text-[10px] uppercase tracking-widest text-amber-300 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
+            Dev
+          </span>
+        </h2>
+        <span className="text-xs text-slate-400 font-mono">{usage.model ?? "—"}</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+        <Stat
+          label="Input tokens"
+          value={usage.input_tokens?.toLocaleString() ?? "—"}
+        />
+        <Stat
+          label="Output tokens"
+          value={usage.output_tokens?.toLocaleString() ?? "—"}
+        />
+        <Stat
+          label="Est. cost"
+          value={estimateUsd(usage.input_tokens, usage.output_tokens)}
+          highlight
+        />
+        <Stat
+          label="Files used"
+          value={String(usage.files_uploaded ?? "—")}
+        />
+      </div>
+      {usage.files_skipped && usage.files_skipped.length > 0 && (
+        <details className="text-xs text-slate-300">
+          <summary className="cursor-pointer hover:text-white">
+            {usage.files_skipped.length} file(s) skipped
+          </summary>
+          <ul className="mt-2 space-y-1 pl-4 list-disc text-slate-400">
+            {usage.files_skipped.map((f, i) => (
+              <li key={i}>
+                <span className="font-mono text-slate-300">{f.filename}</span> — {f.reason}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div>
+      <p
+        className={`text-2xl font-bold ${
+          highlight ? "text-amber-300" : "text-white"
+        }`}
+      >
+        {value}
+      </p>
+      <p className="text-[10px] uppercase tracking-widest text-slate-400 mt-1">
+        {label}
+      </p>
     </div>
   );
 }

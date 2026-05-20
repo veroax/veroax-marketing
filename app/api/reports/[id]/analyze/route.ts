@@ -74,6 +74,15 @@ export async function POST(
   const uploadedIdsForCleanup: string[] = [];
   const skipped: Array<{ filename: string; reason: string }> = [];
 
+  // Emit a stage event so the client can show "uploading 0 of N"
+  // immediately rather than waiting for the first upload to complete.
+  await admin.from("audit_log").insert({
+    user_id: user.id,
+    report_id: reportId,
+    event_type: "analysis.upload_started",
+    metadata: { total_files: pdfs.length },
+  });
+
   for (const f of pdfs) {
     const path = `${folder}/${f.name}`;
     const { data: blob, error: dlErr } = await admin.storage
@@ -107,6 +116,19 @@ export async function POST(
       );
       uploadedFiles.push({ filename: f.name, file_id: file.id, pages });
       uploadedIdsForCleanup.push(file.id);
+
+      // Per-file progress event so the client can show "uploaded X of N".
+      await admin.from("audit_log").insert({
+        user_id: user.id,
+        report_id: reportId,
+        event_type: "analysis.file_uploaded",
+        metadata: {
+          filename: f.name,
+          pages,
+          uploaded_index: uploadedFiles.length,
+          total_files: pdfs.length,
+        },
+      });
     } catch (err) {
       const reason =
         err instanceof Error ? err.message : "Anthropic upload failed";
@@ -123,6 +145,14 @@ export async function POST(
     );
   }
 
+  // Stage event: starting Claude analysis.
+  await admin.from("audit_log").insert({
+    user_id: user.id,
+    report_id: reportId,
+    event_type: "analysis.claude_started",
+    metadata: { uploaded_count: uploadedFiles.length },
+  });
+
   // Run the Claude analysis.
   let result;
   try {
@@ -137,6 +167,18 @@ export async function POST(
     void cleanupFiles(uploadedIdsForCleanup);
     return await fail(supabase, reportId, message);
   }
+
+  // Stage event: Claude analysis complete.
+  await admin.from("audit_log").insert({
+    user_id: user.id,
+    report_id: reportId,
+    event_type: "analysis.claude_completed",
+    metadata: {
+      input_tokens: result.usage.input_tokens,
+      output_tokens: result.usage.output_tokens,
+      model: result.model,
+    },
+  });
 
   // Successful analysis — schedule cleanup of the uploaded files. They've
   // served their purpose; the structured report is now persisted in our
