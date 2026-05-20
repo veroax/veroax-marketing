@@ -803,17 +803,30 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                <a
-                  href="#contact"
-                  onClick={() => handlePlanSelect(plan.name, billingPeriod)}
-                  className={`block text-center font-semibold px-6 py-3 rounded-lg transition-colors ${
-                    plan.highlighted
-                      ? "bg-amber-400 text-indigo-950 hover:bg-amber-300 shadow-lg shadow-amber-400/20"
-                      : "bg-indigo-950 text-white hover:bg-indigo-900"
-                  }`}
-                >
-                  {plan.cta}
-                </a>
+                {plan.name === "Solo" || plan.name === "Professional" ? (
+                  <a
+                    href={`/api/checkout?plan=${plan.name === "Solo" ? "solo" : "pro"}&billing=${billingPeriod}`}
+                    className={`block text-center font-semibold px-6 py-3 rounded-lg transition-colors ${
+                      plan.highlighted
+                        ? "bg-amber-400 text-indigo-950 hover:bg-amber-300 shadow-lg shadow-amber-400/20"
+                        : "bg-indigo-950 text-white hover:bg-indigo-900"
+                    }`}
+                  >
+                    {plan.cta}
+                  </a>
+                ) : (
+                  <a
+                    href="#contact"
+                    onClick={() => handlePlanSelect(plan.name, billingPeriod)}
+                    className={`block text-center font-semibold px-6 py-3 rounded-lg transition-colors ${
+                      plan.highlighted
+                        ? "bg-amber-400 text-indigo-950 hover:bg-amber-300 shadow-lg shadow-amber-400/20"
+                        : "bg-indigo-950 text-white hover:bg-indigo-900"
+                    }`}
+                  >
+                    {plan.cta}
+                  </a>
+                )}
               </div>
             ))}
           </div>
