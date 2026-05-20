@@ -1,10 +1,11 @@
-// PDF text extraction. pdf-parse v2 uses a class-based API backed by
-// Mozilla's pdf.js. We send Claude the extracted text instead of PDF
-// document attachments because Anthropic's API enforces a 100-page
-// total cap across all PDF document blocks per request — easily
-// exceeded by a typical CA disclosure package.
+// PDF text extraction using unpdf — a serverless-friendly build of
+// Mozilla's pdf.js. We were using pdf-parse v2 but its underlying
+// pdf.js worker file didn't survive Vercel's bundler, causing the
+// analyze and inspect routes to crash at module load.
+// unpdf is purpose-built for Vercel-style serverless environments
+// and ships without a worker dependency.
 
-import { PDFParse } from "pdf-parse";
+import { extractText as unpdfExtract, getDocumentProxy } from "unpdf";
 
 export type ExtractedDocument = {
   text: string;
@@ -14,26 +15,19 @@ export type ExtractedDocument = {
 
 /**
  * Extracts plain text from a PDF buffer.
- * Throws if the PDF is encrypted or otherwise unreadable.
+ * Throws if the PDF is unreadable.
  * Returns an empty `text` string if the PDF is image-only without an
  * embedded OCR layer (most title-company exports OCR before delivery).
  */
 export async function extractText(pdfBuffer: Buffer): Promise<ExtractedDocument> {
-  // pdf-parse expects ArrayBuffer or TypedArray. Construct a Uint8Array
-  // backed by the same memory as the Buffer.
   const data = new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength);
-  const parser = new PDFParse({ data });
-  try {
-    const result = await parser.getText();
-    return {
-      text: (result.text || "").trim(),
-      pages: result.total ?? 0,
-      bytes: pdfBuffer.length,
-    };
-  } finally {
-    // Release the worker / pdfjs resources.
-    await parser.destroy().catch(() => {});
-  }
+  const pdf = await getDocumentProxy(data);
+  const result = await unpdfExtract(pdf, { mergePages: true });
+  return {
+    text: (typeof result.text === "string" ? result.text : "").trim(),
+    pages: result.totalPages ?? 0,
+    bytes: pdfBuffer.length,
+  };
 }
 
 /**
