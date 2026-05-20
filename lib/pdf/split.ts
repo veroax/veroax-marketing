@@ -1,9 +1,10 @@
 import { PDFDocument } from "pdf-lib";
 
 // Claude's hard limit is 100 pages per PDF document attachment. We split
-// to 90 pages with a safety margin in case downstream processing inflates
-// the count (rotation pages, signature pages, etc.).
-export const MAX_PAGES_PER_CHUNK = 90;
+// to 80 pages with a generous safety margin in case downstream processing
+// or alternative page counters disagree with pdf-lib (rotation pages,
+// signature pages, blank pages, layered PDFs, etc.).
+export const MAX_PAGES_PER_CHUNK = 80;
 
 export type PdfChunk = {
   name: string;

@@ -125,19 +125,42 @@ export async function POST(
         .from("disclosures")
         .download(path);
       if (dlErr || !blob) {
-        // Skip on download failure rather than fail the whole report —
-        // the analyze step will surface a clearer error if needed.
-        continue;
+        throw new Error(
+          `Could not download ${file.name} from storage: ${dlErr?.message ?? "unknown"}`,
+        );
       }
       const buffer = Buffer.from(await blob.arrayBuffer());
 
       let pageCount: number;
       try {
         pageCount = await countPages(buffer);
+      } catch (err) {
+        // Loud failure with the specific filename. Previous behavior was
+        // to silently skip, which left oversized PDFs in storage to fail
+        // later at the analyze step with a generic "100 pages" error.
+        const why = err instanceof Error ? err.message : "unknown parse error";
+        throw new Error(
+          `Could not parse "${file.name}" with pdf-lib (${why}). ` +
+            `The PDF may be encrypted, password-protected, or use a non-standard ` +
+            `structure. Re-export the document as a standard unprotected PDF and ` +
+            `try again.`,
+        );
+      }
+
+      // Audit per-file page count for debugging future issues.
+      try {
+        await admin.from("audit_log").insert({
+          user_id: user.id,
+          report_id: reportId,
+          event_type: "pdf.inspected",
+          metadata: {
+            filename: file.name,
+            page_count: pageCount,
+            needs_split: pageCount > MAX_PAGES_PER_CHUNK,
+          },
+        });
       } catch {
-        // Unreadable PDF (encrypted, malformed). Leave it for analyze
-        // to handle/report; don't try to split.
-        continue;
+        // Audit logging failure shouldn't block report processing.
       }
 
       if (pageCount <= MAX_PAGES_PER_CHUNK) continue;
