@@ -1,0 +1,346 @@
+// Structured-output schema for a Veroax disclosure analysis report.
+// Mirrored as both a TypeScript type (for compile-time safety on the
+// rendering side) and an Anthropic tool input_schema (for runtime
+// structured output from Claude).
+
+export type Severity = "critical" | "high" | "moderate" | "cosmetic";
+export type Confidence = "high" | "medium" | "low";
+
+export type CostRange = {
+  low: number;
+  high: number;
+  description?: string;
+};
+
+export type Finding = {
+  title: string;
+  source: string;
+  severity: Severity;
+  confidence: Confidence;
+  description: string;
+  cost_estimate: CostRange;
+  risk_if_ignored: string;
+  recommended_action: string;
+};
+
+export type ReportData = {
+  property_snapshot: {
+    address: string | null;
+    property_type: string | null;
+    year_built: number | null;
+    square_feet: number | null;
+    bedrooms: number | null;
+    bathrooms: number | null;
+    list_price: number | null;
+    days_on_market: number | null;
+    market_region: string | null;
+  };
+  document_inventory: {
+    documents_provided: Array<{ name: string; type: string; pages?: number }>;
+    documents_missing: string[];
+  };
+  completeness_audit: {
+    summary: string;
+    issues: string[];
+  };
+  critical_findings: Finding[];
+  moderate_findings: Finding[];
+  cosmetic_findings: Finding[];
+  permit_compliance: {
+    summary: string;
+    findings: Finding[];
+  };
+  hoa: {
+    applicable: boolean;
+    summary: string;
+    concerns: string[];
+  };
+  environmental: {
+    summary: string;
+    hazards: Array<{ name: string; severity: Severity; notes: string }>;
+  };
+  cost_summary: {
+    critical_high_total: CostRange;
+    moderate_total: CostRange;
+    grand_total: CostRange;
+    line_items: Array<{
+      category: string;
+      items: Array<{ label: string; cost: CostRange }>;
+    }>;
+  };
+  negotiation: {
+    summary: string;
+    leverage_points: string[];
+  };
+  insurance_lender_risk: {
+    summary: string;
+    insurance_concerns: string[];
+    lender_concerns: string[];
+  };
+  outstanding_questions: string[];
+  overall_rating: {
+    label: "Excellent" | "Good" | "Acceptable" | "Significant Concerns" | "Walk Away";
+    summary: string;
+    contingency_advice: string;
+  };
+};
+
+// JSON Schema for Claude's tool-use mechanism. Claude will fill this in
+// based on the disclosure PDFs and we extract it directly from the
+// tool_use block in the response.
+export const REPORT_TOOL_SCHEMA = {
+  name: "submit_disclosure_report",
+  description:
+    "Submit the complete 14-section disclosure analysis report. Call this exactly once when your analysis is complete. Every field must be populated; use null/empty arrays only when the source documents genuinely contain no information for that field.",
+  input_schema: {
+    type: "object" as const,
+    required: [
+      "property_snapshot",
+      "document_inventory",
+      "completeness_audit",
+      "critical_findings",
+      "moderate_findings",
+      "cosmetic_findings",
+      "permit_compliance",
+      "hoa",
+      "environmental",
+      "cost_summary",
+      "negotiation",
+      "insurance_lender_risk",
+      "outstanding_questions",
+      "overall_rating",
+    ],
+    properties: {
+      property_snapshot: {
+        type: "object",
+        properties: {
+          address: { type: ["string", "null"] },
+          property_type: {
+            type: ["string", "null"],
+            description: "e.g., SFR, Condo, Townhome, Multi-family",
+          },
+          year_built: { type: ["integer", "null"] },
+          square_feet: { type: ["integer", "null"] },
+          bedrooms: { type: ["integer", "null"] },
+          bathrooms: { type: ["number", "null"] },
+          list_price: { type: ["integer", "null"] },
+          days_on_market: { type: ["integer", "null"] },
+          market_region: {
+            type: ["string", "null"],
+            description:
+              "e.g., 'South Bay / Silicon Valley', 'East Bay', 'LA Westside'",
+          },
+        },
+        required: [
+          "address",
+          "property_type",
+          "year_built",
+          "square_feet",
+          "bedrooms",
+          "bathrooms",
+          "list_price",
+          "days_on_market",
+          "market_region",
+        ],
+      },
+      document_inventory: {
+        type: "object",
+        properties: {
+          documents_provided: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                type: {
+                  type: "string",
+                  description: "e.g., TDS, SPQ, AVID, NHD, HOA, Inspection, Other",
+                },
+                pages: { type: "integer" },
+              },
+              required: ["name", "type"],
+            },
+          },
+          documents_missing: {
+            type: "array",
+            items: { type: "string" },
+            description: "Standard CA disclosures that are NOT in this package",
+          },
+        },
+        required: ["documents_provided", "documents_missing"],
+      },
+      completeness_audit: {
+        type: "object",
+        properties: {
+          summary: { type: "string" },
+          issues: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Blank required sections, evasive answers, contradictions between docs",
+          },
+        },
+        required: ["summary", "issues"],
+      },
+      critical_findings: { type: "array", items: { $ref: "#/$defs/Finding" } },
+      moderate_findings: { type: "array", items: { $ref: "#/$defs/Finding" } },
+      cosmetic_findings: { type: "array", items: { $ref: "#/$defs/Finding" } },
+      permit_compliance: {
+        type: "object",
+        properties: {
+          summary: { type: "string" },
+          findings: { type: "array", items: { $ref: "#/$defs/Finding" } },
+        },
+        required: ["summary", "findings"],
+      },
+      hoa: {
+        type: "object",
+        properties: {
+          applicable: { type: "boolean" },
+          summary: { type: "string" },
+          concerns: { type: "array", items: { type: "string" } },
+        },
+        required: ["applicable", "summary", "concerns"],
+      },
+      environmental: {
+        type: "object",
+        properties: {
+          summary: { type: "string" },
+          hazards: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                severity: {
+                  type: "string",
+                  enum: ["critical", "high", "moderate", "cosmetic"],
+                },
+                notes: { type: "string" },
+              },
+              required: ["name", "severity", "notes"],
+            },
+          },
+        },
+        required: ["summary", "hazards"],
+      },
+      cost_summary: {
+        type: "object",
+        properties: {
+          critical_high_total: { $ref: "#/$defs/CostRange" },
+          moderate_total: { $ref: "#/$defs/CostRange" },
+          grand_total: { $ref: "#/$defs/CostRange" },
+          line_items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                category: { type: "string" },
+                items: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      label: { type: "string" },
+                      cost: { $ref: "#/$defs/CostRange" },
+                    },
+                    required: ["label", "cost"],
+                  },
+                },
+              },
+              required: ["category", "items"],
+            },
+          },
+        },
+        required: [
+          "critical_high_total",
+          "moderate_total",
+          "grand_total",
+          "line_items",
+        ],
+      },
+      negotiation: {
+        type: "object",
+        properties: {
+          summary: { type: "string" },
+          leverage_points: { type: "array", items: { type: "string" } },
+        },
+        required: ["summary", "leverage_points"],
+      },
+      insurance_lender_risk: {
+        type: "object",
+        properties: {
+          summary: { type: "string" },
+          insurance_concerns: { type: "array", items: { type: "string" } },
+          lender_concerns: { type: "array", items: { type: "string" } },
+        },
+        required: ["summary", "insurance_concerns", "lender_concerns"],
+      },
+      outstanding_questions: {
+        type: "array",
+        items: { type: "string" },
+      },
+      overall_rating: {
+        type: "object",
+        properties: {
+          label: {
+            type: "string",
+            enum: [
+              "Excellent",
+              "Good",
+              "Acceptable",
+              "Significant Concerns",
+              "Walk Away",
+            ],
+          },
+          summary: { type: "string" },
+          contingency_advice: { type: "string" },
+        },
+        required: ["label", "summary", "contingency_advice"],
+      },
+    },
+    $defs: {
+      Finding: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          source: {
+            type: "string",
+            description: "e.g., 'AVID p.4', 'General Inspection p.12'",
+          },
+          severity: {
+            type: "string",
+            enum: ["critical", "high", "moderate", "cosmetic"],
+          },
+          confidence: {
+            type: "string",
+            enum: ["high", "medium", "low"],
+          },
+          description: { type: "string" },
+          cost_estimate: { $ref: "#/$defs/CostRange" },
+          risk_if_ignored: { type: "string" },
+          recommended_action: { type: "string" },
+        },
+        required: [
+          "title",
+          "source",
+          "severity",
+          "confidence",
+          "description",
+          "cost_estimate",
+          "risk_if_ignored",
+          "recommended_action",
+        ],
+      },
+      CostRange: {
+        type: "object",
+        properties: {
+          low: { type: "number" },
+          high: { type: "number" },
+          description: { type: "string" },
+        },
+        required: ["low", "high"],
+      },
+    },
+  },
+};
