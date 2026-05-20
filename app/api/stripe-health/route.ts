@@ -14,6 +14,7 @@ export async function GET() {
       STRIPE_PRICE_SOLO_ANNUAL: Boolean(process.env.STRIPE_PRICE_SOLO_ANNUAL),
       STRIPE_PRICE_PRO_MONTHLY: Boolean(process.env.STRIPE_PRICE_PRO_MONTHLY),
       STRIPE_PRICE_PRO_ANNUAL: Boolean(process.env.STRIPE_PRICE_PRO_ANNUAL),
+      STRIPE_WEBHOOK_SECRET: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
     },
   });
 }
