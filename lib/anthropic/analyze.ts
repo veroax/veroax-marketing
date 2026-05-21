@@ -129,23 +129,25 @@ export async function analyzeDisclosurePackage(
   const all = (await Promise.all(groupPromises)).flat();
   passResults.push(...all);
 
-  // Synthesis pass.
+  // Synthesis pass — deterministic code, not a Claude call.
+  // Observed in production: the Claude-driven synthesis call hung
+  // indefinitely on real disclosure packages, dying at maxDuration.
+  // Each focused pass already produced fully-structured findings; the
+  // synthesis "work" (sort by severity, aggregate cost ranges, pick a
+  // rating, dedupe questions) is deterministic transformation, not
+  // reasoning. Doing it in code is instant and 100% reliable.
   await input.onSynthesisStarted?.();
-  const synthesis = await synthesizeReport(
+  const report = synthesizeReportInCode(
     passResults.map((p) => p.analysis),
-    input.propertyAddressHint,
+    input.propertyAddressHint ?? null,
   );
-  await input.onSynthesisCompleted?.(synthesis.usage);
+  await input.onSynthesisCompleted?.({ input_tokens: 0, output_tokens: 0 });
 
-  const totalInput =
-    passResults.reduce((sum, p) => sum + p.input_tokens, 0) +
-    synthesis.usage.input_tokens;
-  const totalOutput =
-    passResults.reduce((sum, p) => sum + p.output_tokens, 0) +
-    synthesis.usage.output_tokens;
+  const totalInput = passResults.reduce((sum, p) => sum + p.input_tokens, 0);
+  const totalOutput = passResults.reduce((sum, p) => sum + p.output_tokens, 0);
 
   return {
-    report: synthesis.report,
+    report,
     usage: { input_tokens: totalInput, output_tokens: totalOutput },
     passes: passResults.map((p) => ({
       group: p.group,
@@ -307,7 +309,351 @@ async function analyzeFocusedPass(
 }
 
 // ============================================================================
-// Synthesis pass
+// Code-based synthesis — combines focused-pass outputs into ReportData.
+// Replaces the Claude-driven synthesis that was hanging in production.
+// ============================================================================
+
+function synthesizeReportInCode(
+  focused: FocusedAnalysis[],
+  propertyAddressHint: string | null,
+): ReportData {
+  // Aggregate findings (treat permit_compliance findings separately so
+  // they end up in the permit section, not double-counted).
+  const allFindings: Finding[] = [];
+  const permitFindings: Finding[] = [];
+  for (const f of focused) {
+    if (Array.isArray(f.findings)) allFindings.push(...f.findings);
+    if (Array.isArray(f.permit_compliance?.findings)) {
+      permitFindings.push(...(f.permit_compliance!.findings ?? []));
+    }
+  }
+
+  const criticalFindings = allFindings.filter(
+    (f) => f.severity === "critical" || f.severity === "high",
+  );
+  const moderateFindings = allFindings.filter((f) => f.severity === "moderate");
+  const cosmeticFindings = allFindings.filter((f) => f.severity === "cosmetic");
+
+  // Cost summary: aggregate cost ranges from finding estimates plus the
+  // explicit cost_estimates each pass produced.
+  const criticalHighCosts = criticalFindings.map((f) => f.cost_estimate).filter(Boolean);
+  const moderateCosts = moderateFindings.map((f) => f.cost_estimate).filter(Boolean);
+  const critHighTotal = sumCostRanges(criticalHighCosts);
+  const moderateTotal = sumCostRanges(moderateCosts);
+  const grandTotal: CostRange = {
+    low: critHighTotal.low + moderateTotal.low,
+    high: critHighTotal.high + moderateTotal.high,
+  };
+
+  // Line items grouped by category.
+  const lineItemsByCategory = new Map<string, Array<{ label: string; cost: CostRange }>>();
+  // Findings → line items
+  for (const f of criticalFindings) {
+    addLine(lineItemsByCategory, "Critical & high-priority repairs", f.title, f.cost_estimate);
+  }
+  for (const f of moderateFindings) {
+    addLine(lineItemsByCategory, "Moderate repairs (1-5 year horizon)", f.title, f.cost_estimate);
+  }
+  // Cost estimates from focused passes → line items (use as-given category)
+  for (const pass of focused) {
+    for (const e of pass.cost_estimates ?? []) {
+      addLine(lineItemsByCategory, e.category || "Other", e.label, e.cost);
+    }
+  }
+  const lineItems = Array.from(lineItemsByCategory.entries()).map(
+    ([category, items]) => ({ category, items }),
+  );
+
+  // Property snapshot — merge across passes preferring the first
+  // populated value, with the agent's address hint taking top priority
+  // when present.
+  const property = mergeProperty(focused, propertyAddressHint);
+
+  // Document inventory — union, dedupe by name.
+  const docByName = new Map<string, { name: string; type: string; pages?: number }>();
+  for (const pass of focused) {
+    for (const d of pass.document_inventory ?? []) {
+      if (!docByName.has(d.name)) docByName.set(d.name, d);
+    }
+  }
+  const documentInventory = {
+    documents_provided: Array.from(docByName.values()),
+    documents_missing: detectMissingDocuments(Array.from(docByName.values())),
+  };
+
+  // Completeness audit — concat issues across passes.
+  const completenessIssues = focused.flatMap((p) => p.completeness_issues ?? []);
+  const completenessSummary =
+    completenessIssues.length === 0
+      ? "Disclosure package appears complete based on the documents reviewed."
+      : `${completenessIssues.length} completeness issue${completenessIssues.length === 1 ? "" : "s"} identified across the disclosure package. Review each item before proceeding.`;
+
+  // HOA — take the HOA pass's facts, fall back to "not applicable" if no
+  // HOA pass populated it.
+  const hoaSource = focused.find(
+    (p) => p.hoa_facts && (p.hoa_facts.summary || p.hoa_facts.concerns?.length),
+  );
+  const hoa = hoaSource?.hoa_facts ?? {
+    applicable: false,
+    summary: "HOA documents not present or not applicable to this property.",
+    concerns: [],
+  };
+
+  // Environmental — take the hazards pass's content.
+  const environmentalHazards = focused.flatMap(
+    (p) => p.environmental_hazards ?? [],
+  );
+  const environmental = {
+    summary:
+      environmentalHazards.length === 0
+        ? "No significant natural hazards identified in the disclosed documents."
+        : `${environmentalHazards.length} hazard zone${environmentalHazards.length === 1 ? "" : "s"} applicable to this property. Review each below for insurance and lender implications.`,
+    hazards: environmentalHazards,
+  };
+
+  // Permit compliance — combine summaries and findings.
+  const permitSummaries = focused
+    .map((p) => p.permit_compliance?.summary)
+    .filter((s): s is string => !!s);
+  const permitCompliance = {
+    summary:
+      permitSummaries.length > 0
+        ? permitSummaries.join(" ")
+        : "No permit-related issues surfaced in the documents reviewed.",
+    findings: permitFindings,
+  };
+
+  // Insurance / lender risk — sort notes into the two buckets via
+  // simple keyword classification.
+  const insuranceConcerns: string[] = [];
+  const lenderConcerns: string[] = [];
+  for (const pass of focused) {
+    for (const note of pass.insurance_lender_notes ?? []) {
+      const lower = note.toLowerCase();
+      const looksLender =
+        /lend|loan|mortgage|appraisal|funding|underwrit/.test(lower);
+      const looksInsurance =
+        /insur|policy|premium|carrier|bind|covered/.test(lower);
+      if (looksLender && !looksInsurance) lenderConcerns.push(note);
+      else if (looksInsurance && !looksLender) insuranceConcerns.push(note);
+      else {
+        // Default to both buckets for ambiguous items — better to
+        // surface twice than to drop.
+        insuranceConcerns.push(note);
+        lenderConcerns.push(note);
+      }
+    }
+  }
+  const insuranceLenderRisk = {
+    summary:
+      insuranceConcerns.length === 0 && lenderConcerns.length === 0
+        ? "No significant insurance or lender concerns identified."
+        : "Review the items below before contingency removal. Items affecting insurability or lending often have hard timing implications.",
+    insurance_concerns: dedupeStrings(insuranceConcerns),
+    lender_concerns: dedupeStrings(lenderConcerns),
+  };
+
+  // Outstanding questions — dedupe and combine.
+  const outstandingQuestions = dedupeStrings(
+    focused.flatMap((p) => p.outstanding_questions ?? []),
+  );
+
+  // Negotiation leverage — high-confidence critical/high findings.
+  const leveragePoints = criticalFindings
+    .filter((f) => f.confidence === "high")
+    .map((f) => `${f.title} — ${f.recommended_action}`);
+
+  const negotiation = {
+    summary:
+      leveragePoints.length === 0
+        ? "Limited negotiation leverage from the documented findings."
+        : `${leveragePoints.length} high-confidence critical/high finding${leveragePoints.length === 1 ? "" : "s"} provide${leveragePoints.length === 1 ? "s" : ""} meaningful negotiation leverage.`,
+    leverage_points: leveragePoints,
+  };
+
+  // Overall rating — rule-based on finding counts and severity.
+  const overallRating = determineOverallRating({
+    criticalCount: allFindings.filter((f) => f.severity === "critical").length,
+    highCount: allFindings.filter((f) => f.severity === "high").length,
+    moderateCount: moderateFindings.length,
+    cosmeticCount: cosmeticFindings.length,
+  });
+
+  return {
+    property_snapshot: property,
+    document_inventory: documentInventory,
+    completeness_audit: { summary: completenessSummary, issues: completenessIssues },
+    critical_findings: criticalFindings,
+    moderate_findings: moderateFindings,
+    cosmetic_findings: cosmeticFindings,
+    permit_compliance: permitCompliance,
+    hoa,
+    environmental,
+    cost_summary: {
+      critical_high_total: critHighTotal,
+      moderate_total: moderateTotal,
+      grand_total: grandTotal,
+      line_items: lineItems,
+    },
+    negotiation,
+    insurance_lender_risk: insuranceLenderRisk,
+    outstanding_questions: outstandingQuestions,
+    overall_rating: overallRating,
+  };
+}
+
+function sumCostRanges(ranges: CostRange[]): CostRange {
+  let low = 0;
+  let high = 0;
+  for (const r of ranges) {
+    low += Number(r.low) || 0;
+    high += Number(r.high) || 0;
+  }
+  return { low, high };
+}
+
+function addLine(
+  bucket: Map<string, Array<{ label: string; cost: CostRange }>>,
+  category: string,
+  label: string,
+  cost: CostRange,
+): void {
+  const items = bucket.get(category) ?? [];
+  items.push({ label, cost });
+  bucket.set(category, items);
+}
+
+function dedupeStrings(arr: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const s of arr) {
+    const key = s.trim().toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(s.trim());
+    }
+  }
+  return result;
+}
+
+function mergeProperty(
+  focused: FocusedAnalysis[],
+  hint: string | null,
+): ReportData["property_snapshot"] {
+  const merged: ReportData["property_snapshot"] = {
+    address: hint ?? null,
+    property_type: null,
+    year_built: null,
+    square_feet: null,
+    bedrooms: null,
+    bathrooms: null,
+    list_price: null,
+    days_on_market: null,
+    market_region: null,
+  };
+  // Walk passes in order (seller_disclosures first via splitDocumentsForBudget
+  // ordering); fill in the first non-null value for each field.
+  for (const pass of focused) {
+    const facts = pass.property_facts;
+    if (!facts) continue;
+    for (const key of Object.keys(merged) as Array<keyof typeof merged>) {
+      if (
+        merged[key] == null &&
+        facts[key as keyof typeof facts] != null
+      ) {
+        (merged as Record<string, unknown>)[key] = facts[
+          key as keyof typeof facts
+        ];
+      }
+    }
+  }
+  // If the agent supplied a hint, it wins over what passes extracted.
+  if (hint && hint.trim()) merged.address = hint.trim();
+  return merged;
+}
+
+const STANDARD_CA_DISCLOSURE_TYPES = [
+  "TDS",
+  "SPQ",
+  "AVID",
+  "NHD",
+  "Preliminary Title Report",
+];
+
+function detectMissingDocuments(
+  provided: Array<{ name: string; type: string }>,
+): string[] {
+  const typesLower = provided.map((d) => (d.type ?? "").toLowerCase());
+  const missing: string[] = [];
+  for (const required of STANDARD_CA_DISCLOSURE_TYPES) {
+    const reqLower = required.toLowerCase();
+    if (!typesLower.some((t) => t.includes(reqLower) || reqLower.includes(t))) {
+      missing.push(required);
+    }
+  }
+  return missing;
+}
+
+function determineOverallRating(counts: {
+  criticalCount: number;
+  highCount: number;
+  moderateCount: number;
+  cosmeticCount: number;
+}): ReportData["overall_rating"] {
+  const { criticalCount, highCount, moderateCount } = counts;
+
+  // "Walk Away" — multiple compounding criticals.
+  if (criticalCount >= 3) {
+    return {
+      label: "Walk Away",
+      summary: `${criticalCount} critical findings compound to create significant transaction risk. The combination of issues may not be addressable within typical contingency periods, and lender or insurance complications are likely.`,
+      contingency_advice:
+        "Recommend an extended inspection contingency period before any waiver. Re-evaluate whether this property fits the buyer's risk tolerance and budget for repairs.",
+    };
+  }
+
+  // "Significant Concerns" — one or more criticals, but addressable.
+  if (criticalCount >= 1) {
+    return {
+      label: "Significant Concerns",
+      summary: `${criticalCount} critical and ${highCount} high-severity finding${highCount === 1 ? "" : "s"} require immediate attention. ${moderateCount} additional moderate item${moderateCount === 1 ? "" : "s"} add to the work scope. All findings are negotiable but should be addressed before contingency removal.`,
+      contingency_advice:
+        "Do not remove inspection or loan contingencies until contractor bids are in hand on critical items and the lender has confirmed funding subject to any permit or condition requirements.",
+    };
+  }
+
+  // "Acceptable" — meaningful but bounded.
+  if (highCount >= 2 || moderateCount >= 4) {
+    return {
+      label: "Acceptable",
+      summary: `No critical findings, but ${highCount} high-severity and ${moderateCount} moderate item${moderateCount === 1 ? "" : "s"} reflect typical aging-property maintenance. The work is bounded and routine.`,
+      contingency_advice:
+        "Standard contingency timelines should suffice. Consider price adjustment or seller credit for high-severity items.",
+    };
+  }
+
+  // "Good" — minor findings.
+  if (highCount >= 1 || moderateCount >= 1) {
+    return {
+      label: "Good",
+      summary: `Minor findings only. No critical or major issues. ${highCount + moderateCount} item${highCount + moderateCount === 1 ? "" : "s"} represent normal homeowner maintenance.`,
+      contingency_advice:
+        "Proceed through standard contingencies. Findings can be addressed by the buyer post-close as routine maintenance.",
+    };
+  }
+
+  // "Excellent" — nothing of consequence.
+  return {
+    label: "Excellent",
+    summary:
+      "No significant findings identified. The property appears well-maintained based on the disclosed documents.",
+    contingency_advice:
+      "Proceed with standard inspection contingencies as a verification step.",
+  };
+}
+
+// ============================================================================
+// Synthesis pass (legacy Claude-driven — kept for reference; not used)
 // ============================================================================
 
 const SYNTHESIS_SYSTEM = `You are Veroax, an AI-powered disclosure analysis assistant. You are the SYNTHESIS step in a multi-pass analysis pipeline.
@@ -354,54 +700,9 @@ CRITICAL RULES:
 
 CALL THE submit_disclosure_report TOOL EXACTLY ONCE with the complete merged report.`;
 
-async function synthesizeReport(
-  focusedResults: FocusedAnalysis[],
-  propertyAddressHint?: string | null,
-): Promise<{
-  report: ReportData;
-  usage: { input_tokens: number; output_tokens: number };
-}> {
-  const client = getAnthropicClient();
-
-  // Build a structured JSON description of the focused-pass outputs.
-  const payload = {
-    property_address_hint: propertyAddressHint ?? null,
-    focused_passes: focusedResults,
-  };
-
-  const response = await callWithRateLimitRetry(() =>
-    client.messages.create({
-      model: ANALYSIS_MODEL,
-      max_tokens: 16000,
-      system: SYNTHESIS_SYSTEM,
-      tools: [REPORT_TOOL_SCHEMA],
-      tool_choice: { type: "tool", name: REPORT_TOOL_SCHEMA.name },
-      messages: [
-        {
-          role: "user",
-          content: `Synthesize the focused-pass outputs below into the final 14-section disclosure report.\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``,
-        },
-      ],
-    }),
-  );
-
-  const toolUse = response.content.find(
-    (c): c is Anthropic.Messages.ToolUseBlock => c.type === "tool_use",
-  );
-  if (!toolUse) {
-    throw new Error(
-      `Synthesis pass did not return a tool_use block. stop_reason=${response.stop_reason}`,
-    );
-  }
-
-  return {
-    report: toolUse.input as ReportData,
-    usage: {
-      input_tokens: response.usage.input_tokens,
-      output_tokens: response.usage.output_tokens,
-    },
-  };
-}
+// (Legacy synthesizeReport removed — replaced by synthesizeReportInCode.
+// The Claude-driven call hung in production; deterministic code synthesis
+// is faster and 100% reliable.)
 
 // ============================================================================
 // Document batching for token budget
