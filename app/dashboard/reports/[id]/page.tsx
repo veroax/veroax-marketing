@@ -155,11 +155,6 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
       <section className="bg-white rounded-2xl border border-slate-200 p-6">
         <h2 className="text-sm font-semibold text-slate-900 mb-3">
           Source documents ({sourceGroups.length})
-          {sourceGroups.some((g) => g.parts.length > 1) && (
-            <span className="ml-2 text-xs font-normal text-gray-400">
-              · large files split for processing
-            </span>
-          )}
         </h2>
         {sourceGroups.length === 0 ? (
           <p className="text-sm text-gray-500">No PDFs found in the report folder.</p>
@@ -268,21 +263,28 @@ function SourceGroupRow({ group }: { group: SourceGroup }) {
   }
 
   // Multi-part files collapse into a native <details> disclosure.
-  // Arrow is on the right (after the parts count) to keep the visual
-  // hierarchy quiet — collapsible disclosure controls trailing is the
-  // more common modern pattern.
+  // Layout choices:
+  //  - Arrow lives immediately after the filename so the disclosure
+  //    control is anchored to the thing it discloses.
+  //  - "N parts" label hidden until expanded — most users don't need
+  //    to know the file was split; they just need to see their report.
+  //  - File size always visible on the right for consistency with
+  //    flat (non-split) source-document rows.
   return (
     <li>
       <details className="group">
         <summary className="flex items-center gap-3 text-slate-700 cursor-pointer list-none hover:bg-slate-50 -mx-1 px-1 py-0.5 rounded">
           <PdfBadge />
-          <span className="flex-1 truncate font-medium">{group.displayName}</span>
-          <span className="text-xs text-gray-500">
-            {group.parts.length} parts · {fmtKb(group.totalBytes)}
-          </span>
-          <span className="text-gray-400 text-xs transition-transform group-open:rotate-90 shrink-0 w-3 text-center">
-            ▶
-          </span>
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <span className="font-medium truncate">{group.displayName}</span>
+            <span className="text-gray-400 text-xs transition-transform group-open:rotate-90 shrink-0 inline-block w-3 text-center select-none">
+              ▶
+            </span>
+            <span className="text-xs text-gray-500 shrink-0 hidden group-open:inline">
+              {group.parts.length} parts
+            </span>
+          </div>
+          <span className="text-xs text-gray-400 shrink-0">{fmtKb(group.totalBytes)}</span>
         </summary>
         <ul className="mt-1.5 ml-8 space-y-1 text-xs text-slate-500">
           {group.parts.map((p) => (

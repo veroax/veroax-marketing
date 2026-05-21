@@ -19,8 +19,9 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 // If a report's status is "analyzing" and analysis_started_at is within
 // this window, treat it as still-running and don't start a duplicate.
 // Past the window, assume the previous Vercel invocation died (timeout,
-// deploy, crash) and a fresh run is safe.
-const ANALYSIS_LOCK_MINUTES = 7;
+// deploy, crash) and a fresh run is safe. Matched to the analyze
+// function's maxDuration of 800s plus a small safety margin.
+const ANALYSIS_LOCK_MINUTES = 15;
 
 // Multi-pass analysis orchestrator. The strategy here is:
 //
@@ -39,7 +40,13 @@ const ANALYSIS_LOCK_MINUTES = 7;
 // arbitrary-size disclosure packages even when total content exceeds
 // any single context window.
 
-export const maxDuration = 300;
+// Maximum runtime for the analyze function. Vercel Pro allows up to 800s.
+// Multi-pass analysis on large CA disclosure packages (700-1000 page HOA)
+// can run 4-7 minutes — particularly when the largest HOA sub-batch hits
+// 175K input tokens and Claude takes 3-4 minutes to process it. 800s
+// gives comfortable headroom; truly extreme packages would need a real
+// background-job pattern (Inngest, QStash) instead of a long Vercel call.
+export const maxDuration = 800;
 
 export async function POST(
   _request: Request,

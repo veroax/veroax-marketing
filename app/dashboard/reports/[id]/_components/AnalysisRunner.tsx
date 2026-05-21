@@ -32,9 +32,10 @@ const COMPLETION_DISPLAY_MS = 2000; // dwell time on "Complete!" before page ref
 // Stuck detection: if elapsed exceeds this AND no new audit_log events
 // have arrived in the secondary window, surface a recovery UI instead
 // of letting the user stare at a dead spinner indefinitely. Tuned for
-// the realistic multi-pass upper bound (~7 minutes) plus margin.
-const STUCK_ELAPSED_THRESHOLD_SEC = 8 * 60; // 8 minutes total elapsed
-const STUCK_NO_EVENT_THRESHOLD_MS = 4 * 60 * 1000; // 4 minutes since last event
+// the realistic multi-pass upper bound (analyze route is maxDuration=800s
+// = 13.3 min) plus a margin for polling/network jitter.
+const STUCK_ELAPSED_THRESHOLD_SEC = 15 * 60; // 15 minutes total elapsed
+const STUCK_NO_EVENT_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes since last event
 
 export function AnalysisRunner({ reportId }: Props) {
   const router = useRouter();
