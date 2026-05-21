@@ -138,7 +138,7 @@ export async function POST(
   // (cookie/auth handoff would be fragile).
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, brokerage, dre_license, brokerage_dre, phone, display_email")
+    .select("full_name, brokerage, dre_license, brokerage_dre, phone, display_email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, office_address")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -161,14 +161,29 @@ export async function POST(
     profile as { display_email?: string | null } | null
   )?.display_email?.trim();
 
+  const pBrand = profile as {
+    brokerage_dre?: string | null;
+    brokerage_logo_url?: string | null;
+    headshot_url?: string | null;
+    brand_accent_hex?: string | null;
+    tagline?: string | null;
+    website_url?: string | null;
+    office_address?: string | null;
+  } | null;
+
   const agent: AgentBranding = {
     fullName: profile?.full_name ?? null,
     brokerage: profile?.brokerage ?? null,
     dreLicense: profile?.dre_license ?? null,
-    brokerageDre:
-      (profile as { brokerage_dre?: string | null } | null)?.brokerage_dre ?? null,
+    brokerageDre: pBrand?.brokerage_dre ?? null,
     phone: profile?.phone ?? null,
     email: displayEmail || user.email || null,
+    brokerageLogoUrl: pBrand?.brokerage_logo_url ?? null,
+    headshotUrl: pBrand?.headshot_url ?? null,
+    brandAccentHex: pBrand?.brand_accent_hex ?? null,
+    tagline: pBrand?.tagline ?? null,
+    websiteUrl: pBrand?.website_url ?? null,
+    officeAddress: pBrand?.office_address ?? null,
   };
 
   const reportData = report.report_data as ReportData;

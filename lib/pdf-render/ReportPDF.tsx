@@ -13,6 +13,7 @@
 import React from "react";
 import {
   Document,
+  Image,
   Page,
   Text,
   View,
@@ -93,11 +94,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     paddingBottom: 40,
   },
+  // Top row of the cover panel — holds the eyebrow text on the left
+  // and the brokerage logo (when set) on the right. Renders as a
+  // single row; the eyebrow grows to fill remaining width.
+  coverTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
   coverEyebrow: {
+    flexGrow: 1,
+    flexShrink: 1,
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
     color: C.gold,
-    marginBottom: 6,
+  },
+  coverLogo: {
+    maxWidth: 140,
+    maxHeight: 48,
+    // React-PDF Image scales to fit within these maxima while
+    // preserving aspect ratio. Empty src never gets here (we
+    // conditionally render).
   },
   coverTitle: {
     fontSize: 24,
@@ -248,6 +265,33 @@ const styles = StyleSheet.create({
     lineHeight: 1.4,
   },
   // Prepared-by panel
+  // Headshot + name stack: when a headshot is set, this row lays out
+  // the thumbnail to the left of the metadata stack. Without it, the
+  // stack flows naturally because the row contains a single child.
+  preparedByRow: {
+    flexDirection: "row",
+  },
+  preparedByHeadshot: {
+    width: 36,
+    height: 36,
+    // React-PDF doesn't reliably clip with borderRadius on Image, but
+    // a small rounded thumb still reads as "agent photo" in context.
+    // The settings preview shows a true circle on screen; on the PDF
+    // it's a rounded square — acceptable trade-off.
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  preparedByStack: {
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  preparedByTagline: {
+    fontSize: 9,
+    fontStyle: "italic",
+    color: C.slate,
+    marginTop: 1,
+    marginBottom: 3,
+  },
   preparedByLabel: {
     fontSize: 8,
     color: C.subtext,
@@ -530,6 +574,11 @@ const styles = StyleSheet.create({
     fontSize: 7.5,
     color: C.subtext,
   },
+  pageFooterExtra: {
+    fontSize: 7.5,
+    color: C.subtext,
+    marginBottom: 1,
+  },
 });
 
 // ============================================================================
@@ -543,6 +592,21 @@ export type AgentBranding = {
   brokerageDre?: string | null;
   phone?: string | null;
   email?: string | null;
+  // Branding additions from /dashboard/settings — all nullable; the
+  // cover and footer render cleanly when any/all are absent.
+  brokerageLogoUrl?: string | null;
+  headshotUrl?: string | null;
+  // Six-char hex (e.g. "#0F766E") that replaces the Veroax gold on
+  // the cover accent bar, eyebrow text, and "PREPARED FOR" label.
+  // Null = use the gold default.
+  brandAccentHex?: string | null;
+  // Short subtitle rendered under the agent name on the cover.
+  tagline?: string | null;
+  // Agent website URL — rendered as a separate footer line.
+  websiteUrl?: string | null;
+  // Multi-line office address — rendered under the DRE row in the
+  // footer (whitespace-pre-line equivalent: we split on \n).
+  officeAddress?: string | null;
 };
 
 export type OriginalFile = {
@@ -619,6 +683,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
+        websiteUrl={agent.websiteUrl}
+        officeAddress={agent.officeAddress}
         pageLabel={bodyPageNumber(1)}
       >
         <SectionPropertySnapshot report={report} analysisDate={analysisDate} />
@@ -629,6 +695,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
+        websiteUrl={agent.websiteUrl}
+        officeAddress={agent.officeAddress}
         pageLabel={bodyPageNumber(2)}
       >
         <SectionCritical report={report} />
@@ -638,6 +706,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
+        websiteUrl={agent.websiteUrl}
+        officeAddress={agent.officeAddress}
         pageLabel={bodyPageNumber(3)}
       >
         <SectionCosmetic report={report} />
@@ -647,6 +717,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
+        websiteUrl={agent.websiteUrl}
+        officeAddress={agent.officeAddress}
         pageLabel={bodyPageNumber(4)}
       >
         <SectionHoa report={report} />
@@ -657,6 +729,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
+        websiteUrl={agent.websiteUrl}
+        officeAddress={agent.officeAddress}
         pageLabel={bodyPageNumber(5)}
       >
         <SectionNegotiation report={report} />
@@ -673,11 +747,17 @@ function BodyPage({
   property,
   agentLine,
   pageLabel,
+  websiteUrl,
+  officeAddress,
 }: {
   children: React.ReactNode;
   property: string;
   agentLine: string;
   pageLabel: string;
+  // Optional extras rendered above the main footer row when the
+  // agent has filled them in.
+  websiteUrl?: string | null;
+  officeAddress?: string | null;
 }) {
   return (
     <Page size="LETTER" style={styles.page}>
@@ -691,6 +771,20 @@ function BodyPage({
 
       <View style={styles.pageFooterWrap}>
         <View style={styles.pageFooterSeparator} />
+        {/* Extras stack above the agentLine + page-number row. Office
+            address may be multi-line; split on \n so each line gets
+            its own <Text> (React-PDF doesn't honor whitespace:
+            pre-line). */}
+        {officeAddress
+          ? officeAddress.split(/\r?\n/).map((line, i) => (
+              <Text key={`addr-${i}`} style={styles.pageFooterExtra}>
+                {line}
+              </Text>
+            ))
+          : null}
+        {websiteUrl ? (
+          <Text style={styles.pageFooterExtra}>{websiteUrl}</Text>
+        ) : null}
         <View style={styles.pageFooter}>
           <Text>{agentLine || "Veroax disclosure analysis"}</Text>
           <Text>{pageLabel}</Text>
@@ -726,6 +820,11 @@ function CoverPage({
   const line1 = (addressParts[0] ?? property).trim();
   const line2 = addressParts.slice(1).join(",").trim();
 
+  // Resolve the agent's chosen accent color, falling back to the
+  // Veroax gold default. Used in three places below as an inline
+  // override on the static StyleSheet entries.
+  const accentColor = agent.brandAccentHex || C.gold;
+
   const coverKv: Array<[string, string]> = [];
   if (p?.property_type) coverKv.push(["Property Type", p.property_type]);
   if (p?.year_built) coverKv.push(["Year Built", String(p.year_built)]);
@@ -736,9 +835,20 @@ function CoverPage({
 
   return (
     <View style={styles.coverWrap}>
-      <View style={styles.coverAccentBar} />
+      <View style={[styles.coverAccentBar, { backgroundColor: accentColor }]} />
       <View style={styles.coverInner}>
-        <Text style={styles.coverEyebrow}>AI-ASSISTED DISCLOSURE ANALYSIS</Text>
+        {/* Logo row: brokerage logo top-right of the cover. Renders
+            only when set; layout collapses cleanly when absent
+            because the row contains just the eyebrow + an empty
+            spacer. */}
+        <View style={styles.coverTopRow}>
+          <Text style={[styles.coverEyebrow, { color: accentColor }]}>
+            AI-ASSISTED DISCLOSURE ANALYSIS
+          </Text>
+          {agent.brokerageLogoUrl ? (
+            <Image src={agent.brokerageLogoUrl} style={styles.coverLogo} />
+          ) : null}
+        </View>
         <Text style={styles.coverTitle}>{line1}</Text>
         {line2 ? <Text style={styles.coverSubtitle}>{line2}</Text> : null}
         {reportName ? (
@@ -787,31 +897,46 @@ function CoverPage({
 
         {clientName ? (
           <View>
-            <Text style={styles.preparedForLabel}>PREPARED FOR</Text>
+            <Text style={[styles.preparedForLabel, { color: accentColor }]}>
+              PREPARED FOR
+            </Text>
             <Text style={styles.preparedForName}>{clientName}</Text>
           </View>
         ) : null}
 
         <Text style={styles.preparedByLabel}>Prepared By</Text>
-        {agent.fullName ? (
-          <Text style={styles.preparedByName}>{agent.fullName}</Text>
-        ) : null}
-        {agent.brokerage ? (
-          <Text style={styles.preparedByLine}>{agent.brokerage}</Text>
-        ) : null}
-        {agent.phone ? (
-          <Text style={styles.preparedByMeta}>{agent.phone}</Text>
-        ) : null}
-        {agent.email ? (
-          <Text style={styles.preparedByMeta}>{agent.email}</Text>
-        ) : null}
-        {(agent.dreLicense || agent.brokerageDre) && (
-          <Text style={styles.preparedByMeta}>
-            {agent.dreLicense ? `DRE #${agent.dreLicense}` : ""}
-            {agent.dreLicense && agent.brokerageDre ? " / " : ""}
-            {agent.brokerageDre ? `Brokerage DRE #${agent.brokerageDre}` : ""}
-          </Text>
-        )}
+        {/* When a headshot is set, lay it out to the left of the
+            name+meta stack. When absent, the stack flows naturally
+            full-width as before. */}
+        <View style={styles.preparedByRow}>
+          {agent.headshotUrl ? (
+            <Image src={agent.headshotUrl} style={styles.preparedByHeadshot} />
+          ) : null}
+          <View style={styles.preparedByStack}>
+            {agent.fullName ? (
+              <Text style={styles.preparedByName}>{agent.fullName}</Text>
+            ) : null}
+            {agent.tagline ? (
+              <Text style={styles.preparedByTagline}>{agent.tagline}</Text>
+            ) : null}
+            {agent.brokerage ? (
+              <Text style={styles.preparedByLine}>{agent.brokerage}</Text>
+            ) : null}
+            {agent.phone ? (
+              <Text style={styles.preparedByMeta}>{agent.phone}</Text>
+            ) : null}
+            {agent.email ? (
+              <Text style={styles.preparedByMeta}>{agent.email}</Text>
+            ) : null}
+            {(agent.dreLicense || agent.brokerageDre) && (
+              <Text style={styles.preparedByMeta}>
+                {agent.dreLicense ? `DRE #${agent.dreLicense}` : ""}
+                {agent.dreLicense && agent.brokerageDre ? " / " : ""}
+                {agent.brokerageDre ? `Brokerage DRE #${agent.brokerageDre}` : ""}
+              </Text>
+            )}
+          </View>
+        </View>
       </View>
     </View>
   );
