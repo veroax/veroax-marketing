@@ -133,7 +133,13 @@ const styles = StyleSheet.create({
     color: C.slate,
   },
   kvValue: {
+    // flexGrow allows the value to fill remaining row width.
+    // flexShrink lets React-PDF shrink the cell BELOW its content's
+    // intrinsic width (e.g., a long URL) so the text wraps instead of
+    // pushing the row off the page. Without flexShrink the cell expands
+    // and overflows the page edge.
     flexGrow: 1,
+    flexShrink: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
     fontSize: 9,
@@ -159,6 +165,7 @@ const styles = StyleSheet.create({
   },
   sectionBannerTitleBox: {
     flexGrow: 1,
+    flexShrink: 1,
     paddingHorizontal: 10,
     paddingVertical: 8,
     backgroundColor: C.navy,
@@ -179,7 +186,12 @@ const styles = StyleSheet.create({
     width: 4,
   },
   findingBody: {
+    // The body lives inside findingCard (flexDirection: row). With only
+    // flexGrow:1, a long unbroken string would force the body wider than
+    // its parent — pushing the right edge off the page. flexShrink:1
+    // lets it shrink back to the available width so text wraps.
     flexGrow: 1,
+    flexShrink: 1,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
@@ -188,7 +200,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   findingTitle: {
+    // flexShrink:1 prevents a long finding title from pushing the
+    // severity badge off the right edge of the card.
     flexGrow: 1,
+    flexShrink: 1,
     fontFamily: "Helvetica-Bold",
     fontSize: 10,
     color: C.navy,
@@ -363,6 +378,7 @@ const styles = StyleSheet.create({
   },
   bulletText: {
     flexGrow: 1,
+    flexShrink: 1,
   },
   // Cost summary table
   costSectionHeader: {
@@ -372,6 +388,7 @@ const styles = StyleSheet.create({
   },
   costSectionHeaderLabel: {
     flexGrow: 1,
+    flexShrink: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
     fontSize: 9,
@@ -396,6 +413,7 @@ const styles = StyleSheet.create({
   },
   costRowLabel: {
     flexGrow: 1,
+    flexShrink: 1,
     paddingHorizontal: 10,
     paddingVertical: 5,
     fontSize: 9,
@@ -415,6 +433,7 @@ const styles = StyleSheet.create({
   },
   costSubtotalLabel: {
     flexGrow: 1,
+    flexShrink: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
     fontSize: 9,
@@ -437,6 +456,7 @@ const styles = StyleSheet.create({
   },
   costGrandTotalLabel: {
     flexGrow: 1,
+    flexShrink: 1,
     paddingHorizontal: 10,
     paddingVertical: 8,
     fontSize: 10,
@@ -831,7 +851,11 @@ function KvTable({ rows }: { rows: Array<[string, string]> }) {
       {rows.map(([label, value], i) => (
         <View key={label} style={i % 2 === 1 ? styles.kvRowAlt : styles.kvRow}>
           <Text style={styles.kvLabel}>{label}</Text>
-          <Text style={styles.kvValue}>{value}</Text>
+          {/* Values may contain URLs, file names, or long unbroken
+              strings (e.g. "polybutylene/PEX/cross-linked..."). Inject
+              soft breaks so they wrap inside the cell instead of
+              extending the cell past the page edge. */}
+          <Text style={styles.kvValue}>{withSoftBreaks(value)}</Text>
         </View>
       ))}
     </View>
@@ -859,14 +883,19 @@ function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
       <View style={[styles.findingAccent, { backgroundColor: accentColor }]} />
       <View style={styles.findingBody}>
         <View style={styles.findingHeader}>
+          {/* Title can be arbitrarily long — withSoftBreaks lets it
+              wrap to a second line instead of pushing the severity
+              badge off the right edge. */}
           <Text style={styles.findingTitle}>
-            Issue {index}: {finding.title}
+            Issue {index}: {withSoftBreaks(finding.title)}
           </Text>
           <SeverityBadge severity={finding.severity} />
         </View>
-        <Text style={styles.source}>{finding.source}</Text>
+        <Text style={styles.source}>{withSoftBreaks(finding.source)}</Text>
         {finding.description ? (
-          <Text style={styles.description}>{finding.description}</Text>
+          <Text style={styles.description}>
+            {withSoftBreaks(finding.description)}
+          </Text>
         ) : null}
         <KvTable
           rows={[
@@ -1461,6 +1490,42 @@ function SectionOverallRating({ report }: { report: ReportData }) {
 // ============================================================================
 // Helpers
 // ============================================================================
+
+// Inject zero-width spaces into unbroken runs so React-PDF has break
+// points. PDF renderers won't split a word — so a long URL or file
+// name (no spaces/hyphens) will run straight off the page edge.
+// Injecting U+200B every ~30 chars inside long tokens gives the
+// renderer wrap opportunities without affecting copy/paste meaningfully.
+//
+// Heuristic: only touch tokens longer than 35 chars (typical word
+// length never crosses that); inside, insert a zero-width space after
+// every 25 chars between break-friendly characters (/, ?, &, =, _,
+// .) or, if none are nearby, just every 25 chars.
+function withSoftBreaks(input: string | null | undefined): string {
+  if (!input) return "";
+  return input
+    .split(/(\s+)/) // keep whitespace runs
+    .map((token) => {
+      if (/^\s+$/.test(token) || token.length <= 35) return token;
+      // First pass: insert ZWSP after natural break chars.
+      let out = token.replace(/([/?&=_.])(?=\S)/g, "$1​");
+      // Second pass: if any run is still > 35 chars long, force a
+      // ZWSP every 25 chars within that run.
+      out = out
+        .split("​")
+        .map((piece) => {
+          if (piece.length <= 35) return piece;
+          const chunks: string[] = [];
+          for (let i = 0; i < piece.length; i += 25) {
+            chunks.push(piece.slice(i, i + 25));
+          }
+          return chunks.join("​");
+        })
+        .join("​");
+      return out;
+    })
+    .join("");
+}
 
 function formatAgentFooter(agent: AgentBranding): string {
   const parts = [
