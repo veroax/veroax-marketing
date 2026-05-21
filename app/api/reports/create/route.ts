@@ -19,6 +19,14 @@ export async function POST(request: Request) {
     typeof body?.property_address === "string" && body.property_address.trim()
       ? body.property_address.trim()
       : null;
+  const listingUrl: string | null =
+    typeof body?.listing_url === "string" && body.listing_url.trim()
+      ? body.listing_url.trim()
+      : null;
+  const listingText: string | null =
+    typeof body?.listing_text === "string" && body.listing_text.trim()
+      ? body.listing_text.trim()
+      : null;
 
   const { data, error } = await supabase
     .from("reports")
@@ -26,6 +34,8 @@ export async function POST(request: Request) {
       user_id: user.id,
       status: "uploaded",
       property_address: propertyAddress,
+      listing_url: listingUrl,
+      listing_text: listingText,
     })
     .select("id")
     .single();

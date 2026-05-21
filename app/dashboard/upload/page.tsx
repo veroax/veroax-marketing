@@ -37,6 +37,8 @@ export default function UploadPage() {
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [propertyAddress, setPropertyAddress] = useState("");
+  const [listingUrl, setListingUrl] = useState("");
+  const [listingText, setListingText] = useState("");
 
   function addFiles(filesIn: FileList | File[]) {
     setGlobalError(null);
@@ -108,6 +110,8 @@ export default function UploadPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           property_address: propertyAddress.trim() || null,
+          listing_url: listingUrl.trim() || null,
+          listing_text: listingText.trim() || null,
         }),
       });
       const createJson = await createRes.json();
@@ -217,6 +221,53 @@ export default function UploadPage() {
         />
         <p className="text-xs text-gray-500 mt-1">
           Helps the report header and filename. If you skip it, we&apos;ll extract it from the disclosure.
+        </p>
+      </div>
+
+      {/* MLS / Zillow listing input — optional, captures price + DOM
+          for the cover page and Section 1 facts. */}
+      <div>
+        <label
+          htmlFor="listing_url"
+          className="block text-sm font-medium text-slate-700 mb-1.5"
+        >
+          MLS or Zillow link{" "}
+          <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <input
+          id="listing_url"
+          type="url"
+          value={listingUrl}
+          onChange={(e) => setListingUrl(e.target.value)}
+          placeholder="https://www.zillow.com/homedetails/…"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Zillow, Redfin, Realtor.com, or your MLS share URL. We&apos;ll pull
+          list price, days on market, and the canonical address into the
+          report.
+        </p>
+      </div>
+
+      <div>
+        <label
+          htmlFor="listing_text"
+          className="block text-sm font-medium text-slate-700 mb-1.5"
+        >
+          Or paste MLS printout text{" "}
+          <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <textarea
+          id="listing_text"
+          value={listingText}
+          onChange={(e) => setListingText(e.target.value)}
+          placeholder="Paste the MLS printout content here if you don't have a public link."
+          rows={4}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Same purpose as the link above — use whichever you have on hand.
+          You can skip both; the analysis still runs.
         </p>
       </div>
 
