@@ -85,6 +85,187 @@ export type ReportData = {
   };
 };
 
+// ============================================================================
+// Focused-pass schema — used by per-document-group analysis calls in the
+// multi-pass pipeline. Each focused pass returns a subset of fields the
+// synthesis pass later merges into the full ReportData.
+// ============================================================================
+
+export type FocusedAnalysis = {
+  property_facts?: Partial<ReportData["property_snapshot"]>;
+  document_inventory: Array<{ name: string; type: string; pages?: number }>;
+  completeness_issues: string[];
+  findings: Finding[];
+  cost_estimates: Array<{
+    category: string;
+    label: string;
+    cost: CostRange;
+  }>;
+  hoa_facts?: {
+    applicable: boolean;
+    summary: string;
+    concerns: string[];
+  };
+  environmental_hazards?: Array<{
+    name: string;
+    severity: Severity;
+    notes: string;
+  }>;
+  permit_compliance?: {
+    summary: string;
+    findings: Finding[];
+  };
+  insurance_lender_notes?: string[];
+  outstanding_questions: string[];
+};
+
+export const FOCUSED_TOOL_SCHEMA = {
+  name: "submit_focused_analysis",
+  description:
+    "Submit findings from analyzing one group of documents in a disclosure package. " +
+    "A separate synthesis step will combine your findings with focused analyses of " +
+    "other document groups to produce the final 14-section buyer report. Call this " +
+    "tool exactly once. Populate only the fields relevant to the documents you were " +
+    "given — leave others as empty arrays or null.",
+  input_schema: {
+    type: "object" as const,
+    required: ["findings", "document_inventory", "completeness_issues", "outstanding_questions"],
+    properties: {
+      property_facts: {
+        type: "object",
+        description: "Property identification details extracted from these documents. Populate when this doc group is the most likely source (e.g., seller disclosures, prelim title).",
+        properties: {
+          address: { type: ["string", "null"] },
+          property_type: { type: ["string", "null"] },
+          year_built: { type: ["integer", "null"] },
+          square_feet: { type: ["integer", "null"] },
+          bedrooms: { type: ["integer", "null"] },
+          bathrooms: { type: ["number", "null"] },
+          list_price: { type: ["integer", "null"] },
+          days_on_market: { type: ["integer", "null"] },
+          market_region: { type: ["string", "null"] },
+        },
+      },
+      document_inventory: {
+        type: "array",
+        description: "List of documents reviewed in this pass.",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            type: { type: "string", description: "e.g., TDS, SPQ, AVID, NHD, HOA, Inspection" },
+            pages: { type: "integer" },
+          },
+          required: ["name", "type"],
+        },
+      },
+      completeness_issues: {
+        type: "array",
+        description: "Blank required sections, evasive answers, contradictions, or missing pages observed in this document group.",
+        items: { type: "string" },
+      },
+      findings: {
+        type: "array",
+        description: "All findings discovered in these documents, mixed severities. Synthesis will sort and dedupe.",
+        items: { $ref: "#/$defs/Finding" },
+      },
+      cost_estimates: {
+        type: "array",
+        description: "Repair / remediation cost estimates derived from these documents. Synthesis will combine across passes into the final cost summary.",
+        items: {
+          type: "object",
+          properties: {
+            category: {
+              type: "string",
+              description: "e.g., 'Critical and high-priority repairs', 'Moderate repairs (1-5 yr)', 'HOA financial reserves'",
+            },
+            label: { type: "string" },
+            cost: { $ref: "#/$defs/CostRange" },
+          },
+          required: ["category", "label", "cost"],
+        },
+      },
+      hoa_facts: {
+        type: "object",
+        description: "Populate only when analyzing HOA documents.",
+        properties: {
+          applicable: { type: "boolean" },
+          summary: { type: "string" },
+          concerns: { type: "array", items: { type: "string" } },
+        },
+      },
+      environmental_hazards: {
+        type: "array",
+        description: "Populate only when analyzing NHD / environmental documents.",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            severity: {
+              type: "string",
+              enum: ["critical", "high", "moderate", "cosmetic"],
+            },
+            notes: { type: "string" },
+          },
+          required: ["name", "severity", "notes"],
+        },
+      },
+      permit_compliance: {
+        type: "object",
+        description: "Populate when permit / code-compliance issues appear (most likely in seller disclosures or inspections).",
+        properties: {
+          summary: { type: "string" },
+          findings: { type: "array", items: { $ref: "#/$defs/Finding" } },
+        },
+      },
+      insurance_lender_notes: {
+        type: "array",
+        description: "Items that affect insurability or lending (e.g., FPE panel, active leak, unpermitted living-area conversion, fire-hazard zone).",
+        items: { type: "string" },
+      },
+      outstanding_questions: {
+        type: "array",
+        description: "Questions for the seller or listing agent raised by these documents.",
+        items: { type: "string" },
+      },
+    },
+    $defs: {
+      Finding: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          source: { type: "string", description: "e.g., 'AVID p.4', 'General Inspection p.12'" },
+          severity: { type: "string", enum: ["critical", "high", "moderate", "cosmetic"] },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
+          description: { type: "string" },
+          cost_estimate: { $ref: "#/$defs/CostRange" },
+          risk_if_ignored: { type: "string" },
+          recommended_action: { type: "string" },
+        },
+        required: [
+          "title",
+          "source",
+          "severity",
+          "confidence",
+          "description",
+          "cost_estimate",
+          "risk_if_ignored",
+          "recommended_action",
+        ],
+      },
+      CostRange: {
+        type: "object",
+        properties: {
+          low: { type: "number" },
+          high: { type: "number" },
+          description: { type: "string" },
+        },
+        required: ["low", "high"],
+      },
+    },
+  },
+};
+
 // JSON Schema for Claude's tool-use mechanism. Claude will fill this in
 // based on the disclosure PDFs and we extract it directly from the
 // tool_use block in the response.

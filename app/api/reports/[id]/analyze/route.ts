@@ -1,29 +1,34 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { analyzeDisclosurePackage } from "@/lib/anthropic/analyze";
+import {
+  analyzeDisclosurePackage,
+  type Document,
+} from "@/lib/anthropic/analyze";
 import { extractText, estimateTokens } from "@/lib/pdf/extract";
+import {
+  classifyDocument,
+  passGroupFor,
+  DOCUMENT_TYPE_LABEL,
+  type PassGroup,
+} from "@/lib/pdf/classify";
 
-// Document token budget. Leaves headroom for the system prompt
-// (~3K tokens), tool schema (~2K tokens), and the model's reasoning
-// + output (~16K tokens) below Sonnet's 200K context window.
-const DOCUMENT_TOKEN_BUDGET = 180_000;
+// Multi-pass analysis orchestrator. The strategy here is:
+//
+//   1. Download and text-extract every PDF in the report folder.
+//   2. Classify each document by type (TDS/SPQ vs inspection vs HOA vs
+//      hazard) using lib/pdf/classify.
+//   3. Hand the classified groups to analyzeDisclosurePackage, which
+//      runs focused Claude calls per group (in parallel) — each group
+//      may also internally sub-split if it exceeds the per-pass budget
+//      — and then a final synthesis call produces the 14-section
+//      ReportData.
+//   4. Save the report and write audit_log rows at each stage so the
+//      AnalysisRunner can show real progress.
+//
+// No documents are skipped — the multi-pass design lets us process
+// arbitrary-size disclosure packages even when total content exceeds
+// any single context window.
 
-// Files matching this pattern get processed LAST when the token budget
-// is tight. HOA packages are typically the longest documents in a CA
-// disclosure bundle but also the most boilerplate-heavy, so they're the
-// right place to give up content when we need to squeeze. The critical
-// narrative documents (TDS/SPQ/AVID inside Disclosures, Property
-// Inspections, NHD, Termite) get full coverage first.
-const DEPRIORITIZE_PATTERN = /hoa/i;
-
-// Runs the disclosure analysis for a report whose source PDFs are already
-// in Supabase Storage. Called by the client AnalysisRunner component once
-// the user lands on /dashboard/reports/[id] with status="analyzing".
-
-// Vercel function timeout. Free tier caps at 60s; Pro allows up to 300s.
-// On free tier, large disclosure packages may exceed 60s -- the analyze
-// route will return a 504-ish error and the user can retry. Upgrading to
-// Pro removes this constraint.
 export const maxDuration = 300;
 
 export async function POST(
@@ -40,7 +45,6 @@ export async function POST(
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  // Load the report and confirm ownership.
   const { data: report, error: reportErr } = await supabase
     .from("reports")
     .select("id, user_id, status, property_address, source_file_path")
@@ -49,10 +53,6 @@ export async function POST(
   if (reportErr || !report) {
     return NextResponse.json({ error: "Report not found." }, { status: 404 });
   }
-
-  // Allow analysis from 'analyzing' (initial trigger from upload flow) or
-  // 'failed' (retry after a previous failure). Reject if already further
-  // along to avoid duplicate runs.
   if (!["analyzing", "failed"].includes(report.status)) {
     return NextResponse.json(
       { error: `Report is already ${report.status}.`, status: report.status },
@@ -72,37 +72,25 @@ export async function POST(
   }
   const pdfs = (files ?? [])
     .filter((f) => f.name.toLowerCase().endsWith(".pdf"))
-    .sort((a, b) => {
-      // Critical narrative documents first; HOA boilerplate last so that
-      // when the package exceeds budget the deprioritized chunks are
-      // what gets dropped, not the documents agents actually need.
-      const aDeprio = DEPRIORITIZE_PATTERN.test(a.name);
-      const bDeprio = DEPRIORITIZE_PATTERN.test(b.name);
-      if (aDeprio !== bDeprio) return aDeprio ? 1 : -1;
-      return a.name.localeCompare(b.name);
-    });
+    .sort((a, b) => a.name.localeCompare(b.name));
   if (pdfs.length === 0) {
     return await fail(supabase, reportId, "No PDF files found for this report.");
   }
 
-  // Extract text from each PDF. We send Claude the text content rather
-  // than PDF document attachments because PDFs cost ~1500 tokens per
-  // page (image + OCR), which exceeds Sonnet's 200K context for any
-  // disclosure package larger than ~130 pages. Text is ~300 tokens/
-  // page, allowing 600+ page packages to fit. Trade-off: form-field
-  // checkbox visual fidelity is lost, but narrative content is intact.
-  const documents: Array<{ filename: string; text: string; pages: number }> = [];
-  let totalEstimatedTokens = 0;
-  const skipped: Array<{ filename: string; reason: string }> = [];
-
-  // Emit a stage event so the client can show "extracting 0 of N"
-  // immediately rather than waiting for the first file to finish.
+  // Stage event: extraction starting.
   await admin.from("audit_log").insert({
     user_id: user.id,
     report_id: reportId,
     event_type: "analysis.upload_started",
     metadata: { total_files: pdfs.length },
   });
+
+  // Extract text from every PDF. We do this serially because each call
+  // is short, and serial keeps memory bounded. No skipping — every PDF
+  // is included in classification regardless of size; multi-pass handles
+  // any single-context overruns at the analysis stage.
+  const documents: Document[] = [];
+  const failedExtractions: Array<{ filename: string; reason: string }> = [];
 
   for (const f of pdfs) {
     const path = `${folder}/${f.name}`;
@@ -113,7 +101,7 @@ export async function POST(
       return await fail(
         supabase,
         reportId,
-        `Could not download ${f.name}: ${dlErr?.message ?? "unknown error"}`,
+        `Could not download ${f.name}: ${dlErr?.message ?? "unknown"}`,
       );
     }
     const buffer = Buffer.from(await blob.arrayBuffer());
@@ -122,23 +110,27 @@ export async function POST(
     try {
       extracted = await extractText(buffer);
     } catch (err) {
-      skipped.push({
+      const reason =
+        err instanceof Error ? err.message : "Text extraction failed";
+      failedExtractions.push({ filename: f.name, reason });
+      // Still create a placeholder so classification + synthesis know
+      // the document exists.
+      documents.push({
         filename: f.name,
-        reason: err instanceof Error ? err.message : "text extraction failed",
+        text: "",
+        pages: 0,
+        tokens: 0,
       });
-      continue;
-    }
-
-    const docTokens = estimateTokens(extracted.text);
-
-    // If adding this document would exceed our context budget, skip it.
-    // Documents are processed in filename order, so prefix-sorted files
-    // (typical disclosure packages number them 0_, 1_, 2_…) prioritize
-    // the most important docs (TDS, SPQ, inspection) over HOA boilerplate.
-    if (totalEstimatedTokens + docTokens > DOCUMENT_TOKEN_BUDGET) {
-      skipped.push({
-        filename: f.name,
-        reason: `Would exceed context budget (~${docTokens.toLocaleString()} tokens)`,
+      await admin.from("audit_log").insert({
+        user_id: user.id,
+        report_id: reportId,
+        event_type: "analysis.file_uploaded",
+        metadata: {
+          filename: f.name,
+          extract_error: reason,
+          uploaded_index: documents.length,
+          total_files: pdfs.length,
+        },
       });
       continue;
     }
@@ -147,10 +139,9 @@ export async function POST(
       filename: f.name,
       text: extracted.text,
       pages: extracted.pages,
+      tokens: estimateTokens(extracted.text),
     });
-    totalEstimatedTokens += docTokens;
 
-    // Per-file progress event.
     await admin.from("audit_log").insert({
       user_id: user.id,
       report_id: reportId,
@@ -158,44 +149,105 @@ export async function POST(
       metadata: {
         filename: f.name,
         pages: extracted.pages,
+        tokens: estimateTokens(extracted.text),
         uploaded_index: documents.length,
         total_files: pdfs.length,
       },
     });
   }
 
-  if (documents.length === 0) {
-    return await fail(
-      supabase,
-      reportId,
-      "Could not extract text from any of the uploaded documents.",
-    );
+  // Classify documents into pass groups.
+  const groups: Record<PassGroup, Document[]> = {
+    seller_disclosures: [],
+    inspections: [],
+    hoa: [],
+    hazards: [],
+  };
+  for (const doc of documents) {
+    const docType = classifyDocument(doc.filename);
+    const group = passGroupFor(docType);
+    groups[group].push(doc);
   }
 
-  // Stage event: starting Claude analysis.
+  // Stage event: classification done, multi-pass starting.
+  const totalTokens = documents.reduce((s, d) => s + d.tokens, 0);
   await admin.from("audit_log").insert({
     user_id: user.id,
     report_id: reportId,
     event_type: "analysis.claude_started",
     metadata: {
       document_count: documents.length,
-      estimated_tokens: totalEstimatedTokens,
+      estimated_tokens: totalTokens,
+      group_counts: {
+        seller_disclosures: groups.seller_disclosures.length,
+        inspections: groups.inspections.length,
+        hoa: groups.hoa.length,
+        hazards: groups.hazards.length,
+      },
     },
   });
 
-  // Run the Claude analysis.
+  // Run multi-pass analysis with progress callbacks.
   let result;
   try {
     result = await analyzeDisclosurePackage({
-      documents,
+      groups,
       propertyAddressHint: report.property_address,
+      onPassStarted: async (group, subIndex, subTotal) => {
+        await admin.from("audit_log").insert({
+          user_id: user.id,
+          report_id: reportId,
+          event_type: "analysis.pass_started",
+          metadata: {
+            group,
+            group_label: DOCUMENT_TYPE_LABEL[group],
+            sub_index: subIndex,
+            sub_total: subTotal,
+          },
+        });
+      },
+      onPassCompleted: async (group, subIndex, subTotal, usage) => {
+        await admin.from("audit_log").insert({
+          user_id: user.id,
+          report_id: reportId,
+          event_type: "analysis.pass_completed",
+          metadata: {
+            group,
+            group_label: DOCUMENT_TYPE_LABEL[group],
+            sub_index: subIndex,
+            sub_total: subTotal,
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
+          },
+        });
+      },
+      onSynthesisStarted: async () => {
+        await admin.from("audit_log").insert({
+          user_id: user.id,
+          report_id: reportId,
+          event_type: "analysis.synthesis_started",
+          metadata: {},
+        });
+      },
+      onSynthesisCompleted: async (usage) => {
+        await admin.from("audit_log").insert({
+          user_id: user.id,
+          report_id: reportId,
+          event_type: "analysis.synthesis_completed",
+          metadata: {
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
+          },
+        });
+      },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed.";
     return await fail(supabase, reportId, message);
   }
 
-  // Stage event: Claude analysis complete.
+  // Final stage event with combined totals (back-compat with the old
+  // analysis.claude_completed event the UI already polls for).
   await admin.from("audit_log").insert({
     user_id: user.id,
     report_id: reportId,
@@ -204,11 +256,12 @@ export async function POST(
       input_tokens: result.usage.input_tokens,
       output_tokens: result.usage.output_tokens,
       model: result.model,
+      pass_count: result.passes.length,
     },
   });
 
-  // Pull the extracted property address back into the report row so it
-  // shows up in the dashboard table even when the agent didn't enter one.
+  // Extract address from the synthesized report so it shows up in the
+  // dashboard list when the user didn't type one at upload time.
   const extractedAddress =
     result.report.property_snapshot?.address?.trim() || null;
 
@@ -225,8 +278,7 @@ export async function POST(
     return await fail(supabase, reportId, `Could not save report: ${updateErr.message}`);
   }
 
-  // Audit log entry — record what we processed and how many tokens it cost.
-  // Stored as metadata only; the report content lives on the reports row.
+  // Final audit-log summary row.
   await admin.from("audit_log").insert({
     user_id: user.id,
     report_id: reportId,
@@ -234,11 +286,13 @@ export async function POST(
     metadata: {
       pdf_count: pdfs.length,
       files_uploaded: documents.length,
-      files_skipped: skipped,
-      estimated_input_tokens: totalEstimatedTokens,
+      files_skipped: failedExtractions,
+      estimated_input_tokens: totalTokens,
       model: result.model,
       input_tokens: result.usage.input_tokens,
       output_tokens: result.usage.output_tokens,
+      pass_count: result.passes.length,
+      passes: result.passes,
       critical_count: result.report.critical_findings?.length ?? 0,
       moderate_count: result.report.moderate_findings?.length ?? 0,
       overall_rating: result.report.overall_rating?.label,
@@ -248,7 +302,6 @@ export async function POST(
   return NextResponse.json({ ok: true, status: "qa_pending" });
 }
 
-// Helper: mark the report as failed with a reason and return a 500.
 async function fail(
   supabase: Awaited<ReturnType<typeof createClient>>,
   reportId: string,
@@ -260,4 +313,3 @@ async function fail(
     .eq("id", reportId);
   return NextResponse.json({ error: reason }, { status: 500 });
 }
-

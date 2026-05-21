@@ -184,24 +184,58 @@ export function AnalysisRunner({ reportId }: Props) {
 // Helpers
 // ============================================================================
 
+type PassStatus = {
+  group: string;
+  group_label: string;
+  sub_index: number;
+  sub_total: number;
+  completed: boolean;
+};
+
 function stageFromEvents(events: StatusEvent[]): { label: string; detail?: string } {
-  // Walk events newest-last; we sorted ascending in the API.
   let total = 0;
-  let uploaded = 0;
+  let extracted = 0;
   let claudeStarted = false;
   let claudeCompleted = false;
+  let synthesisStarted = false;
+  let synthesisCompleted = false;
+  const passesByKey = new Map<string, PassStatus>();
 
   for (const e of events) {
+    const md = e.metadata as Record<string, unknown>;
     switch (e.event_type) {
       case "analysis.upload_started":
-        total = (e.metadata.total_files as number) || total;
+        total = (md.total_files as number) || total;
         break;
       case "analysis.file_uploaded":
-        uploaded = (e.metadata.uploaded_index as number) || uploaded + 1;
-        total = (e.metadata.total_files as number) || total;
+        extracted = (md.uploaded_index as number) || extracted + 1;
+        total = (md.total_files as number) || total;
         break;
       case "analysis.claude_started":
         claudeStarted = true;
+        break;
+      case "analysis.pass_started": {
+        const key = `${md.group}-${md.sub_index}`;
+        passesByKey.set(key, {
+          group: String(md.group ?? ""),
+          group_label: String(md.group_label ?? md.group ?? ""),
+          sub_index: Number(md.sub_index ?? 1),
+          sub_total: Number(md.sub_total ?? 1),
+          completed: false,
+        });
+        break;
+      }
+      case "analysis.pass_completed": {
+        const key = `${md.group}-${md.sub_index}`;
+        const existing = passesByKey.get(key);
+        if (existing) existing.completed = true;
+        break;
+      }
+      case "analysis.synthesis_started":
+        synthesisStarted = true;
+        break;
+      case "analysis.synthesis_completed":
+        synthesisCompleted = true;
         break;
       case "analysis.claude_completed":
         claudeCompleted = true;
@@ -209,28 +243,64 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
     }
   }
 
+  // Saving (after synthesis OR back-compat claude_completed)
   if (claudeCompleted) {
     return {
       label: "Saving your report",
       detail: "Final formatting and storage.",
     };
   }
-  if (claudeStarted) {
+
+  // Synthesis in progress
+  if (synthesisCompleted) {
+    return { label: "Wrapping up", detail: "Combining findings and saving." };
+  }
+  if (synthesisStarted) {
     return {
-      label: "Running the 14-section analysis",
-      detail: `Claude is reading ${uploaded || total || "your"} documents. This is the longest step — typically 60–90 seconds.`,
+      label: "Synthesizing the final 14-section report",
+      detail: "Combining findings from each document group into the unified report.",
     };
   }
-  if (total > 0 && uploaded > 0) {
+
+  // Multi-pass in progress
+  if (passesByKey.size > 0) {
+    const passes = Array.from(passesByKey.values());
+    const totalPasses = passes.length;
+    const completedPasses = passes.filter((p) => p.completed).length;
+    const inFlight = passes.filter((p) => !p.completed);
+    const inFlightLabels = inFlight
+      .map((p) =>
+        p.sub_total > 1
+          ? `${p.group_label} (part ${p.sub_index} of ${p.sub_total})`
+          : p.group_label,
+      )
+      .join(", ");
     return {
-      label: `Uploading documents to Claude`,
-      detail: `${uploaded} of ${total} uploaded. We send each PDF to Anthropic's Files API.`,
+      label: `Analyzing your disclosure (${completedPasses} of ${totalPasses} passes complete)`,
+      detail:
+        inFlight.length > 0
+          ? `Currently running: ${inFlightLabels}`
+          : "All focused passes done; preparing synthesis.",
+    };
+  }
+
+  // Claude started but no pass events yet (transient)
+  if (claudeStarted) {
+    return {
+      label: "Preparing focused analysis passes",
+      detail: "Grouping documents by type and dispatching parallel analysis calls.",
+    };
+  }
+
+  // Extraction phase
+  if (total > 0 && extracted > 0) {
+    return {
+      label: "Extracting text from documents",
+      detail: `${extracted} of ${total} extracted. Pulling text content from each PDF.`,
     };
   }
   if (total > 0) {
-    return {
-      label: `Preparing to upload ${total} documents`,
-    };
+    return { label: `Preparing to extract ${total} documents` };
   }
   return { label: "Starting analysis…" };
 }
