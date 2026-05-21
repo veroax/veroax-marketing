@@ -6,6 +6,7 @@ import {
   type SettingsActionState,
 } from "../actions";
 import { ImageUploadField } from "./ImageUploadField";
+import { AccentColorPicker } from "./AccentColorPicker";
 
 // Two-column layout: form on the left, live "Prepared By" preview on
 // the right. The preview re-renders as the agent types so they see
@@ -220,16 +221,12 @@ export function SettingsForm({ email, userId, initial }: Props) {
           />
           <Field
             label="Brand accent color"
-            hint="Six-character hex (e.g. #0F766E). Leave blank for the Veroax gold default. A swatch picker arrives in the next iteration; for now, paste a hex value."
+            hint="Replaces the Veroax gold on the cover accent bar, eyebrow text, and 'Prepared By' label. Severity colors (red/amber/green) stay locked."
           >
-            <input
+            <AccentColorPicker
               name="brand_accent_hex"
-              type="text"
               value={brandAccentHex}
-              onChange={(e) => setBrandAccentHex(e.target.value)}
-              placeholder="#C9A84C"
-              maxLength={7}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
+              onChange={setBrandAccentHex}
             />
           </Field>
         </Section>
