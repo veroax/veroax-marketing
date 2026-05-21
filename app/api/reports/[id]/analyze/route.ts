@@ -16,6 +16,12 @@ import type { ReportData } from "@/lib/anthropic/schema";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 
+// If a report's status is "analyzing" and analysis_started_at is within
+// this window, treat it as still-running and don't start a duplicate.
+// Past the window, assume the previous Vercel invocation died (timeout,
+// deploy, crash) and a fresh run is safe.
+const ANALYSIS_LOCK_MINUTES = 7;
+
 // Multi-pass analysis orchestrator. The strategy here is:
 //
 //   1. Download and text-extract every PDF in the report folder.
@@ -51,7 +57,9 @@ export async function POST(
 
   const { data: report, error: reportErr } = await supabase
     .from("reports")
-    .select("id, user_id, status, property_address, source_file_path")
+    .select(
+      "id, user_id, status, property_address, source_file_path, analysis_started_at",
+    )
     .eq("id", reportId)
     .single();
   if (reportErr || !report) {
@@ -63,6 +71,39 @@ export async function POST(
       { status: 409 },
     );
   }
+
+  // Concurrency lock: if status="analyzing" and the previous run was
+  // started recently, assume it's still in flight and don't spawn a
+  // duplicate. The user can safely close the tab — the original
+  // server function continues until completion and sends the email.
+  const startedAt = report.analysis_started_at
+    ? new Date(report.analysis_started_at)
+    : null;
+  const lockWindowMs = ANALYSIS_LOCK_MINUTES * 60 * 1000;
+  const isWithinLock =
+    startedAt && Date.now() - startedAt.getTime() < lockWindowMs;
+  if (report.status === "analyzing" && isWithinLock) {
+    return NextResponse.json(
+      {
+        ok: true,
+        status: "analyzing",
+        note: "Analysis already running — polling will detect completion.",
+      },
+      { status: 202 },
+    );
+  }
+
+  // Take the lock: stamp analysis_started_at to now. This serves as the
+  // concurrency guard above for any concurrent retry attempts. Also
+  // clears any previous failure_reason since we're starting fresh.
+  await supabase
+    .from("reports")
+    .update({
+      status: "analyzing",
+      analysis_started_at: new Date().toISOString(),
+      failure_reason: null,
+    })
+    .eq("id", reportId);
 
   const admin = createServiceRoleClient();
   const folder = report.source_file_path ?? `${user.id}/${report.id}`;

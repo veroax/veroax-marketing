@@ -59,12 +59,20 @@ export function AnalysisRunner({ reportId }: Props) {
           method: "POST",
         });
         if (cancelled) return;
+
+        // 202 = the server detected an in-flight analysis and didn't
+        // start a duplicate. Fall through to polling; the original run
+        // will complete and our /status poll will pick it up.
+        if (res.status === 202) {
+          return;
+        }
+        // 409 = report status already past "analyzing" — treat as done.
+        if (res.status === 409) {
+          handleCompletion();
+          return;
+        }
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          if (res.status === 409) {
-            handleCompletion();
-            return;
-          }
           throw new Error(data.error || `Analysis failed (HTTP ${res.status}).`);
         }
         handleCompletion();
@@ -212,11 +220,29 @@ export function AnalysisRunner({ reportId }: Props) {
             Multi-pass analysis takes about <strong>3–6 minutes</strong> for a typical
             CA disclosure package. We extract text from every document, then run
             focused Claude calls in parallel (seller disclosures, inspections,
-            HOA, hazards) before synthesizing the final 14-section report. You can
-            leave this tab open — we&apos;ll chime when it&apos;s done and send you an
-            email with a link to the report.
+            HOA, hazards) before synthesizing the final 14-section report.
           </p>
         </div>
+      </div>
+      <div className="mt-5 pt-4 border-t border-slate-100 flex items-start gap-3 text-xs text-slate-600 bg-slate-50/60 -mx-2 px-4 py-3 rounded-lg">
+        <svg
+          className="w-4 h-4 mt-0.5 text-emerald-600 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+        <p className="leading-relaxed">
+          <strong className="text-slate-900">You can close this tab.</strong>{" "}
+          The analysis keeps running on our servers. We&apos;ll email you the
+          moment it&apos;s ready with a link straight to the report.
+        </p>
       </div>
     </div>
   );
