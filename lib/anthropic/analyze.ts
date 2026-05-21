@@ -175,11 +175,28 @@ CRITICAL RULES:
 
 2. SOURCE EVERY FINDING. Every Finding must cite which document (filename) and approximate page or section. Citations like "from the disclosures" are not acceptable.
 
-3. SEVERITY RATING is weighted by (a) cost to remediate and (b) active hazard. Use this rubric strictly:
-   - CRITICAL: $15,000+ to remediate, OR active hazard, OR lender/insurance-blocking. Examples: unpermitted living-area conversion, active roof leak, FPE Stab-Lok panel, foundation settlement, mold.
-   - HIGH: $5,000-$15,000 OR significant future risk. Examples: aging HVAC, sewer lateral repair, electrical panel replacement, retaining-wall issues.
-   - MODERATE: $1,000-$5,000 OR 1-5 year horizon. Examples: water heater near end of life, deferred exterior paint.
-   - COSMETIC: <$1,000 OR purely aesthetic.
+3. SEVERITY RATING is weighted by (a) cost to remediate and (b) active hazard and (c) lender/insurance-blockability. Use this rubric strictly:
+
+   - CRITICAL: any of (i) $15,000+ to remediate, (ii) active hazard, (iii) lender/insurance-blocking. THE FOLLOWING ITEMS ARE ALWAYS CRITICAL when present, regardless of remediation cost, because they routinely block insurance or conventional lending and are textbook closing-blockers in California real estate transactions:
+     · Aluminum branch wiring (NM-type aluminum, common in 1965-1972 builds) — insurers and conventional lenders often refuse to bind/fund unless remediated via COPALUM or AlumiConn pigtails throughout
+     · Federal Pacific Stab-Lok panels (and Zinsco/Sylvania panels) — known fire hazard; insurers commonly refuse to bind
+     · Polybutylene supply plumbing (grey, white, or blue plastic with metal crimp rings) — class-action settlement subject; coverage commonly refused
+     · ABS drain piping subject to the 1984-1990 class action (recall-era ABS) — defective material; many insurers exclude
+     · Kitec plumbing (yellow brass fittings, PEX-AL-PEX) — class-action subject; insurer concern
+     · Knob-and-tube wiring with active circuits — insurance commonly refuses
+     · Active roof leak, ongoing water intrusion, or active foundation settlement
+     · Visible mold growth or moisture-saturated areas
+     · Visible structural cracks > 1/4 inch in load-bearing walls or foundation
+     · Asbestos in friable condition (vermiculite insulation, deteriorating popcorn ceiling)
+     · Lead-based paint in homes pre-1978 with children under 6 occupying or expected to occupy
+     · Galvanized supply piping with documented active leaks or failures
+     · Underground oil/fuel storage tank without documented decommissioning
+     · Unpermitted living-area conversion, ADU, or addition affecting appraisal/financing
+     For these items specifically, do NOT downgrade to High based on low remediation cost. The cost is irrelevant — the issue is lender/insurance blockability and the buyer cannot close without addressing it.
+
+   - HIGH: $5,000-$15,000 OR significant future risk that's NOT on the always-Critical list above. Examples: aging HVAC (15+ years), sewer lateral repair, full electrical panel replacement (non-FPE), retaining-wall issues, deferred chimney repair.
+   - MODERATE: $1,000-$5,000 OR 1-5 year horizon. Examples: water heater near end of life, deferred exterior paint, minor plumbing fixtures, dated GFCI status.
+   - COSMETIC: <$1,000 OR purely aesthetic. Examples: minor drywall cracks, dated finishes, worn carpet, minor exterior touch-up.
 
 4. CONFIDENCE reflects directness of evidence:
    - HIGH: the document explicitly states the issue.
