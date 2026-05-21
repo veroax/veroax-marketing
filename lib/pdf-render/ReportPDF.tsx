@@ -158,9 +158,20 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: C.white,
   },
-  // Findings
-  finding: {
-    marginBottom: 10,
+  // Findings — each rendered as a distinct card with a colored
+  // left-edge severity accent strip, light background, and padding.
+  findingCard: {
+    flexDirection: "row",
+    marginBottom: 12,
+    backgroundColor: C.light,
+  },
+  findingAccent: {
+    width: 4,
+  },
+  findingBody: {
+    flexGrow: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   findingHeader: {
     flexDirection: "row",
@@ -632,33 +643,46 @@ function SeverityBadge({ severity }: { severity: Severity }) {
 }
 
 function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
+  const accentColor = severityHexColor(finding.severity);
   return (
-    <View style={styles.finding}>
-      <View style={styles.findingHeader}>
-        <Text style={styles.findingTitle}>
-          Issue {index}: {finding.title}
-        </Text>
-        <SeverityBadge severity={finding.severity} />
+    <View style={styles.findingCard}>
+      <View style={[styles.findingAccent, { backgroundColor: accentColor }]} />
+      <View style={styles.findingBody}>
+        <View style={styles.findingHeader}>
+          <Text style={styles.findingTitle}>
+            Issue {index}: {finding.title}
+          </Text>
+          <SeverityBadge severity={finding.severity} />
+        </View>
+        <Text style={styles.source}>{finding.source}</Text>
+        {finding.description ? (
+          <Text style={styles.description}>{finding.description}</Text>
+        ) : null}
+        <KvTable
+          rows={[
+            ["Source", finding.source],
+            ["Est. Cost", formatCostRange(finding.cost_estimate)],
+            ["Risk if Ignored", finding.risk_if_ignored],
+            ["Recommended Action", finding.recommended_action],
+            [
+              "Confidence",
+              finding.confidence.charAt(0).toUpperCase() +
+                finding.confidence.slice(1),
+            ],
+          ]}
+        />
       </View>
-      <Text style={styles.source}>{finding.source}</Text>
-      {finding.description ? (
-        <Text style={styles.description}>{finding.description}</Text>
-      ) : null}
-      <KvTable
-        rows={[
-          ["Source", finding.source],
-          ["Est. Cost", formatCostRange(finding.cost_estimate)],
-          ["Risk if Ignored", finding.risk_if_ignored],
-          ["Recommended Action", finding.recommended_action],
-          [
-            "Confidence",
-            finding.confidence.charAt(0).toUpperCase() +
-              finding.confidence.slice(1),
-          ],
-        ]}
-      />
     </View>
   );
+}
+
+function severityHexColor(severity: Severity): string {
+  return {
+    critical: C.critical,
+    high: C.high,
+    moderate: C.moderate,
+    cosmetic: C.subtext,
+  }[severity];
 }
 
 // ============================================================================
