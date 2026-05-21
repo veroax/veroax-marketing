@@ -1,6 +1,10 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createClient } from "@/lib/supabase/server";
-import { ReportPDF, type AgentBranding } from "@/lib/pdf-render/ReportPDF";
+import {
+  ReportPDF,
+  type AgentBranding,
+  type OriginalFile,
+} from "@/lib/pdf-render/ReportPDF";
 import type { ReportData } from "@/lib/anthropic/schema";
 
 // Streams a downloadable PDF for a finished report. Auth-gated by the
@@ -29,7 +33,9 @@ export async function GET(
 
     const { data: report, error } = await supabase
       .from("reports")
-      .select("id, status, property_address, report_data")
+      .select(
+        "id, status, property_address, report_data, original_files, report_name, client_name",
+      )
       .eq("id", reportId)
       .maybeSingle();
     if (error || !report) {
@@ -65,6 +71,25 @@ export async function GET(
       reportData.property_snapshot?.address ??
       "Disclosure Analysis";
 
+    // original_files is captured in /finalize as the canonical
+    // pre-split file inventory. Tolerate odd legacy shapes by passing
+    // through only entries that match the expected schema.
+    const originalFilesRaw = report.original_files as unknown;
+    const originalFiles: OriginalFile[] | null = Array.isArray(originalFilesRaw)
+      ? (originalFilesRaw as unknown[])
+          .filter(
+            (e): e is OriginalFile =>
+              typeof e === "object" &&
+              e !== null &&
+              typeof (e as { name?: unknown }).name === "string",
+          )
+          .map((e) => ({
+            name: (e as OriginalFile).name,
+            pages: Number((e as OriginalFile).pages) || 0,
+            size_kb: Number((e as OriginalFile).size_kb) || 0,
+          }))
+      : null;
+
     const buffer = await renderToBuffer(
       <ReportPDF
         report={reportData}
@@ -72,6 +97,7 @@ export async function GET(
         agent={agent}
         reportId={reportId}
         generatedAt={new Date()}
+        originalFiles={originalFiles}
       />,
     );
 

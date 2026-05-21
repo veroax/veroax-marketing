@@ -452,18 +452,30 @@ export type AgentBranding = {
   email?: string | null;
 };
 
+export type OriginalFile = {
+  name: string;
+  pages: number;
+  size_kb: number;
+};
+
 export function ReportPDF({
   report,
   property,
   agent,
   reportId,
   generatedAt,
+  originalFiles,
 }: {
   report: ReportData;
   property: string;
   agent: AgentBranding;
   reportId: string;
   generatedAt: Date;
+  // Canonical list of files the agent uploaded, captured in /finalize
+  // BEFORE any internal page-splitting. When present, the Document
+  // Inventory section uses this list — the user sees exactly what they
+  // uploaded, never the _part_N chunks Claude analyzed.
+  originalFiles?: OriginalFile[] | null;
 }) {
   const shortId = reportId.slice(0, 8);
   const analysisDate = generatedAt.toLocaleDateString("en-US", {
@@ -507,7 +519,7 @@ export function ReportPDF({
       >
         <SectionPropertySnapshot report={report} analysisDate={analysisDate} />
         <SectionExecutiveSummary report={report} />
-        <SectionDocumentInventory report={report} />
+        <SectionDocumentInventory report={report} originalFiles={originalFiles} />
       </BodyPage>
 
       <BodyPage
@@ -1013,13 +1025,36 @@ function composeStrengthsAndConcerns(report: ReportData): {
   return { strengths: strengths.slice(0, 3), concerns: concerns.slice(0, 3) };
 }
 
-function SectionDocumentInventory({ report }: { report: ReportData }) {
+function SectionDocumentInventory({
+  report,
+  originalFiles,
+}: {
+  report: ReportData;
+  originalFiles?: OriginalFile[] | null;
+}) {
   const inv = report.document_inventory;
+
+  // The user uploaded these files. This is the canonical inventory —
+  // it's captured in /finalize before any internal page-splitting, so
+  // it never shows the _part_N chunks Claude analyzed under the hood.
+  const haveOriginals = (originalFiles?.length ?? 0) > 0;
+
   return (
     <View>
       <SectionBanner number={3} title="Document Inventory" />
       <Text style={styles.subHead}>Provided</Text>
-      {inv?.documents_provided?.length ? (
+      {haveOriginals ? (
+        originalFiles!.map((f, i) => (
+          <View key={i} style={styles.bullet}>
+            <Text style={styles.bulletDot}>·</Text>
+            <Text style={styles.bulletText}>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>{f.name}</Text>
+              {f.pages ? ` — ${f.pages} pp` : ""}
+              {f.size_kb ? ` (${formatSize(f.size_kb)})` : ""}
+            </Text>
+          </View>
+        ))
+      ) : inv?.documents_provided?.length ? (
         inv.documents_provided.map((d, i) => (
           <View key={i} style={styles.bullet}>
             <Text style={styles.bulletDot}>·</Text>
@@ -1050,6 +1085,13 @@ function SectionDocumentInventory({ report }: { report: ReportData }) {
       )}
     </View>
   );
+}
+
+// Pretty-print a kilobyte count as KB or MB. Inventory rows are tighter
+// when the size column doesn't grow past 6-7 characters.
+function formatSize(sizeKb: number): string {
+  if (sizeKb >= 1024) return `${(sizeKb / 1024).toFixed(1)} MB`;
+  return `${sizeKb} KB`;
 }
 
 function SectionCritical({ report }: { report: ReportData }) {
