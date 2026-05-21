@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Resend } from "resend";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import {
   analyzeDisclosurePackage,
@@ -11,6 +12,9 @@ import {
   DOCUMENT_TYPE_LABEL,
   type PassGroup,
 } from "@/lib/pdf/classify";
+import type { ReportData } from "@/lib/anthropic/schema";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 
 // Multi-pass analysis orchestrator. The strategy here is:
 //
@@ -299,7 +303,117 @@ export async function POST(
     },
   });
 
+  // Fire-and-forget email notification to the agent. We don't await it
+  // because the user already sees a "complete" indicator in their UI;
+  // the email is just a nice-to-have for users who closed the tab.
+  if (user.email) {
+    void sendReportReadyEmail({
+      to: user.email,
+      reportId,
+      propertyAddress:
+        report.property_address ?? extractedAddress ?? "your property",
+      report: result.report,
+    });
+  }
+
   return NextResponse.json({ ok: true, status: "qa_pending" });
+}
+
+// ============================================================================
+// Email: report ready
+// ============================================================================
+
+async function sendReportReadyEmail(params: {
+  to: string;
+  reportId: string;
+  propertyAddress: string;
+  report: ReportData;
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return;
+
+  const resend = new Resend(apiKey);
+  const reportUrl = `${SITE_URL}/dashboard/reports/${params.reportId}`;
+  const rating = params.report.overall_rating?.label ?? "Unrated";
+  const criticalCount = params.report.critical_findings?.length ?? 0;
+  const moderateCount = params.report.moderate_findings?.length ?? 0;
+  const cosmeticCount = params.report.cosmetic_findings?.length ?? 0;
+
+  try {
+    await resend.emails.send({
+      from: "Veroax Reports <contact@veroax.com>",
+      to: params.to,
+      subject: `Your Veroax report is ready: ${params.propertyAddress}`,
+      text:
+        `Your disclosure analysis for ${params.propertyAddress} is ready to review.\n\n` +
+        `View the report: ${reportUrl}\n\n` +
+        `Summary:\n` +
+        `  Overall rating: ${rating}\n` +
+        `  Critical / high findings: ${criticalCount}\n` +
+        `  Moderate findings: ${moderateCount}\n` +
+        `  Cosmetic findings: ${cosmeticCount}\n\n` +
+        `The report is in "QA pending" status — review the findings before sharing with your client.\n\n` +
+        `— Veroax\n` +
+        `support@veroax.com · (866) 247-8833`,
+      html: `
+        <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;max-width:560px;margin:0 auto;">
+          <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:24px;border-radius:12px 12px 0 0;text-align:center;">
+            <h1 style="margin:0;color:#fff;font-size:20px;font-weight:bold;letter-spacing:-0.01em;">Veroax</h1>
+            <p style="margin:6px 0 0;color:#a5b4fc;font-size:13px;">Your disclosure analysis is ready</p>
+          </div>
+          <div style="background:#fff;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 12px 12px;padding:24px;">
+            <h2 style="margin:0 0 4px;font-size:18px;color:#0f172a;">${escapeHtml(params.propertyAddress)}</h2>
+            <p style="margin:0 0 20px;color:#64748b;font-size:14px;">Your 14-section analysis is complete and ready to review.</p>
+
+            <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;">
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#64748b;">Overall rating</td>
+                <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-weight:600;text-align:right;">${escapeHtml(rating)}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#64748b;">Critical / high findings</td>
+                <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-weight:600;text-align:right;">${criticalCount}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#64748b;">Moderate findings</td>
+                <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-weight:600;text-align:right;">${moderateCount}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;color:#64748b;">Cosmetic findings</td>
+                <td style="padding:8px 0;color:#0f172a;font-weight:600;text-align:right;">${cosmeticCount}</td>
+              </tr>
+            </table>
+
+            <a href="${reportUrl}" style="display:inline-block;background:#fbbf24;color:#1e1b4b;font-weight:600;text-decoration:none;padding:14px 28px;border-radius:10px;box-shadow:0 4px 12px rgba(251,191,36,0.25);">
+              Open the full report →
+            </a>
+
+            <p style="margin:24px 0 0;color:#64748b;font-size:13px;line-height:1.5;">
+              The report is in <strong>QA pending</strong> status. Review the
+              findings — especially the Critical &amp; High-Priority section —
+              before sharing with your client.
+            </p>
+          </div>
+          <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;text-align:center;">
+            Veroax, Inc · <a href="mailto:support@veroax.com" style="color:#94a3b8;">support@veroax.com</a> · (866) 247-8833
+          </p>
+        </div>
+      `,
+    });
+  } catch (err) {
+    // Don't fail the analysis if the email send fails. Log to Vercel
+    // function logs for visibility.
+    console.error("[analyze] report-ready email failed:", err);
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 async function fail(

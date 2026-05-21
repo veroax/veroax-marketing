@@ -4,22 +4,15 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 // Triggers /api/reports/[id]/analyze on mount, then polls /status every
-// 4 seconds to surface real progress: how many files have uploaded to
-// Anthropic, whether Claude is running, and any failure reason. When
-// status changes to qa_pending (or anything other than analyzing), the
-// page refreshes so the server-rendered report appears.
+// 4 seconds to surface real progress through the multi-pass pipeline:
+// extraction → focused passes (parallel) → synthesis → save. When the
+// report's status leaves "analyzing", we play a completion chime,
+// show a brief "Complete!" overlay, then refresh the page so the
+// rendered 14-section report appears.
 
 type StatusEvent = {
   event_type: string;
-  metadata: {
-    total_files?: number;
-    uploaded_index?: number;
-    uploaded_count?: number;
-    filename?: string;
-    input_tokens?: number;
-    output_tokens?: number;
-    [k: string]: unknown;
-  };
+  metadata: Record<string, unknown>;
   created_at: string;
 };
 
@@ -34,11 +27,12 @@ type Props = {
 };
 
 const POLL_INTERVAL_MS = 4000;
+const COMPLETION_DISPLAY_MS = 2000; // dwell time on "Complete!" before page refresh
 
 export function AnalysisRunner({ reportId }: Props) {
   const router = useRouter();
   const triggered = useRef(false);
-  const [phase, setPhase] = useState<"running" | "error">("running");
+  const [phase, setPhase] = useState<"running" | "completing" | "error">("running");
   const [error, setError] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [progress, setProgress] = useState<{
@@ -46,7 +40,7 @@ export function AnalysisRunner({ reportId }: Props) {
     detail?: string;
   }>({ label: "Starting analysis…" });
 
-  // Tick the elapsed timer.
+  // Tick the elapsed timer while still running.
   useEffect(() => {
     if (phase !== "running") return;
     const interval = setInterval(() => setElapsedSec((s) => s + 1), 1000);
@@ -57,7 +51,6 @@ export function AnalysisRunner({ reportId }: Props) {
   useEffect(() => {
     if (triggered.current) return;
     triggered.current = true;
-
     let cancelled = false;
 
     async function runAnalysis() {
@@ -69,17 +62,25 @@ export function AnalysisRunner({ reportId }: Props) {
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           if (res.status === 409) {
-            router.refresh();
+            handleCompletion();
             return;
           }
           throw new Error(data.error || `Analysis failed (HTTP ${res.status}).`);
         }
-        router.refresh();
+        handleCompletion();
       } catch (err) {
         if (cancelled) return;
         setPhase("error");
         setError(err instanceof Error ? err.message : "Analysis failed.");
       }
+    }
+
+    function handleCompletion() {
+      playCompletionChime();
+      setPhase("completing");
+      setTimeout(() => {
+        router.refresh();
+      }, COMPLETION_DISPLAY_MS);
     }
 
     runAnalysis();
@@ -102,10 +103,12 @@ export function AnalysisRunner({ reportId }: Props) {
         const data = (await res.json()) as StatusResponse;
         if (cancelled) return;
 
-        // If the report moved past "analyzing" externally, refresh to
-        // render the result.
+        // If the report moved past "analyzing" externally, fall through
+        // to the completion handler.
         if (data.status !== "analyzing") {
-          router.refresh();
+          playCompletionChime();
+          setPhase("completing");
+          setTimeout(() => router.refresh(), COMPLETION_DISPLAY_MS);
           return;
         }
 
@@ -115,7 +118,7 @@ export function AnalysisRunner({ reportId }: Props) {
       }
     }
 
-    poll(); // immediate
+    poll();
     const interval = setInterval(poll, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
@@ -146,6 +149,32 @@ export function AnalysisRunner({ reportId }: Props) {
     );
   }
 
+  if (phase === "completing") {
+    return (
+      <div className="bg-emerald-50 border-2 border-emerald-500 rounded-2xl p-8 text-center transition-all">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500 shadow-lg mb-3">
+          <svg
+            className="w-8 h-8 text-white"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={3}
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold text-emerald-900">Analysis complete</h2>
+        <p className="text-sm text-emerald-700 mt-1">
+          Loading your report…
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-8">
       <div className="flex items-start gap-4">
@@ -155,14 +184,19 @@ export function AnalysisRunner({ reportId }: Props) {
             viewBox="0 0 24 24"
             fill="none"
           >
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="3"
+              opacity="0.25"
+            />
             <path d="M22 12a10 10 0 00-10-10" stroke="currentColor" strokeWidth="3" />
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold text-slate-900 mb-1">
-            {progress.label}
-          </h2>
+          <h2 className="text-lg font-bold text-slate-900 mb-1">{progress.label}</h2>
           {progress.detail && (
             <p className="text-sm text-gray-600 mb-2">{progress.detail}</p>
           )}
@@ -173,6 +207,14 @@ export function AnalysisRunner({ reportId }: Props) {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Working
             </span>
+          </p>
+          <p className="text-xs text-gray-400 mt-3 leading-relaxed">
+            Multi-pass analysis takes about <strong>3–6 minutes</strong> for a typical
+            CA disclosure package. We extract text from every document, then run
+            focused Claude calls in parallel (seller disclosures, inspections,
+            HOA, hazards) before synthesizing the final 14-section report. You can
+            leave this tab open — we&apos;ll chime when it&apos;s done and send you an
+            email with a link to the report.
           </p>
         </div>
       </div>
@@ -243,26 +285,23 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
     }
   }
 
-  // Saving (after synthesis OR back-compat claude_completed)
   if (claudeCompleted) {
     return {
       label: "Saving your report",
-      detail: "Final formatting and storage.",
+      detail: "Final formatting and storage. Almost there.",
     };
   }
-
-  // Synthesis in progress
   if (synthesisCompleted) {
     return { label: "Wrapping up", detail: "Combining findings and saving." };
   }
   if (synthesisStarted) {
     return {
       label: "Synthesizing the final 14-section report",
-      detail: "Combining findings from each document group into the unified report.",
+      detail:
+        "Combining findings from each document group into the unified report. About 30–60 seconds remaining.",
     };
   }
 
-  // Multi-pass in progress
   if (passesByKey.size > 0) {
     const passes = Array.from(passesByKey.values());
     const totalPasses = passes.length;
@@ -279,12 +318,11 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
       label: `Analyzing your disclosure (${completedPasses} of ${totalPasses} passes complete)`,
       detail:
         inFlight.length > 0
-          ? `Currently running: ${inFlightLabels}`
+          ? `Currently running: ${inFlightLabels}. Each pass takes 60–120 seconds.`
           : "All focused passes done; preparing synthesis.",
     };
   }
 
-  // Claude started but no pass events yet (transient)
   if (claudeStarted) {
     return {
       label: "Preparing focused analysis passes",
@@ -292,7 +330,6 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
     };
   }
 
-  // Extraction phase
   if (total > 0 && extracted > 0) {
     return {
       label: "Extracting text from documents",
@@ -310,4 +347,39 @@ function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}m ${s.toString().padStart(2, "0")}s`;
+}
+
+// Two-tone ascending chime (major triad arpeggio) using Web Audio.
+// No external file needed. Wrapped in try/catch so a blocked AudioContext
+// (some browsers/extensions) doesn't break the page.
+function playCompletionChime(): void {
+  try {
+    const Ctx =
+      typeof window === "undefined"
+        ? null
+        : (window.AudioContext ??
+            (window as unknown as { webkitAudioContext?: typeof AudioContext })
+              .webkitAudioContext);
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const now = ctx.currentTime;
+    // C5, E5, G5 — pleasant rising arpeggio
+    const notes = [523.25, 659.25, 783.99];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const startTime = now + i * 0.12;
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.55);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + 0.6);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 1500);
+  } catch {
+    // Audio not supported or blocked.
+  }
 }

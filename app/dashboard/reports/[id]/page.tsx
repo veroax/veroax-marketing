@@ -268,17 +268,20 @@ function SourceGroupRow({ group }: { group: SourceGroup }) {
   }
 
   // Multi-part files collapse into a native <details> disclosure.
+  // Arrow is on the right (after the parts count) to keep the visual
+  // hierarchy quiet — collapsible disclosure controls trailing is the
+  // more common modern pattern.
   return (
     <li>
       <details className="group">
         <summary className="flex items-center gap-3 text-slate-700 cursor-pointer list-none hover:bg-slate-50 -mx-1 px-1 py-0.5 rounded">
-          <span className="text-gray-400 text-xs transition-transform group-open:rotate-90">
-            ▶
-          </span>
           <PdfBadge />
           <span className="flex-1 truncate font-medium">{group.displayName}</span>
           <span className="text-xs text-gray-500">
             {group.parts.length} parts · {fmtKb(group.totalBytes)}
+          </span>
+          <span className="text-gray-400 text-xs transition-transform group-open:rotate-90 shrink-0 w-3 text-center">
+            ▶
           </span>
         </summary>
         <ul className="mt-1.5 ml-8 space-y-1 text-xs text-slate-500">
