@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import AdmZip from "adm-zip";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { splitPdfIfNeeded, countPages, MAX_PAGES_PER_CHUNK } from "@/lib/pdf/split";
+import { extractText } from "@/lib/pdf/extract";
 
 // Called after client-side uploads to "disclosures/{user_id}/{report_id}/..."
 // finish. Server's job:
@@ -50,6 +51,15 @@ export async function POST(
   if (paths.length === 0) {
     return NextResponse.json({ error: "No files to finalize." }, { status: 400 });
   }
+
+  // Optional: storage path of an MLS-printout PDF the agent uploaded
+  // alongside the disclosure package. We extract its text below and
+  // persist it to reports.listing_text so the analysis can use it as
+  // contextual "listing copy" without ever ingesting the PDF itself.
+  const mlsFilePath: string | null =
+    typeof body?.mls_file_path === "string" && body.mls_file_path.trim()
+      ? body.mls_file_path.trim()
+      : null;
 
   const admin = createServiceRoleClient();
   const zipPaths = paths.filter((p) => p.toLowerCase().endsWith(".zip"));
@@ -221,18 +231,67 @@ export async function POST(
   const pdfCount =
     finalFiles?.filter((f) => f.name.toLowerCase().endsWith(".pdf")).length ?? 0;
 
+  // If the agent uploaded an MLS-printout PDF, download it, extract the
+  // text, and persist that text to reports.listing_text. The analysis
+  // reads listing_text as supplementary marketing context — it does NOT
+  // need the actual PDF, just the words. If extraction fails (encrypted,
+  // image-only without OCR), we log it but don't block the report.
+  let mlsListingText: string | null = null;
+  if (mlsFilePath) {
+    try {
+      const { data: mlsBlob, error: mlsDlErr } = await admin.storage
+        .from("disclosures")
+        .download(mlsFilePath);
+      if (mlsDlErr || !mlsBlob) {
+        throw new Error(mlsDlErr?.message ?? "Could not download MLS PDF.");
+      }
+      const mlsBuffer = Buffer.from(await mlsBlob.arrayBuffer());
+      const extracted = await extractText(mlsBuffer);
+      // Trim and cap at a sane length — MLS sheets are typically 2-4 pages
+      // of running text, so 50K chars is a comfortable ceiling that still
+      // catches edge cases without bloating downstream prompts.
+      mlsListingText = extracted.text.slice(0, 50_000) || null;
+
+      await admin.from("audit_log").insert({
+        user_id: user.id,
+        report_id: reportId,
+        event_type: "mls.extracted",
+        metadata: {
+          pages: extracted.pages,
+          chars: mlsListingText?.length ?? 0,
+          had_text: Boolean(mlsListingText),
+        },
+      });
+    } catch (err) {
+      const why = err instanceof Error ? err.message : "unknown error";
+      // Non-fatal: log it and continue. The analysis can still run
+      // without the MLS context.
+      await admin.from("audit_log").insert({
+        user_id: user.id,
+        report_id: reportId,
+        event_type: "mls.extract_failed",
+        metadata: { reason: why },
+      });
+    }
+  }
+
   // Mark the report as ready for analysis and persist the canonical
   // original_files list (post-ZIP, pre-split) — the PDF document
   // inventory reads from this column so the user always sees what they
-  // actually uploaded.
+  // actually uploaded. Also stash the MLS storage path and any
+  // extracted listing text so the analyze step can use it as context.
+  const reportUpdate: Record<string, unknown> = {
+    status: "analyzing",
+    analysis_started_at: new Date().toISOString(),
+    source_file_path: folder,
+    original_files: originalFiles.length > 0 ? originalFiles : null,
+  };
+  if (mlsFilePath) reportUpdate.mls_file_path = mlsFilePath;
+  if (mlsListingText) reportUpdate.listing_text = mlsListingText;
+
   const { error: updateErr } = await supabase
     .from("reports")
-    .update({
-      status: "analyzing",
-      analysis_started_at: new Date().toISOString(),
-      source_file_path: folder,
-      original_files: originalFiles.length > 0 ? originalFiles : null,
-    })
+    .update(reportUpdate)
     .eq("id", reportId);
   if (updateErr) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
@@ -248,6 +307,8 @@ export async function POST(
       zip_count: zipPaths.length,
       pdfs_split: pdfsSplitCount,
       pages_split: pagesSplitTotal,
+      mls_attached: Boolean(mlsFilePath),
+      mls_text_chars: mlsListingText?.length ?? 0,
     },
   });
 
@@ -256,5 +317,6 @@ export async function POST(
     pdf_count: pdfCount,
     zip_count_extracted: zipPaths.length,
     pdfs_split: pdfsSplitCount,
+    mls_attached: Boolean(mlsFilePath),
   });
 }
