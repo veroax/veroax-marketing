@@ -3,13 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AnalysisRunner } from "./_components/AnalysisRunner";
 import { RetryButton } from "./_components/RetryButton";
-import type {
-  ReportData,
-  Finding,
-  Severity,
-  Confidence,
-  CostRange,
-} from "@/lib/anthropic/schema";
+import type { ReportData } from "@/lib/anthropic/schema";
 
 type Params = Promise<{ id: string }>;
 
@@ -23,9 +17,7 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
 
   const { data: report } = await supabase
     .from("reports")
-    .select(
-      "id, status, property_address, source_file_path, report_data, created_at, analysis_completed_at, failure_reason",
-    )
+    .select("id, status, property_address, source_file_path, report_data, created_at, analysis_completed_at, failure_reason, report_name, client_name, last_updated_at, update_count, versions, original_files")
     .eq("id", id)
     .maybeSingle();
   if (!report) notFound();
@@ -123,29 +115,10 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {reportData && (
-            <a
-              href={`/api/reports/${report.id}/pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-amber-400 text-indigo-950 font-semibold px-4 py-2 rounded-lg hover:bg-amber-300 transition-colors shadow-sm text-sm"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                />
-              </svg>
-              Download PDF
-            </a>
-          )}
+          {/* Note: the prominent "Download full PDF report" button lives
+              inside AgentSummary's action row below. The top-of-page
+              chrome only shows the status pill now — duplicating the
+              CTA in two places competed for attention. */}
           <StatusPill status={report.status} />
         </div>
       </div>
@@ -192,11 +165,35 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
         )}
       </section>
 
+      {/* Agent-focused summary view — replaces the old inline 14-section
+          render. The full report is downloadable as PDF; this page now
+          orients the agent around what they need to ACT on. */}
+      {reportData && (
+        <AgentSummary
+          reportId={report.id}
+          reportData={reportData}
+          reportName={
+            (report as { report_name?: string | null }).report_name ?? null
+          }
+          clientName={
+            (report as { client_name?: string | null }).client_name ?? null
+          }
+          createdAt={report.created_at}
+          lastUpdatedAt={
+            (report as { last_updated_at?: string | null }).last_updated_at ??
+            null
+          }
+          versions={
+            ((report as { versions?: unknown }).versions as
+              | ReportVersionSnapshot[]
+              | null
+              | undefined) ?? []
+          }
+        />
+      )}
+
       {/* Token burn / cost — dev visibility */}
       {usage && <TokenBurnCard usage={usage} />}
-
-      {/* Rendered report */}
-      {reportData && <RenderedReport data={reportData} />}
     </div>
   );
 }
@@ -426,501 +423,6 @@ function Stat({
   );
 }
 
-function RenderedReport({ data }: { data: ReportData }) {
-  return (
-    <div className="rounded-2xl overflow-hidden shadow-lg border border-gray-200">
-      {/* Browser chrome */}
-      <div className="bg-gray-100 px-4 py-3 flex items-center gap-3 border-b border-gray-200">
-        <div className="flex gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-red-400" />
-          <div className="w-3 h-3 rounded-full bg-yellow-400" />
-          <div className="w-3 h-3 rounded-full bg-green-400" />
-        </div>
-        <div className="flex-1 mx-2 bg-white rounded px-3 py-1 text-xs text-gray-400 font-mono truncate">
-          Veroax_Disclosure_Analysis_Report.pdf
-        </div>
-      </div>
-
-      {/* Report body */}
-      <div className="bg-[#FAF8F2] p-6 sm:p-10 space-y-8 text-sm">
-        <PropertySnapshot data={data} />
-        <DocumentInventory data={data} />
-        <CompletenessAudit data={data} />
-        <FindingsSection
-          number="4"
-          title="Critical & High-Priority Findings"
-          findings={data.critical_findings}
-        />
-        <FindingsSection
-          number="5"
-          title="Moderate Findings"
-          findings={data.moderate_findings}
-        />
-        <FindingsSection
-          number="6"
-          title="Cosmetic Findings"
-          findings={data.cosmetic_findings}
-        />
-        <PermitCompliance data={data} />
-        <HoaSection data={data} />
-        <EnvironmentalSection data={data} />
-        <CostSummary data={data} />
-        <NegotiationSection data={data} />
-        <InsuranceLenderSection data={data} />
-        <OutstandingQuestions data={data} />
-        <OverallRating data={data} />
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// Section renderers
-// ============================================================================
-
-function PropertySnapshot({ data }: { data: ReportData }) {
-  const p = data.property_snapshot;
-  return (
-    <div>
-      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-[#C9A84C] mb-0.5">
-            Disclosure Analysis Report
-          </p>
-          <h3 className="text-xl font-bold text-[#191970]">
-            {p?.address ?? "Address not extracted"}
-          </h3>
-          <p className="text-[#4A4A4A] text-xs mt-1">
-            {[
-              p?.property_type,
-              p?.year_built,
-              p?.square_feet ? `${p.square_feet.toLocaleString()} sq ft` : null,
-              p?.bedrooms ? `${p.bedrooms} bed` : null,
-              p?.bathrooms ? `${p.bathrooms} bath` : null,
-              p?.market_region,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        </div>
-        <div className="text-right text-xs text-[#4A4A4A] space-y-0.5 shrink-0">
-          {p?.list_price != null && (
-            <p>
-              <span className="font-semibold">List Price:</span>{" "}
-              {formatUSD(p.list_price)}
-            </p>
-          )}
-          {p?.days_on_market != null && (
-            <p>
-              <span className="font-semibold">Days on Market:</span>{" "}
-              {p.days_on_market}
-            </p>
-          )}
-        </div>
-      </div>
-      <div className="h-px bg-[#C8C8DC]" />
-    </div>
-  );
-}
-
-function SectionHeader({ number, title }: { number: string; title: string }) {
-  return (
-    <div className="flex items-center gap-3 mb-4 rounded-sm overflow-hidden">
-      <div className="bg-[#191970] text-[#C9A84C] text-xs font-bold px-3 py-2 uppercase tracking-widest shrink-0">
-        Section {number}
-      </div>
-      <p className="text-white bg-[#191970] font-bold text-sm py-2 pr-4 flex-1">
-        {title}
-      </p>
-    </div>
-  );
-}
-
-function DocumentInventory({ data }: { data: ReportData }) {
-  const inv = data.document_inventory;
-  return (
-    <div>
-      <SectionHeader number="2" title="Document Inventory" />
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div className="border border-[#C8C8DC] rounded bg-white p-4">
-          <p className="font-bold text-[#191970] text-xs uppercase tracking-wide mb-2">
-            Documents Provided
-          </p>
-          {inv?.documents_provided?.length ? (
-            <ul className="space-y-1 text-xs text-[#1A1A2E]">
-              {inv.documents_provided.map((d, i) => (
-                <li key={i}>
-                  <span className="font-semibold">{d.type}:</span> {d.name}
-                  {d.pages ? ` (${d.pages} pp)` : null}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-gray-500">None identified.</p>
-          )}
-        </div>
-        <div className="border border-[#C8C8DC] rounded bg-white p-4">
-          <p className="font-bold text-[#7A2E2E] text-xs uppercase tracking-wide mb-2">
-            Documents Missing
-          </p>
-          {inv?.documents_missing?.length ? (
-            <ul className="space-y-1 text-xs text-[#1A1A2E] list-disc list-inside">
-              {inv.documents_missing.map((d, i) => (
-                <li key={i}>{d}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-gray-500">Package appears complete.</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CompletenessAudit({ data }: { data: ReportData }) {
-  const c = data.completeness_audit;
-  return (
-    <div>
-      <SectionHeader number="3" title="Disclosure Completeness Audit" />
-      <div className="border border-[#C8C8DC] rounded bg-white p-4">
-        <p className="text-xs text-[#1A1A2E] leading-relaxed mb-2">
-          {c?.summary || "Audit summary not provided."}
-        </p>
-        {c?.issues?.length ? (
-          <ul className="text-xs text-[#1A1A2E] list-disc list-inside space-y-1 mt-2">
-            {c.issues.map((issue, i) => (
-              <li key={i}>{issue}</li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function FindingsSection({
-  number,
-  title,
-  findings,
-}: {
-  number: string;
-  title: string;
-  findings: Finding[] | undefined;
-}) {
-  if (!findings?.length) {
-    return (
-      <div>
-        <SectionHeader number={number} title={title} />
-        <p className="text-xs text-[#4A4A4A] italic px-1">None identified.</p>
-      </div>
-    );
-  }
-  return (
-    <div>
-      <SectionHeader number={number} title={title} />
-      <div className="space-y-4">
-        {findings.map((f, i) => (
-          <FindingCard key={i} finding={f} index={i + 1} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function FindingCard({ finding, index }: { finding: Finding; index: number }) {
-  return (
-    <div className="border border-[#C8C8DC] rounded bg-white overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#C8C8DC] gap-3">
-        <span className="font-bold text-[#191970] text-sm">
-          Issue {index}: {finding.title}
-        </span>
-        <SeverityBadge severity={finding.severity} />
-      </div>
-      {finding.description && (
-        <div className="px-4 py-3 text-[#1A1A2E] text-xs leading-relaxed italic border-b border-[#C8C8DC] bg-[#FAF8F2]">
-          {finding.description}
-        </div>
-      )}
-      <div className="divide-y divide-[#C8C8DC]">
-        <Row label="Source" value={finding.source} />
-        <Row label="Confidence" value={confidenceLabel(finding.confidence)} />
-        <Row label="Est. Cost" value={formatCostRange(finding.cost_estimate)} />
-        <Row label="Risk if Ignored" value={finding.risk_if_ignored} />
-        <Row label="Recommended Action" value={finding.recommended_action} />
-      </div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[140px_1fr] text-xs">
-      <div className="px-3 py-2 font-semibold text-[#2E4057] bg-[#F5F2EA]">
-        {label}
-      </div>
-      <div className="px-3 py-2 text-[#1A1A2E]">{value}</div>
-    </div>
-  );
-}
-
-function PermitCompliance({ data }: { data: ReportData }) {
-  return (
-    <div>
-      <SectionHeader number="7" title="Permit History & Code Compliance" />
-      <div className="border border-[#C8C8DC] rounded bg-white p-4 mb-3">
-        <p className="text-xs text-[#1A1A2E] leading-relaxed">
-          {data.permit_compliance?.summary || "No permit summary."}
-        </p>
-      </div>
-      {data.permit_compliance?.findings?.length ? (
-        <div className="space-y-3">
-          {data.permit_compliance.findings.map((f, i) => (
-            <FindingCard key={i} finding={f} index={i + 1} />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function HoaSection({ data }: { data: ReportData }) {
-  const hoa = data.hoa;
-  return (
-    <div>
-      <SectionHeader number="8" title="HOA Status & Health" />
-      <div className="border border-[#C8C8DC] rounded bg-white p-4">
-        {!hoa?.applicable ? (
-          <p className="text-xs text-[#1A1A2E]">
-            HOA not applicable to this property.
-          </p>
-        ) : (
-          <>
-            <p className="text-xs text-[#1A1A2E] leading-relaxed mb-2">
-              {hoa.summary}
-            </p>
-            {hoa.concerns?.length ? (
-              <ul className="text-xs text-[#1A1A2E] list-disc list-inside space-y-1">
-                {hoa.concerns.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
-            ) : null}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EnvironmentalSection({ data }: { data: ReportData }) {
-  const env = data.environmental;
-  return (
-    <div>
-      <SectionHeader number="9" title="Environmental & Natural Hazards" />
-      <div className="border border-[#C8C8DC] rounded bg-white p-4">
-        <p className="text-xs text-[#1A1A2E] leading-relaxed mb-3">
-          {env?.summary || "No environmental summary."}
-        </p>
-        {env?.hazards?.length ? (
-          <div className="space-y-2">
-            {env.hazards.map((h, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs">
-                <SeverityBadge severity={h.severity} compact />
-                <span>
-                  <span className="font-semibold">{h.name}:</span> {h.notes}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function CostSummary({ data }: { data: ReportData }) {
-  const cs = data.cost_summary;
-  return (
-    <div>
-      <SectionHeader number="10" title="Repair Cost Summary" />
-      <div className="border border-[#C8C8DC] rounded overflow-hidden bg-white">
-        <div className="grid grid-cols-[1fr_180px] bg-[#2E4057] text-white text-xs font-bold">
-          <div className="px-4 py-2.5">Item</div>
-          <div className="px-4 py-2.5 text-right">Est. Cost Range</div>
-        </div>
-        {cs?.line_items?.map((cat, ci) => (
-          <div key={ci}>
-            <div className="grid grid-cols-[1fr_180px] text-xs bg-[#2E4057]/10 font-bold text-[#2E4057] border-t border-[#C8C8DC]">
-              <div className="px-4 py-2 uppercase tracking-wide">{cat.category}</div>
-              <div />
-            </div>
-            {cat.items?.map((item, ii) => (
-              <div
-                key={ii}
-                className={`grid grid-cols-[1fr_180px] text-xs border-t border-[#C8C8DC] ${
-                  ii % 2 === 0 ? "bg-white" : "bg-[#F5F2EA]"
-                }`}
-              >
-                <div className="px-4 py-2">{item.label}</div>
-                <div className="px-4 py-2 text-right">
-                  {formatCostRange(item.cost)}
-                </div>
-              </div>
-            ))}
-          </div>
-        ))}
-        <div className="grid grid-cols-[1fr_180px] text-xs border-t-2 border-[#191970] bg-[#191970] text-white font-bold">
-          <div className="px-4 py-3">TOTAL ESTIMATED REPAIR EXPOSURE</div>
-          <div className="px-4 py-3 text-right">
-            {formatCostRange(cs?.grand_total)}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function NegotiationSection({ data }: { data: ReportData }) {
-  const n = data.negotiation;
-  return (
-    <div>
-      <SectionHeader number="11" title="Negotiation Leverage" />
-      <div className="border border-[#C8C8DC] rounded bg-white p-4">
-        <p className="text-xs text-[#1A1A2E] leading-relaxed mb-2">
-          {n?.summary || "No negotiation summary."}
-        </p>
-        {n?.leverage_points?.length ? (
-          <ul className="text-xs text-[#1A1A2E] list-disc list-inside space-y-1">
-            {n.leverage_points.map((p, i) => (
-              <li key={i}>{p}</li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function InsuranceLenderSection({ data }: { data: ReportData }) {
-  const r = data.insurance_lender_risk;
-  return (
-    <div>
-      <SectionHeader number="12" title="Insurance & Lender Risk" />
-      <div className="border border-[#C8C8DC] rounded bg-white p-4">
-        <p className="text-xs text-[#1A1A2E] leading-relaxed mb-3">
-          {r?.summary || "No insurance/lender summary."}
-        </p>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <p className="font-bold text-[#191970] text-xs uppercase tracking-wide mb-2">
-              Insurance Concerns
-            </p>
-            {r?.insurance_concerns?.length ? (
-              <ul className="text-xs text-[#1A1A2E] list-disc list-inside space-y-1">
-                {r.insurance_concerns.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-gray-500">None identified.</p>
-            )}
-          </div>
-          <div>
-            <p className="font-bold text-[#191970] text-xs uppercase tracking-wide mb-2">
-              Lender Concerns
-            </p>
-            {r?.lender_concerns?.length ? (
-              <ul className="text-xs text-[#1A1A2E] list-disc list-inside space-y-1">
-                {r.lender_concerns.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-gray-500">None identified.</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function OutstandingQuestions({ data }: { data: ReportData }) {
-  return (
-    <div>
-      <SectionHeader number="13" title="Outstanding Questions" />
-      <div className="border border-[#C8C8DC] rounded bg-white p-4">
-        {data.outstanding_questions?.length ? (
-          <ul className="text-xs text-[#1A1A2E] list-decimal list-inside space-y-1.5">
-            {data.outstanding_questions.map((q, i) => (
-              <li key={i}>{q}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-xs text-gray-500">No outstanding questions identified.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function OverallRating({ data }: { data: ReportData }) {
-  const r = data.overall_rating;
-  const tone = ratingTone(r?.label);
-  return (
-    <div>
-      <SectionHeader number="14" title="Overall Property Rating" />
-      <div className="border border-[#C8C8DC] rounded bg-white p-5 flex flex-col sm:flex-row items-start gap-5">
-        <div className="shrink-0">
-          <div
-            className={`text-white text-sm font-bold px-5 py-3 rounded text-center uppercase tracking-wide whitespace-nowrap ${tone}`}
-          >
-            {r?.label ?? "Unrated"}
-          </div>
-        </div>
-        <div className="space-y-2">
-          <p className="text-[#1A1A2E] text-xs leading-relaxed">
-            {r?.summary || "No summary."}
-          </p>
-          {r?.contingency_advice && (
-            <p className="text-[#4A4A4A] text-xs italic leading-relaxed">
-              {r.contingency_advice}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// Small helpers
-// ============================================================================
-
-function SeverityBadge({
-  severity,
-  compact = false,
-}: {
-  severity: Severity;
-  compact?: boolean;
-}) {
-  const map: Record<Severity, string> = {
-    critical: "bg-[#7A2E2E]",
-    high: "bg-[#8B5A2B]",
-    moderate: "bg-[#4A6A87]",
-    cosmetic: "bg-[#6B7280]",
-  };
-  return (
-    <span
-      className={`text-xs font-bold text-white px-3 py-1 rounded-sm uppercase tracking-wide ${map[severity]} ${
-        compact ? "py-0.5 px-1.5 text-[10px]" : ""
-      }`}
-    >
-      {severity}
-    </span>
-  );
-}
 
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, { label: string; tone: string }> = {
@@ -949,29 +451,307 @@ function formatUSD(n: number): string {
   }).format(n);
 }
 
-function formatCostRange(r: CostRange | null | undefined): string {
-  if (!r) return "—";
-  if (r.low === r.high) return formatUSD(r.low);
-  return `${formatUSD(r.low)} – ${formatUSD(r.high)}`;
+// ============================================================================
+// Agent-focused summary view — replaces the inline 14-section PDF preview.
+// The actual report is downloadable as PDF; this page orients the agent
+// around what they need to ACT on:
+//   - Strengths to highlight to the buyer
+//   - Concerns to surface and discuss
+//   - Missing disclosures to chase down
+// Action row: Download PDF, Draft email, Add documents.
+// Version history collapses old snapshots with explicit affirmation
+// before downloading a non-current report.
+// ============================================================================
+
+type ReportVersionSnapshot = {
+  version_number: number;
+  snapshotted_at: string;
+  report_data: ReportData | null;
+  original_files?: Array<{ name: string; pages: number; size_kb: number }> | null;
+  source_file_path?: string | null;
+  status?: string | null;
+  pdf_blob_path?: string | null;
+};
+
+function AgentSummary({
+  reportId,
+  reportData,
+  reportName,
+  clientName,
+  createdAt,
+  lastUpdatedAt,
+  versions,
+}: {
+  reportId: string;
+  reportData: ReportData;
+  reportName: string | null;
+  clientName: string | null;
+  createdAt: string;
+  lastUpdatedAt: string | null;
+  versions: ReportVersionSnapshot[];
+}) {
+  const address =
+    reportData.property_snapshot?.address?.trim() || "Address not extracted";
+  const { strengths, concerns } = composeAgentStrengthsAndConcerns(reportData);
+  const missing = reportData.document_inventory?.documents_missing ?? [];
+  const grandTotal = reportData.cost_summary?.grand_total ?? null;
+
+  return (
+    <section className="space-y-5">
+      {/* ----- Hero ---------------------------------------------- */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="bg-indigo-950 px-6 py-5 text-white">
+          {clientName && (
+            <div className="text-[10px] font-bold tracking-widest text-amber-300 uppercase mb-1">
+              Prepared For · {clientName}
+            </div>
+          )}
+          <h2 className="text-2xl font-bold leading-tight">{address}</h2>
+          {reportName && (
+            <p className="text-xs text-indigo-200 italic mt-1">
+              Internal reference: {reportName}
+            </p>
+          )}
+        </div>
+        <div className="px-6 py-3 text-xs text-slate-500 flex flex-wrap gap-x-5 gap-y-1.5 bg-slate-50">
+          <span>
+            <span className="font-semibold text-slate-700">Created</span>{" "}
+            {formatDate(createdAt)}
+          </span>
+          {lastUpdatedAt && (
+            <span>
+              <span className="font-semibold text-slate-700">Last updated</span>{" "}
+              {formatDate(lastUpdatedAt)}
+            </span>
+          )}
+          <span>
+            <span className="font-semibold text-slate-700">Overall rating</span>{" "}
+            {reportData.overall_rating?.label ?? "Unrated"}
+          </span>
+          {grandTotal && grandTotal.high > 0 && (
+            <span>
+              <span className="font-semibold text-slate-700">Cost exposure</span>{" "}
+              {formatUSD(grandTotal.low)} – {formatUSD(grandTotal.high)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ----- Update banner ------------------------------------- */}
+      {reportData.update_note && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900 flex items-start gap-3">
+          <span className="text-amber-500 text-base leading-none mt-0.5">↻</span>
+          <span>{reportData.update_note}</span>
+        </div>
+      )}
+
+      {/* ----- Strengths / Concerns dual block ------------------- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+          <h3 className="text-xs font-bold tracking-widest text-emerald-800 uppercase mb-3">
+            Top Strengths
+          </h3>
+          <ol className="space-y-2.5 text-sm text-emerald-950">
+            {strengths.map((s, i) => (
+              <li key={i} className="flex gap-2.5">
+                <span className="font-bold text-emerald-700 shrink-0">{i + 1}.</span>
+                <span>{s}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+          <h3 className="text-xs font-bold tracking-widest text-red-800 uppercase mb-3">
+            Top Concerns
+          </h3>
+          <ol className="space-y-2.5 text-sm text-red-950">
+            {concerns.map((c, i) => (
+              <li key={i} className="flex gap-2.5">
+                <span className="font-bold text-red-700 shrink-0">{i + 1}.</span>
+                <span>{c}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+
+      {/* ----- Missing disclosures ------------------------------- */}
+      <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+        <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase mb-3">
+          Missing from standard CA disclosure package
+        </h3>
+        {missing.length === 0 ? (
+          <p className="text-sm text-emerald-700 flex items-center gap-2">
+            <span className="text-emerald-500 text-base leading-none">✓</span>
+            Package appears complete.
+          </p>
+        ) : (
+          <ul className="space-y-1.5 text-sm text-slate-700">
+            {missing.map((m, i) => (
+              <li key={i} className="flex gap-2.5">
+                <span className="text-red-500 shrink-0">·</span>
+                <span>{m}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* ----- Action row ---------------------------------------- */}
+      <div className="flex flex-wrap gap-3">
+        <a
+          href={`/api/reports/${reportId}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 bg-amber-400 text-indigo-950 font-semibold px-5 py-2.5 rounded-lg hover:bg-amber-300 transition-colors shadow-sm text-sm"
+        >
+          <span className="text-base leading-none">↓</span>
+          Download full PDF report
+        </a>
+        {/* These buttons get wired to real modals in loop items 6 and 8.
+            For now they render but don't open anything — the API
+            endpoints they'll call land in the same commits. */}
+        <button
+          type="button"
+          disabled
+          className="inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 font-semibold px-5 py-2.5 rounded-lg text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+          title="Coming in the next iteration"
+        >
+          <span className="text-base leading-none">✉</span>
+          Draft email to client
+        </button>
+        <button
+          type="button"
+          disabled
+          className="inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 font-semibold px-5 py-2.5 rounded-lg text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+          title="Coming in the next iteration"
+        >
+          <span className="text-base leading-none">+</span>
+          Add documents to this report
+        </button>
+      </div>
+
+      {/* ----- Version history (collapsed by default) ----------- */}
+      {versions.length > 0 && (
+        <details className="rounded-2xl border border-slate-200 bg-white px-5 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-slate-700 select-none">
+            Version history ({versions.length}{" "}
+            {versions.length === 1 ? "snapshot" : "snapshots"})
+          </summary>
+          <ul className="mt-3 space-y-2 text-sm text-slate-700">
+            {versions
+              .slice()
+              .sort((a, b) => b.version_number - a.version_number)
+              .map((v) => (
+                <li
+                  key={v.version_number}
+                  className="flex items-center justify-between gap-3 py-1.5 border-t border-slate-100 first:border-t-0"
+                >
+                  <div>
+                    <span className="font-semibold text-slate-900">
+                      Version {v.version_number}
+                    </span>
+                    <span className="text-slate-500 ml-2 text-xs">
+                      {formatDate(v.snapshotted_at)}
+                    </span>
+                  </div>
+                  {/* The affirmation modal that wraps this link lands in
+                      loop item 6. Until then, clicking still works but
+                      goes straight to the download with no confirmation. */}
+                  <a
+                    href={`/api/reports/${reportId}/pdf?version=${v.version_number}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-slate-600 hover:text-indigo-700 underline underline-offset-2"
+                  >
+                    Download this version
+                  </a>
+                </li>
+              ))}
+          </ul>
+          <p className="mt-3 text-xs text-slate-500 italic">
+            Earlier snapshots are preserved when you add documents to this
+            report — the current view always reflects the latest re-analysis.
+          </p>
+        </details>
+      )}
+    </section>
+  );
 }
 
-function confidenceLabel(c: Confidence): string {
-  return c.charAt(0).toUpperCase() + c.slice(1);
-}
+// Pick three substantive strengths and three concerns from the report
+// data — used by the agent summary above the action row and reused
+// later as the seed content for the "draft email to client" modal.
+function composeAgentStrengthsAndConcerns(report: ReportData): {
+  strengths: string[];
+  concerns: string[];
+} {
+  const critCount = report.critical_findings?.length ?? 0;
+  const modCount = report.moderate_findings?.length ?? 0;
+  const cosmCount = report.cosmetic_findings?.length ?? 0;
+  const missingCount = report.document_inventory?.documents_missing?.length ?? 0;
+  const grand = report.cost_summary?.grand_total;
 
-function ratingTone(label: ReportData["overall_rating"]["label"] | undefined): string {
-  switch (label) {
-    case "Excellent":
-      return "bg-emerald-600";
-    case "Good":
-      return "bg-emerald-700";
-    case "Acceptable":
-      return "bg-[#4A6A87]";
-    case "Significant Concerns":
-      return "bg-[#8B5A2B]";
-    case "Walk Away":
-      return "bg-[#7A2E2E]";
-    default:
-      return "bg-slate-500";
+  // -------- Concerns (always lead with critical findings) --------
+  const concerns: string[] = [];
+  for (const f of report.critical_findings ?? []) {
+    if (concerns.length >= 3) break;
+    concerns.push(f.title);
   }
+  if (concerns.length < 3 && missingCount > 0) {
+    concerns.push(
+      `${missingCount} standard CA disclosure${missingCount === 1 ? "" : "s"} missing from the package`,
+    );
+  }
+  for (const f of report.moderate_findings ?? []) {
+    if (concerns.length >= 3) break;
+    concerns.push(f.title);
+  }
+  if (concerns.length === 0) {
+    concerns.push("No major concerns surfaced in the documents reviewed");
+  }
+  while (concerns.length < 3) {
+    concerns.push("Confirm contingency timelines align with lender milestones");
+  }
+
+  // -------- Strengths --------
+  const strengths: string[] = [];
+  if (critCount === 0) {
+    strengths.push(
+      "No critical or high-priority findings in the disclosure package",
+    );
+  }
+  if (missingCount === 0) {
+    strengths.push("Standard CA disclosure package appears complete");
+  }
+  if (cosmCount > 0 && critCount === 0 && modCount === 0) {
+    strengths.push("All findings are cosmetic and addressable post-close");
+  }
+  if (grand && grand.high > 0 && grand.high < 5000) {
+    strengths.push("Total cost exposure is modest relative to typical deals");
+  }
+  if (report.hoa?.applicable && (report.hoa.concerns?.length ?? 0) === 0) {
+    strengths.push("HOA review surfaced no material concerns");
+  }
+  if (!report.hoa?.applicable) {
+    strengths.push("No HOA — eliminates association financial risk");
+  }
+  if (strengths.length === 0) {
+    strengths.push("Disclosure documents provided for review");
+  }
+  while (strengths.length < 3) {
+    strengths.push("Standard inspection contingency should suffice");
+  }
+
+  return { strengths: strengths.slice(0, 3), concerns: concerns.slice(0, 3) };
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
