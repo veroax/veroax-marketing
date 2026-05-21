@@ -64,11 +64,14 @@ const styles = StyleSheet.create({
   },
   // ----- Cover page -----
   coverHeader: {
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.hairline,
     flexDirection: "row",
     justifyContent: "space-between",
+    paddingBottom: 8,
+  },
+  coverHeaderSeparator: {
+    height: 1,
+    backgroundColor: COLORS.hairline,
+    marginBottom: 8,
   },
   coverHeaderText: {
     fontSize: 8,
@@ -94,34 +97,45 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   // ----- Section heading -----
+  // Background goes on the wrapping View, not the Text — @react-pdf
+  // produces huge negative coordinates when Text has both backgroundColor
+  // and is inside a flex row.
   sectionHeader: {
     flexDirection: "row",
     marginTop: 16,
     marginBottom: 8,
   },
-  sectionNumber: {
+  sectionNumberBox: {
     backgroundColor: COLORS.indigoDeep,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  sectionNumberText: {
     color: COLORS.gold,
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
     textTransform: "uppercase",
   },
-  sectionTitle: {
+  sectionTitleBox: {
     flexGrow: 1,
     backgroundColor: COLORS.indigoDeep,
-    color: COLORS.white,
-    fontSize: 11,
-    fontFamily: "Helvetica-Bold",
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
+  sectionTitleText: {
+    color: COLORS.white,
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+  },
   // ----- Table -----
+  // Bottom dividers are drawn as 1px Views below each row to avoid
+  // React-PDF's border-rendering crash on certain layouts.
   tableRow: {
     flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.hairline,
+  },
+  rowDivider: {
+    height: 1,
+    backgroundColor: COLORS.hairline,
   },
   tableLabel: {
     width: 140,
@@ -141,8 +155,6 @@ const styles = StyleSheet.create({
   finding: {
     marginTop: 8,
     paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.hairline,
   },
   findingTitleRow: {
     flexDirection: "row",
@@ -161,12 +173,14 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginBottom: 4,
   },
-  badge: {
+  badgeBox: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgeText: {
     color: COLORS.white,
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
     textTransform: "uppercase",
   },
   description: {
@@ -177,35 +191,45 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
   // ----- Rating box -----
+  // Note: avoid `border*` properties — React-PDF crashes in clipBorderTop
+  // for certain layouts. Use background + spacing to suggest the box.
   ratingBox: {
     marginTop: 8,
     padding: 12,
     backgroundColor: COLORS.cream,
-    borderWidth: 1,
-    borderColor: COLORS.hairline,
   },
-  ratingPill: {
+  ratingPillBox: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 8,
+    alignSelf: "flex-start",
+  },
+  ratingPillText: {
     color: COLORS.white,
     fontSize: 11,
     fontFamily: "Helvetica-Bold",
-    paddingHorizontal: 12,
-    paddingVertical: 5,
     textTransform: "uppercase",
-    marginBottom: 8,
   },
   // ----- Footer -----
-  footer: {
+  // No borderTop here — React-PDF's clipBorderTop crashes on certain
+  // absolutely-positioned containers. Use a thin colored separator
+  // View above the text row instead.
+  footerWrap: {
     position: "absolute",
     left: 56,
     right: 56,
-    bottom: 32,
+    bottom: 28,
+  },
+  footerSeparator: {
+    height: 1,
+    backgroundColor: COLORS.hairline,
+    marginBottom: 6,
+  },
+  footerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     fontSize: 8,
     color: COLORS.muted,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.hairline,
-    paddingTop: 6,
   },
   bullet: {
     flexDirection: "row",
@@ -255,9 +279,12 @@ export function ReportPDF({
     >
       <Page size="LETTER" style={styles.page}>
         {/* Header strip */}
-        <View style={styles.coverHeader} fixed>
-          <Text style={styles.coverHeaderText}>Disclosure Package Analysis</Text>
-          <Text style={styles.coverHeaderText}>Report ID: {shortId}</Text>
+        <View fixed>
+          <View style={styles.coverHeader}>
+            <Text style={styles.coverHeaderText}>Disclosure Package Analysis</Text>
+            <Text style={styles.coverHeaderText}>Report ID: {shortId}</Text>
+          </View>
+          <View style={styles.coverHeaderSeparator} />
         </View>
 
         <Text style={styles.coverTitle}>Disclosure Analysis</Text>
@@ -295,8 +322,12 @@ export function ReportPDF({
 function SectionHeader({ number, title }: { number: number; title: string }) {
   return (
     <View style={styles.sectionHeader} wrap={false}>
-      <Text style={styles.sectionNumber}>Section {number}</Text>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionNumberBox}>
+        <Text style={styles.sectionNumberText}>Section {number}</Text>
+      </View>
+      <View style={styles.sectionTitleBox}>
+        <Text style={styles.sectionTitleText}>{title}</Text>
+      </View>
     </View>
   );
 }
@@ -323,11 +354,14 @@ function SectionPropertySnapshot({ data }: { data: ReportData }) {
       {rows.length === 0 ? (
         <Text>Property details not extracted.</Text>
       ) : (
-        rows.map(([label, value]) => (
-          <View key={label} style={styles.tableRow}>
-            <Text style={styles.tableLabel}>{label}</Text>
-            <Text style={styles.tableValue}>{value}</Text>
-          </View>
+        rows.map(([label, value], i) => (
+          <React.Fragment key={label}>
+            <View style={styles.tableRow}>
+              <Text style={styles.tableLabel}>{label}</Text>
+              <Text style={styles.tableValue}>{value}</Text>
+            </View>
+            {i < rows.length - 1 && <View style={styles.rowDivider} />}
+          </React.Fragment>
         ))
       )}
     </View>
@@ -501,7 +535,9 @@ function SeverityBadge({ severity }: { severity: Severity }) {
     cosmetic: COLORS.cosmetic,
   }[severity];
   return (
-    <Text style={[styles.badge, { backgroundColor: bg }]}>{severity}</Text>
+    <View style={[styles.badgeBox, { backgroundColor: bg }]}>
+      <Text style={styles.badgeText}>{severity}</Text>
+    </View>
   );
 }
 
@@ -515,14 +551,17 @@ function SectionCostSummary({ data }: { data: ReportData }) {
             <View key={ci} style={{ marginBottom: 6 }} wrap={false}>
               <Text style={[styles.metaLabel, { marginTop: 6 }]}>{cat.category}</Text>
               {cat.items.map((item, ii) => (
-                <View key={ii} style={styles.tableRow}>
-                  <Text style={[styles.tableValue, { flexGrow: 1 }]}>{item.label}</Text>
-                  <Text
-                    style={[styles.tableValue, { width: 120, textAlign: "right" }]}
-                  >
-                    {formatCostRange(item.cost)}
-                  </Text>
-                </View>
+                <React.Fragment key={ii}>
+                  <View style={styles.tableRow}>
+                    <Text style={[styles.tableValue, { flexGrow: 1 }]}>{item.label}</Text>
+                    <Text
+                      style={[styles.tableValue, { width: 120, textAlign: "right" }]}
+                    >
+                      {formatCostRange(item.cost)}
+                    </Text>
+                  </View>
+                  {ii < cat.items.length - 1 && <View style={styles.rowDivider} />}
+                </React.Fragment>
               ))}
             </View>
           ))
@@ -690,9 +729,9 @@ function SectionOverallRating({ data }: { data: ReportData }) {
     <View>
       <SectionHeader number={14} title="Overall Property Rating" />
       <View style={styles.ratingBox} wrap={false}>
-        <Text style={[styles.ratingPill, { backgroundColor: ratingColor }]}>
-          {r?.label ?? "Unrated"}
-        </Text>
+        <View style={[styles.ratingPillBox, { backgroundColor: ratingColor }]}>
+          <Text style={styles.ratingPillText}>{r?.label ?? "Unrated"}</Text>
+        </View>
         <Text style={{ marginBottom: 6 }}>{r?.summary}</Text>
         {r?.contingency_advice ? (
           <Text style={{ fontStyle: "italic", color: COLORS.muted }}>
@@ -731,13 +770,16 @@ function Footer({
     year: "numeric",
   })}`;
   return (
-    <View style={styles.footer} fixed>
-      <Text>{agentLine || "Veroax disclosure analysis"}</Text>
-      <Text
-        render={({ pageNumber, totalPages }) =>
-          `${right} · Page ${pageNumber} of ${totalPages}`
-        }
-      />
+    <View style={styles.footerWrap} fixed>
+      <View style={styles.footerSeparator} />
+      <View style={styles.footerRow}>
+        <Text>{agentLine || "Veroax disclosure analysis"}</Text>
+        <Text
+          render={({ pageNumber, totalPages }) =>
+            `${right} · Page ${pageNumber} of ${totalPages}`
+          }
+        />
+      </View>
     </View>
   );
 }
