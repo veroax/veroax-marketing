@@ -107,28 +107,57 @@ export async function updateProfileAction(
   // own Supabase Storage upload path. Trust what was uploaded.
 
   // -------- Persist ----------------------------------------------
-  const { error } = await supabase
+  // upsert (rather than update) so this works for two distinct user
+  // populations:
+  //
+  //   1. Agents who signed up AFTER the on-signup trigger was wired —
+  //      they already have a profiles row, and we just update it.
+  //   2. Agents who signed up BEFORE the trigger existed, or whose
+  //      on-signup trigger didn't fire — they don't have a row, and a
+  //      plain .update().eq("id", user.id) matches zero rows and
+  //      returns success without persisting anything. That was the
+  //      bug behind "I save my details, the page says Saved, then
+  //      they're gone on reload."
+  //
+  // email is NOT NULL on profiles, so we include it on the upsert
+  // payload — required when we're creating the row, ignored when the
+  // row already exists.
+  const { data: written, error } = await supabase
     .from("profiles")
-    .update({
-      full_name: fullName,
-      dre_license: dreLicense,
-      brokerage: brokerage,
-      brokerage_dre: brokerageDre,
-      phone: phone,
-      display_email: displayEmail,
-      brokerage_logo_url: brokerageLogoUrl,
-      headshot_url: headshotUrl,
-      brand_accent_hex: brandAccentHex,
-      tagline: tagline,
-      website_url: websiteUrl,
-      scheduling_url: schedulingUrl,
-      office_address: officeAddress,
-      email_signature: emailSignature,
-    })
-    .eq("id", user.id);
+    .upsert(
+      {
+        id: user.id,
+        email: user.email ?? "",
+        full_name: fullName,
+        dre_license: dreLicense,
+        brokerage: brokerage,
+        brokerage_dre: brokerageDre,
+        phone: phone,
+        display_email: displayEmail,
+        brokerage_logo_url: brokerageLogoUrl,
+        headshot_url: headshotUrl,
+        brand_accent_hex: brandAccentHex,
+        tagline: tagline,
+        website_url: websiteUrl,
+        scheduling_url: schedulingUrl,
+        office_address: officeAddress,
+        email_signature: emailSignature,
+      },
+      { onConflict: "id" },
+    )
+    .select("id");
 
   if (error) {
     return { error: `Save failed: ${error.message}` };
+  }
+  // Belt-and-suspenders: if upsert silently affected zero rows for any
+  // reason (RLS denial that doesn't surface as an error, etc.), don't
+  // mislead the agent with a green "Saved" message.
+  if (!written || written.length === 0) {
+    return {
+      error:
+        "Save returned no rows. Your profile row may be missing — contact support.",
+    };
   }
 
   // Invalidate the dashboard chrome (sidebar displays full_name; the
