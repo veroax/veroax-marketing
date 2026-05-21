@@ -6,7 +6,15 @@ import { extractText, estimateTokens } from "@/lib/pdf/extract";
 // Document token budget. Leaves headroom for the system prompt
 // (~3K tokens), tool schema (~2K tokens), and the model's reasoning
 // + output (~16K tokens) below Sonnet's 200K context window.
-const DOCUMENT_TOKEN_BUDGET = 175_000;
+const DOCUMENT_TOKEN_BUDGET = 180_000;
+
+// Files matching this pattern get processed LAST when the token budget
+// is tight. HOA packages are typically the longest documents in a CA
+// disclosure bundle but also the most boilerplate-heavy, so they're the
+// right place to give up content when we need to squeeze. The critical
+// narrative documents (TDS/SPQ/AVID inside Disclosures, Property
+// Inspections, NHD, Termite) get full coverage first.
+const DEPRIORITIZE_PATTERN = /hoa/i;
 
 // Runs the disclosure analysis for a report whose source PDFs are already
 // in Supabase Storage. Called by the client AnalysisRunner component once
@@ -62,7 +70,17 @@ export async function POST(
   if (listErr) {
     return await fail(supabase, reportId, `Could not list source files: ${listErr.message}`);
   }
-  const pdfs = (files ?? []).filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+  const pdfs = (files ?? [])
+    .filter((f) => f.name.toLowerCase().endsWith(".pdf"))
+    .sort((a, b) => {
+      // Critical narrative documents first; HOA boilerplate last so that
+      // when the package exceeds budget the deprioritized chunks are
+      // what gets dropped, not the documents agents actually need.
+      const aDeprio = DEPRIORITIZE_PATTERN.test(a.name);
+      const bDeprio = DEPRIORITIZE_PATTERN.test(b.name);
+      if (aDeprio !== bDeprio) return aDeprio ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
   if (pdfs.length === 0) {
     return await fail(supabase, reportId, "No PDF files found for this report.");
   }
