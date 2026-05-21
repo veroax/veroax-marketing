@@ -5,6 +5,7 @@ import {
   updateProfileAction,
   type SettingsActionState,
 } from "../actions";
+import { ImageUploadField } from "./ImageUploadField";
 
 // Two-column layout: form on the left, live "Prepared By" preview on
 // the right. The preview re-renders as the agent types so they see
@@ -12,6 +13,7 @@ import {
 
 type Props = {
   email: string;
+  userId: string;
   initial: {
     full_name: string;
     dre_license: string;
@@ -50,7 +52,7 @@ function formatPhone(input: string): string {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
 }
 
-export function SettingsForm({ email, initial }: Props) {
+export function SettingsForm({ email, userId, initial }: Props) {
   const [state, formAction, pending] = useActionState<
     SettingsActionState | undefined,
     FormData
@@ -196,28 +198,26 @@ export function SettingsForm({ email, initial }: Props) {
         </Section>
 
         <Section title="Branding" description="Personal touches that appear on the PDF cover. All optional — the report works without them.">
-          {/* The next loop iteration replaces these text inputs with
-              a proper upload widget. State shape stays identical. */}
-          <Field label="Brokerage logo URL" hint="Upload coming in the next iteration. For now, paste a public image URL.">
-            <input
-              name="brokerage_logo_url"
-              type="url"
-              value={brokerageLogoUrl}
-              onChange={(e) => setBrokerageLogoUrl(e.target.value)}
-              placeholder="https://…/logo.png"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-          </Field>
-          <Field label="Headshot URL" hint="Upload coming in the next iteration. Renders as a small thumbnail next to your name.">
-            <input
-              name="headshot_url"
-              type="url"
-              value={headshotUrl}
-              onChange={(e) => setHeadshotUrl(e.target.value)}
-              placeholder="https://…/headshot.jpg"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-          </Field>
+          <ImageUploadField
+            name="brokerage_logo_url"
+            pathPrefix="brokerage_logo"
+            label="Brokerage logo"
+            hint="Renders prominently on the PDF cover and again in the page footer. Transparent PNG or SVG works best."
+            userId={userId}
+            value={brokerageLogoUrl}
+            onChange={setBrokerageLogoUrl}
+            shape="square"
+          />
+          <ImageUploadField
+            name="headshot_url"
+            pathPrefix="headshot"
+            label="Headshot"
+            hint="Small thumbnail next to your name in the 'Prepared By' panel. Square crops look best."
+            userId={userId}
+            value={headshotUrl}
+            onChange={setHeadshotUrl}
+            shape="circle"
+          />
           <Field
             label="Brand accent color"
             hint="Six-character hex (e.g. #0F766E). Leave blank for the Veroax gold default. A swatch picker arrives in the next iteration; for now, paste a hex value."

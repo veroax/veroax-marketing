@@ -39,6 +39,7 @@ export default async function SettingsPage() {
 
       <SettingsForm
         email={user.email ?? ""}
+        userId={user.id}
         initial={{
           full_name: str("full_name"),
           dre_license: str("dre_license"),
