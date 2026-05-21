@@ -16,20 +16,86 @@ export type DocumentType =
   | "cover"              // coversheet, table of contents, index
   | "other";             // anything unrecognized
 
+// Tokenize a filename: split on anything that isn't a letter/digit so
+// underscores, dots, dashes, and spaces all become word boundaries.
+// We do this because regex \b treats _ as a word character — so a file
+// named "6._NHD_Report.pdf" doesn't word-boundary-match \bnhd\b. Tokens
+// solve that cleanly.
+function tokens(filename: string): string[] {
+  return filename
+    .toLowerCase()
+    .replace(/\.pdf$/, "")
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
 // Order matters — first match wins. More specific patterns go first
 // (e.g., "termite" matches inspections before generic "report" patterns).
-const PATTERNS: Array<[DocumentType, RegExp]> = [
-  ["cover", /coversheet|cover[\s_-]*sheet|table.of.contents|^[0-9]+[\s_.-]*(toc|index)\.pdf$/i],
-  ["hazards", /\bnhd\b|natural[\s_-]*hazard|environmental[\s_-]*hazard|flood[\s_-]*zone|earthquake[\s_-]*zone|fire[\s_-]*hazard/i],
-  ["inspections", /\binspection|home[\s_-]*inspection|property[\s_-]*inspection|termite|pest|mold|sewer[\s_-]*lateral|roof[\s_-]*inspect|chimney|hvac|wood[\s_-]*destroying/i],
-  ["hoa", /\bhoa\b|homeowner|cc[&]?r|cc&r|bylaws|condo[\s_-]*assoc|reserve[\s_-]*study|condominium|hoa[\s_-]*docs|hoa[\s_-]*disclosure/i],
-  ["title", /prelim|preliminary[\s_-]*report|preliminary[\s_-]*title|\btitle[\s_-]*report|escrow[\s_-]*instructions/i],
-  ["seller_disclosures", /disclosure|\btds\b|\bspq\b|\bavid\b|transfer[\s_-]*disclosure|seller[\s_-]*property|seller[\s_-]*questionnaire|agent[\s_-]*visual/i],
+const TYPE_RULES: Array<[DocumentType, (toks: string[], full: string) => boolean]> = [
+  // Coversheets
+  ["cover", (t) => t.includes("coversheet") || (t.includes("cover") && t.includes("sheet")) || t.includes("toc") || t.includes("index")],
+
+  // Natural hazard / environmental
+  [
+    "hazards",
+    (t, f) =>
+      t.includes("nhd") ||
+      /natural[\s_-]*hazard/i.test(f) ||
+      /environmental[\s_-]*hazard/i.test(f) ||
+      /flood[\s_-]*zone/i.test(f) ||
+      /earthquake[\s_-]*zone/i.test(f) ||
+      /fire[\s_-]*hazard/i.test(f),
+  ],
+
+  // Inspections (broad — anything inspection-related)
+  [
+    "inspections",
+    (t, f) =>
+      t.some((x) =>
+        ["inspection", "inspections", "termite", "pest", "mold", "chimney", "hvac"].includes(x),
+      ) ||
+      /sewer[\s_-]*lateral/i.test(f) ||
+      /roof[\s_-]*inspect/i.test(f) ||
+      /wood[\s_-]*destroying/i.test(f),
+  ],
+
+  // HOA / condo association
+  [
+    "hoa",
+    (t, f) =>
+      t.some((x) =>
+        ["hoa", "homeowner", "homeowners", "bylaws", "condo", "condominium", "ccr", "ccrs"].includes(x),
+      ) ||
+      /cc&r/i.test(f) ||
+      /reserve[\s_-]*study/i.test(f),
+  ],
+
+  // Title / escrow
+  [
+    "title",
+    (t, f) =>
+      t.includes("prelim") ||
+      t.includes("preliminary") ||
+      t.includes("escrow") ||
+      /title[\s_-]*report/i.test(f),
+  ],
+
+  // Seller disclosures (broadest — checked last so more specific types win)
+  [
+    "seller_disclosures",
+    (t, f) =>
+      t.some((x) => ["disclosure", "disclosures", "tds", "spq", "avid"].includes(x)) ||
+      /transfer[\s_-]*disclosure/i.test(f) ||
+      /seller[\s_-]*property/i.test(f) ||
+      /seller[\s_-]*questionnaire/i.test(f) ||
+      /agent[\s_-]*visual/i.test(f),
+  ],
 ];
 
 export function classifyDocument(filename: string): DocumentType {
-  for (const [type, pattern] of PATTERNS) {
-    if (pattern.test(filename)) return type;
+  const toks = tokens(filename);
+  for (const [type, predicate] of TYPE_RULES) {
+    if (predicate(toks, filename)) return type;
   }
   return "other";
 }
