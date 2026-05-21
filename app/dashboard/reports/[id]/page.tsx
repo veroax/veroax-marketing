@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AnalysisRunner } from "./_components/AnalysisRunner";
 import { RetryButton } from "./_components/RetryButton";
+import { AgentActions } from "./_components/AgentActions";
+import { VersionDownloadButton } from "./_components/VersionDownloadButton";
 import type { ReportData } from "@/lib/anthropic/schema";
 
 type Params = Promise<{ id: string }>;
@@ -171,6 +173,7 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
       {reportData && (
         <AgentSummary
           reportId={report.id}
+          userId={user.id}
           reportData={reportData}
           reportName={
             (report as { report_name?: string | null }).report_name ?? null
@@ -475,6 +478,7 @@ type ReportVersionSnapshot = {
 
 function AgentSummary({
   reportId,
+  userId,
   reportData,
   reportName,
   clientName,
@@ -483,6 +487,7 @@ function AgentSummary({
   versions,
 }: {
   reportId: string;
+  userId: string;
   reportData: ReportData;
   reportName: string | null;
   clientName: string | null;
@@ -490,6 +495,7 @@ function AgentSummary({
   lastUpdatedAt: string | null;
   versions: ReportVersionSnapshot[];
 }) {
+  const ageDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
   const address =
     reportData.property_snapshot?.address?.trim() || "Address not extracted";
   const { strengths, concerns } = composeAgentStrengthsAndConcerns(reportData);
@@ -597,39 +603,9 @@ function AgentSummary({
         )}
       </div>
 
-      {/* ----- Action row ---------------------------------------- */}
-      <div className="flex flex-wrap gap-3">
-        <a
-          href={`/api/reports/${reportId}/pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-amber-400 text-indigo-950 font-semibold px-5 py-2.5 rounded-lg hover:bg-amber-300 transition-colors shadow-sm text-sm"
-        >
-          <span className="text-base leading-none">↓</span>
-          Download full PDF report
-        </a>
-        {/* These buttons get wired to real modals in loop items 6 and 8.
-            For now they render but don't open anything — the API
-            endpoints they'll call land in the same commits. */}
-        <button
-          type="button"
-          disabled
-          className="inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 font-semibold px-5 py-2.5 rounded-lg text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-          title="Coming in the next iteration"
-        >
-          <span className="text-base leading-none">✉</span>
-          Draft email to client
-        </button>
-        <button
-          type="button"
-          disabled
-          className="inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 font-semibold px-5 py-2.5 rounded-lg text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-          title="Coming in the next iteration"
-        >
-          <span className="text-base leading-none">+</span>
-          Add documents to this report
-        </button>
-      </div>
+      {/* ----- Action row (client component for modal state) ---- */}
+      <AgentActions reportId={reportId} userId={userId} ageDays={ageDays} />
+
 
       {/* ----- Version history (collapsed by default) ----------- */}
       {versions.length > 0 && (
@@ -655,17 +631,13 @@ function AgentSummary({
                       {formatDate(v.snapshotted_at)}
                     </span>
                   </div>
-                  {/* The affirmation modal that wraps this link lands in
-                      loop item 6. Until then, clicking still works but
-                      goes straight to the download with no confirmation. */}
-                  <a
-                    href={`/api/reports/${reportId}/pdf?version=${v.version_number}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-slate-600 hover:text-indigo-700 underline underline-offset-2"
-                  >
-                    Download this version
-                  </a>
+                  <VersionDownloadButton
+                    reportId={reportId}
+                    versionNumber={v.version_number}
+                    snapshottedAt={v.snapshotted_at}
+                    currentUpdatedAt={lastUpdatedAt}
+                  />
+
                 </li>
               ))}
           </ul>

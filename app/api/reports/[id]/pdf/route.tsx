@@ -17,10 +17,19 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const { id: reportId } = await context.params;
+
+  // ?version=N — render a previously-snapshotted version instead of the
+  // current report. The frontend wraps this URL with a confirmation
+  // modal so the agent has to explicitly affirm they're downloading a
+  // superseded version. Server still validates the param + bounds.
+  const url = new URL(request.url);
+  const versionParam = url.searchParams.get("version");
+  const requestedVersion =
+    versionParam && /^\d+$/.test(versionParam) ? Number(versionParam) : null;
 
   try {
     const supabase = await createClient();
@@ -33,9 +42,7 @@ export async function GET(
 
     const { data: report, error } = await supabase
       .from("reports")
-      .select(
-        "id, status, property_address, report_data, original_files, report_name, client_name",
-      )
+      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions")
       .eq("id", reportId)
       .maybeSingle();
     if (error || !report) {
@@ -65,7 +72,43 @@ export async function GET(
       email: user.email ?? null,
     };
 
-    const reportData = report.report_data as ReportData;
+    // If a version was requested, swap in the snapshotted data
+    // (report_data + original_files) from versions[version_number].
+    // The current row still drives identity fields (report_name,
+    // client_name, agent profile) because those are owned by the
+    // agent today, not the historical snapshot.
+    type VersionSnapshot = {
+      version_number: number;
+      snapshotted_at: string;
+      report_data: ReportData | null;
+      original_files?: unknown;
+      source_file_path?: string | null;
+      status?: string | null;
+    };
+    let snapshotInUse: VersionSnapshot | null = null;
+    if (requestedVersion !== null) {
+      const versions = Array.isArray(
+        (report as { versions?: unknown }).versions,
+      )
+        ? ((report as { versions: VersionSnapshot[] }).versions)
+        : [];
+      const match = versions.find((v) => v?.version_number === requestedVersion);
+      if (!match) {
+        return new Response(
+          `Version ${requestedVersion} not found for this report.`,
+          { status: 404 },
+        );
+      }
+      if (!match.report_data) {
+        return new Response(
+          `Version ${requestedVersion} has no report data — it was snapshotted before the first analysis completed.`,
+          { status: 409 },
+        );
+      }
+      snapshotInUse = match;
+    }
+
+    const reportData = (snapshotInUse?.report_data ?? report.report_data) as ReportData;
     // Source of truth for the cover address is the disclosure documents
     // themselves (property_snapshot.address). property_address is now
     // deprecated as user-input — we only keep it as a last-resort
@@ -86,8 +129,12 @@ export async function GET(
 
     // original_files is captured in /finalize as the canonical
     // pre-split file inventory. Tolerate odd legacy shapes by passing
-    // through only entries that match the expected schema.
-    const originalFilesRaw = report.original_files as unknown;
+    // through only entries that match the expected schema. When
+    // rendering a historical snapshot, use the snapshot's frozen
+    // inventory.
+    const originalFilesRaw = (
+      snapshotInUse?.original_files ?? report.original_files
+    ) as unknown;
     const originalFiles: OriginalFile[] | null = Array.isArray(originalFilesRaw)
       ? (originalFilesRaw as unknown[])
           .filter(
@@ -116,7 +163,10 @@ export async function GET(
       />,
     );
 
-    const filename = filenameForReport(propertyAddress);
+    const filename = filenameForReport(
+      propertyAddress,
+      snapshotInUse?.version_number ?? null,
+    );
     return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
@@ -150,10 +200,16 @@ export async function GET(
   }
 }
 
-function filenameForReport(propertyAddress: string): string {
+function filenameForReport(
+  propertyAddress: string,
+  versionNumber: number | null,
+): string {
   const safe = propertyAddress
     .replace(/[^a-zA-Z0-9\s]/g, "")
     .replace(/\s+/g, "_")
     .substring(0, 80);
-  return `${safe || "Veroax_Report"}_Disclosure_Analysis.pdf`;
+  const base = safe || "Veroax_Report";
+  const versionSuffix =
+    versionNumber !== null ? `_v${versionNumber}_archived` : "";
+  return `${base}_Disclosure_Analysis${versionSuffix}.pdf`;
 }
