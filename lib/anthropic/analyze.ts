@@ -32,6 +32,37 @@ import { type PassGroup } from "@/lib/pdf/classify";
 // document group's text exceeds PASS_TOKEN_BUDGET, that group is
 // sub-split into multiple sub-passes whose findings are merged at the
 // group level before synthesis.
+//
+// ----------------------------------------------------------------------------
+// ACCURACY TRADE-OFF: text extraction vs. native PDF attachment
+// ----------------------------------------------------------------------------
+//
+// Veroax extracts PDF text upfront (via lib/pdf/extract.ts → unpdf) and
+// sends the extracted strings to Claude. This is the right call for the
+// economics — extracted text averages ~300 tokens/page vs. ~1500
+// tokens/page for native PDF attachments (Anthropic's `document` content
+// blocks). For a typical 700-page CA disclosure package, that's the
+// difference between ~210K tokens and ~1.05M tokens of input — i.e., a
+// single Claude call vs. a multi-pass call AND a 5× cost difference.
+//
+// The trade-off we accept: text extraction LOSES layout fidelity. Claude
+// can't "see" check-boxes, signatures, side-by-side disclosure tables,
+// or strikethroughs in the original document — it only sees the
+// linearized text. For boilerplate-heavy documents (HOA CC&Rs, Bylaws,
+// budgets, reserve studies) this is fine. For documents where layout
+// carries meaning (TDS check-boxes, SPQ side-by-side seller-vs-agent
+// responses, inspection report severity icons), some signal is lost.
+//
+// This is why Veroax results may differ from the original Cowork
+// disclosure-analyzer skill, which uses native PDF attachments and sees
+// the documents as a human would.
+//
+// Future improvement (not implemented here): HYBRID mode — send the
+// seller_disclosures and inspections groups as PDF attachments (layout
+// matters), send hoa and hazards groups as text (token economics win).
+// Estimated cost: ~3× current token spend for the affected groups, but
+// significant accuracy improvement on the disclosure interpretation that
+// drives most findings. Defer until economics + scale justify.
 // ============================================================================
 
 // Per-pass document-token budget. Stays well below Sonnet's 200K
@@ -219,6 +250,8 @@ CRITICAL RULES:
      · Unpermitted living-area conversion, ADU, or addition affecting appraisal/financing
      For these items specifically, do NOT downgrade to High based on low remediation cost. The cost is irrelevant — the issue is lender/insurance blockability and the buyer cannot close without addressing it.
 
+   When you mark a finding Critical SOLELY because it matched one of the always-Critical items above, populate the optional "triggered_rule" field with the corresponding short identifier so the agent can see which rule fired. Identifiers: aluminum_wiring, FPE_panel, polybutylene, ABS_recall_era, kitec_plumbing, knob_and_tube, active_water_intrusion, active_mold, structural_crack_load_bearing, asbestos_friable, lead_paint_pre1978_w_children, galvanized_active_failure, underground_oil_tank, unpermitted_living_area. Leave "triggered_rule" null when the Critical rating came from cost/hazard/lender criteria rather than a named always-Critical rule.
+
    - HIGH: $5,000-$15,000 OR significant future risk that's NOT on the always-Critical list above. Examples: aging HVAC (15+ years), sewer lateral repair, full electrical panel replacement (non-FPE), retaining-wall issues, deferred chimney repair.
    - MODERATE: $1,000-$5,000 OR 1-5 year horizon. Examples: water heater near end of life, deferred exterior paint, minor plumbing fixtures, dated GFCI status.
    - COSMETIC: <$1,000 OR purely aesthetic. Examples: minor drywall cracks, dated finishes, worn carpet, minor exterior touch-up.
@@ -350,6 +383,15 @@ async function analyzeFocusedPass(
     client.messages.create({
       model: ANALYSIS_MODEL,
       max_tokens: 12000,
+      // Determinism: agents who re-run the same disclosure package
+      // expect the same severity ratings. temperature: 0 + the seed
+      // implicit in identical inputs gives us reproducible output.
+      // Without this, the same package can flip between "Acceptable"
+      // and "Walk Away" across runs because Claude samples differently
+      // each time. A 0-temperature run is also a better baseline for
+      // human review — the only source of variation is the documents
+      // themselves.
+      temperature: 0,
       system: systemPrompt,
       tools: [FOCUSED_TOOL_SCHEMA],
       tool_choice: { type: "tool", name: FOCUSED_TOOL_SCHEMA.name },

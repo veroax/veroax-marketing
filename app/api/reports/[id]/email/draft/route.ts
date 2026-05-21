@@ -89,7 +89,12 @@ export async function POST(
       ? ((report as { client_name?: string }).client_name as string).trim()
       : null;
 
-  const { strengths, concerns } = composeAgentStrengthsAndConcerns(reportData);
+  // Email body just needs the text; the triggered_rule badge is
+  // dashboard-only. Map to strings here so the body templates don't
+  // change shape.
+  const picked = composeAgentStrengthsAndConcerns(reportData);
+  const strengths = picked.strengths.map((s) => s.text);
+  const concerns = picked.concerns.map((c) => c.text);
 
   // -------- Subject ----------------------------------------------
   const subject = `Disclosure analysis for ${address}`;

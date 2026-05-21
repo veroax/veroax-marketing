@@ -562,7 +562,7 @@ function AgentSummary({
             {strengths.map((s, i) => (
               <li key={i} className="flex gap-2.5">
                 <span className="font-bold text-emerald-700 shrink-0">{i + 1}.</span>
-                <span>{s}</span>
+                <span>{s.text}</span>
               </li>
             ))}
           </ol>
@@ -575,7 +575,22 @@ function AgentSummary({
             {concerns.map((c, i) => (
               <li key={i} className="flex gap-2.5">
                 <span className="font-bold text-red-700 shrink-0">{i + 1}.</span>
-                <span>{c}</span>
+                <span className="flex-1">
+                  {c.text}
+                  {c.triggeredRule && (
+                    // Small inline badge so agents can see WHY a
+                    // finding was upgraded to Critical. Hidden when
+                    // the finding's severity came from cost or
+                    // active-hazard criteria rather than an
+                    // always-Critical rule.
+                    <span
+                      className="ml-2 inline-block text-[10px] font-mono uppercase tracking-wider bg-red-200/70 text-red-900 px-1.5 py-0.5 rounded align-middle"
+                      title="An always-CRITICAL rule fired on this finding (FPE panel, polybutylene, etc.). Sanity-check the underlying document to confirm."
+                    >
+                      Rule: {c.triggeredRule}
+                    </span>
+                  )}
+                </span>
               </li>
             ))}
           </ol>

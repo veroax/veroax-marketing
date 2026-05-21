@@ -27,6 +27,14 @@ export type Finding = {
   // sourced from documents in the original upload. Drives the
   // "added in update" badge in the agent's summary view.
   from_doc_added_at?: string | null;
+  // Optional: when this finding was upgraded to Critical because it
+  // matches one of the always-CRITICAL rules in the analyzer's system
+  // prompt (FPE panels, aluminum wiring, polybutylene, etc.), this is
+  // a short identifier for the rule that fired. Surfaced as a small
+  // badge on the dashboard so agents can sanity-check WHY something
+  // is flagged critical. Null/absent when no always-Critical rule
+  // applies — most findings won't have this.
+  triggered_rule?: string | null;
 };
 
 export type ReportData = {
@@ -254,6 +262,11 @@ export const FOCUSED_TOOL_SCHEMA = {
           cost_estimate: { $ref: "#/$defs/CostRange" },
           risk_if_ignored: { type: "string" },
           recommended_action: { type: "string" },
+          triggered_rule: {
+            type: ["string", "null"],
+            description:
+              "OPTIONAL — when this finding's severity was upgraded to Critical because it matches an always-CRITICAL rule (FPE_panel, aluminum_wiring, polybutylene, knob_and_tube, active_mold, lead_paint_pre1978_w_children, ABS_recall_era, kitec_plumbing, asbestos_friable, underground_oil_tank, unpermitted_living_area, active_water_intrusion, structural_crack_load_bearing), set this to the short rule identifier. Leave null otherwise. Used for transparency so agents can see which rule fired.",
+          },
         },
         required: [
           "title",
@@ -514,6 +527,11 @@ export const REPORT_TOOL_SCHEMA = {
           cost_estimate: { $ref: "#/$defs/CostRange" },
           risk_if_ignored: { type: "string" },
           recommended_action: { type: "string" },
+          triggered_rule: {
+            type: ["string", "null"],
+            description:
+              "OPTIONAL — when this finding's severity was upgraded to Critical because it matches an always-CRITICAL rule (FPE_panel, aluminum_wiring, polybutylene, knob_and_tube, active_mold, lead_paint_pre1978_w_children, ABS_recall_era, kitec_plumbing, asbestos_friable, underground_oil_tank, unpermitted_living_area, active_water_intrusion, structural_crack_load_bearing), set this to the short rule identifier. Leave null otherwise. Used for transparency so agents can see which rule fired.",
+          },
         },
         required: [
           "title",
