@@ -21,6 +21,12 @@ export type Finding = {
   cost_estimate: CostRange;
   risk_if_ignored: string;
   recommended_action: string;
+  // When the finding's source document was added to the report AFTER
+  // the original analysis (via /api/reports/[id]/update), this is the
+  // ISO date that document was added. NULL or absent for findings
+  // sourced from documents in the original upload. Drives the
+  // "added in update" badge in the agent's summary view.
+  from_doc_added_at?: string | null;
 };
 
 export type ReportData = {
@@ -83,6 +89,13 @@ export type ReportData = {
     summary: string;
     contingency_advice: string;
   };
+  // Populated only when this analysis was produced as an UPDATE to an
+  // earlier report (i.e., the agent added documents). Surfaces a
+  // human-readable note like:
+  //   "Updated Mar 14 2026: 4 finding(s) drawn from 2 document(s)
+  //    added since the original Feb 28 2026 analysis."
+  // Null for original (never-updated) reports.
+  update_note?: string | null;
 };
 
 // ============================================================================

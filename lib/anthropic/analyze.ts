@@ -45,11 +45,30 @@ export type Document = {
   text: string;
   pages: number;
   tokens: number;
+  // ISO date this document was added to the report. Null/undefined for
+  // documents in the original upload. When present and after the
+  // original analysis date, the focused-pass system prompt notes the
+  // document is newer, and synthesis tags any sourced finding with
+  // from_doc_added_at.
+  addedAt?: string | null;
+};
+
+// Provided by /api/reports/[id]/update when re-analyzing after the
+// agent appended new docs. Drives date-aware behavior in the prompt
+// and in synthesis (the update_note field on ReportData).
+export type UpdateContext = {
+  // ISO date of the original analysis (when the agent first uploaded).
+  originalAnalysisDate: string;
+  // ISO date this update is being performed on.
+  updateDate: string;
+  // Filenames added in this update — used to tag finding sources.
+  addedFilenames: string[];
 };
 
 export type AnalyzeInput = {
   groups: Record<PassGroup, Document[]>;
   propertyAddressHint?: string | null;
+  updateContext?: UpdateContext | null;
   onPassStarted?: (group: PassGroup, subIndex: number, subTotal: number) => Promise<void>;
   onPassCompleted?: (
     group: PassGroup,
@@ -110,7 +129,12 @@ export async function analyzeDisclosurePackage(
       const subResults = await Promise.all(
         subBatches.map(async (batch, i) => {
           await input.onPassStarted?.(group, i + 1, subBatches.length);
-          const r = await analyzeFocusedPass(batch, group, input.propertyAddressHint);
+          const r = await analyzeFocusedPass(
+            batch,
+            group,
+            input.propertyAddressHint,
+            input.updateContext ?? null,
+          );
           await input.onPassCompleted?.(group, i + 1, subBatches.length, r.usage);
           return {
             group,
@@ -140,6 +164,7 @@ export async function analyzeDisclosurePackage(
   const report = synthesizeReportInCode(
     passResults.map((p) => p.analysis),
     input.propertyAddressHint ?? null,
+    input.updateContext ?? null,
   );
   await input.onSynthesisCompleted?.({ input_tokens: 0, output_tokens: 0 });
 
@@ -260,6 +285,7 @@ async function analyzeFocusedPass(
   documents: Document[],
   group: PassGroup,
   propertyAddressHint?: string | null,
+  updateContext?: UpdateContext | null,
 ): Promise<{
   analysis: FocusedAnalysis;
   usage: { input_tokens: number; output_tokens: number };
@@ -268,6 +294,18 @@ async function analyzeFocusedPass(
   const content: Anthropic.Messages.ContentBlockParam[] = [];
 
   for (const doc of documents) {
+    // Stamp newer-than-original docs so Claude knows the temporal
+    // context. We rely on the `addedAt` ISO date carried on each
+    // Document for updates; original docs have it null/undefined.
+    const isNewer =
+      updateContext &&
+      doc.addedAt &&
+      doc.addedAt > updateContext.originalAnalysisDate;
+    const noticeLine = isNewer
+      ? `Added on: ${doc.addedAt} ` +
+        `(NEWER than the original analysis on ${updateContext!.originalAnalysisDate})\n`
+      : "";
+
     const body = doc.text
       ? doc.text
       : `[No text could be extracted from this PDF (likely a scan without OCR). ` +
@@ -278,11 +316,22 @@ async function analyzeFocusedPass(
       text:
         `===== BEGIN DOCUMENT =====\n` +
         `Filename: ${doc.filename}\n` +
-        `Pages: ${doc.pages}\n\n` +
+        `Pages: ${doc.pages}\n` +
+        noticeLine +
+        `\n` +
         `${body}\n\n` +
         `===== END DOCUMENT (${doc.filename}) =====`,
     });
   }
+
+  const updateNotice = updateContext
+    ? `\n\nIMPORTANT — this is an UPDATE to an earlier analysis. The ` +
+      `original analysis was run on ${updateContext.originalAnalysisDate}. ` +
+      `The agent has added new document(s) (${updateContext.addedFilenames.join(", ")}) ` +
+      `and re-requested analysis on the full combined package. ` +
+      `Pay attention to whether any new document CONTRADICTS or SUPPLEMENTS ` +
+      `earlier disclosures — surface that in your findings and notes.`
+    : "";
 
   content.push({
     type: "text",
@@ -291,7 +340,8 @@ async function analyzeFocusedPass(
       `submit_focused_analysis tool.` +
       (propertyAddressHint
         ? `\n\nProperty address hint from the agent: ${propertyAddressHint}`
-        : ""),
+        : "") +
+      updateNotice,
   });
 
   const systemPrompt = `${FOCUSED_SYSTEM_BASE}\n\n${FOCUSED_GROUP_INSTRUCTIONS[group]}`;
@@ -333,6 +383,7 @@ async function analyzeFocusedPass(
 function synthesizeReportInCode(
   focused: FocusedAnalysis[],
   propertyAddressHint: string | null,
+  updateContext: UpdateContext | null,
 ): ReportData {
   // Aggregate findings (treat permit_compliance findings separately so
   // they end up in the permit section, not double-counted).
@@ -342,6 +393,20 @@ function synthesizeReportInCode(
     if (Array.isArray(f.findings)) allFindings.push(...f.findings);
     if (Array.isArray(f.permit_compliance?.findings)) {
       permitFindings.push(...(f.permit_compliance!.findings ?? []));
+    }
+  }
+
+  // If this is an update, tag every finding whose `source` cites a
+  // filename added in this update. The PDF / dashboard can then
+  // surface a "Added in update" badge on those findings.
+  if (updateContext && updateContext.addedFilenames.length > 0) {
+    const addedSet = new Set(
+      updateContext.addedFilenames.map((n) => n.toLowerCase()),
+    );
+    for (const finding of allFindings.concat(permitFindings)) {
+      const src = (finding.source ?? "").toLowerCase();
+      const matched = [...addedSet].find((added) => src.includes(added));
+      if (matched) finding.from_doc_added_at = updateContext.updateDate;
     }
   }
 
@@ -501,6 +566,11 @@ function synthesizeReportInCode(
     cosmeticCount: cosmeticFindings.length,
   });
 
+  // Human-readable update note. Counts findings whose source cited an
+  // added document — gives the agent (and the email/dashboard summary)
+  // a one-liner explaining what this re-analysis actually changed.
+  const updateNote = composeUpdateNote(updateContext, allFindings.concat(permitFindings));
+
   return {
     property_snapshot: property,
     document_inventory: documentInventory,
@@ -521,7 +591,37 @@ function synthesizeReportInCode(
     insurance_lender_risk: insuranceLenderRisk,
     outstanding_questions: outstandingQuestions,
     overall_rating: overallRating,
+    update_note: updateNote,
   };
+}
+
+// Format a human-readable update banner for re-analyzed reports. Null
+// for original (never-updated) reports.
+function composeUpdateNote(
+  ctx: UpdateContext | null,
+  allFindings: Finding[],
+): string | null {
+  if (!ctx) return null;
+  const newCount = allFindings.filter((f) => f.from_doc_added_at).length;
+  const fmt = (iso: string) => {
+    // Render an ISO date as e.g. "Mar 14, 2026". Falls back to the raw
+    // string if it isn't a parseable date.
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+  const addedCount = ctx.addedFilenames.length;
+  const plural = (n: number, s: string) => `${n} ${s}${n === 1 ? "" : "s"}`;
+  return (
+    `Updated ${fmt(ctx.updateDate)}: ` +
+    `${plural(newCount, "finding")} drawn from ` +
+    `${plural(addedCount, "newly-added document")} ` +
+    `since the original ${fmt(ctx.originalAnalysisDate)} analysis.`
+  );
 }
 
 function sumCostRanges(ranges: CostRange[]): CostRange {
