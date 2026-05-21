@@ -204,7 +204,6 @@ const styles = StyleSheet.create({
   disclaimer: {
     fontSize: 8,
     color: C.slate,
-    fontStyle: "italic",
     marginBottom: 4,
     lineHeight: 1.4,
   },
