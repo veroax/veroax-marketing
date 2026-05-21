@@ -198,11 +198,15 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: COLORS.cream,
   },
+  // ratingPillBox is a stretched-width pill — accepting the wider look
+  // because alignSelf:"flex-start" was triggering React-PDF layout bugs.
+  ratingPillRow: {
+    flexDirection: "row",
+    marginBottom: 8,
+  },
   ratingPillBox: {
     paddingHorizontal: 12,
     paddingVertical: 5,
-    marginBottom: 8,
-    alignSelf: "flex-start",
   },
   ratingPillText: {
     color: COLORS.white,
@@ -210,15 +214,9 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     textTransform: "uppercase",
   },
-  // ----- Footer -----
-  // No borderTop here — React-PDF's clipBorderTop crashes on certain
-  // absolutely-positioned containers. Use a thin colored separator
-  // View above the text row instead.
+  // ----- Footer (trailing block, not fixed) -----
   footerWrap: {
-    position: "absolute",
-    left: 56,
-    right: 56,
-    bottom: 28,
+    marginTop: 24,
   },
   footerSeparator: {
     height: 1,
@@ -278,14 +276,12 @@ export function ReportPDF({
       subject="AI-assisted disclosure analysis"
     >
       <Page size="LETTER" style={styles.page}>
-        {/* Header strip */}
-        <View fixed>
-          <View style={styles.coverHeader}>
-            <Text style={styles.coverHeaderText}>Disclosure Package Analysis</Text>
-            <Text style={styles.coverHeaderText}>Report ID: {shortId}</Text>
-          </View>
-          <View style={styles.coverHeaderSeparator} />
+        {/* Header strip (top of document, not per-page) */}
+        <View style={styles.coverHeader}>
+          <Text style={styles.coverHeaderText}>Disclosure Package Analysis</Text>
+          <Text style={styles.coverHeaderText}>Report ID: {shortId}</Text>
         </View>
+        <View style={styles.coverHeaderSeparator} />
 
         <Text style={styles.coverTitle}>Disclosure Analysis</Text>
         <Text style={styles.coverSubtitle}>
@@ -321,7 +317,7 @@ export function ReportPDF({
 
 function SectionHeader({ number, title }: { number: number; title: string }) {
   return (
-    <View style={styles.sectionHeader} wrap={false}>
+    <View style={styles.sectionHeader} wrap={true}>
       <View style={styles.sectionNumberBox}>
         <Text style={styles.sectionNumberText}>Section {number}</Text>
       </View>
@@ -494,7 +490,7 @@ function FindingsSection({
 
 function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
   return (
-    <View style={styles.finding} wrap={false}>
+    <View style={styles.finding} wrap={true}>
       <View style={styles.findingTitleRow}>
         <Text style={styles.findingTitle}>
           {index}. {finding.title}
@@ -548,7 +544,7 @@ function SectionCostSummary({ data }: { data: ReportData }) {
       <SectionHeader number={7} title="Repair Cost Summary" />
       {cs?.line_items?.length
         ? cs.line_items.map((cat, ci) => (
-            <View key={ci} style={{ marginBottom: 6 }} wrap={false}>
+            <View key={ci} style={{ marginBottom: 6 }} wrap={true}>
               <Text style={[styles.metaLabel, { marginTop: 6 }]}>{cat.category}</Text>
               {cat.items.map((item, ii) => (
                 <React.Fragment key={ii}>
@@ -574,7 +570,7 @@ function SectionCostSummary({ data }: { data: ReportData }) {
           paddingHorizontal: 10,
           backgroundColor: COLORS.indigoDeep,
         }}
-        wrap={false}
+        wrap={true}
       >
         <Text style={{ flexGrow: 1, color: COLORS.white, fontFamily: "Helvetica-Bold" }}>
           TOTAL ESTIMATED REPAIR EXPOSURE
@@ -728,9 +724,11 @@ function SectionOverallRating({ data }: { data: ReportData }) {
   return (
     <View>
       <SectionHeader number={14} title="Overall Property Rating" />
-      <View style={styles.ratingBox} wrap={false}>
-        <View style={[styles.ratingPillBox, { backgroundColor: ratingColor }]}>
-          <Text style={styles.ratingPillText}>{r?.label ?? "Unrated"}</Text>
+      <View style={styles.ratingBox} wrap={true}>
+        <View style={styles.ratingPillRow}>
+          <View style={[styles.ratingPillBox, { backgroundColor: ratingColor }]}>
+            <Text style={styles.ratingPillText}>{r?.label ?? "Unrated"}</Text>
+          </View>
         </View>
         <Text style={{ marginBottom: 6 }}>{r?.summary}</Text>
         {r?.contingency_advice ? (
@@ -770,15 +768,11 @@ function Footer({
     year: "numeric",
   })}`;
   return (
-    <View style={styles.footerWrap} fixed>
+    <View style={styles.footerWrap}>
       <View style={styles.footerSeparator} />
       <View style={styles.footerRow}>
         <Text>{agentLine || "Veroax disclosure analysis"}</Text>
-        <Text
-          render={({ pageNumber, totalPages }) =>
-            `${right} · Page ${pageNumber} of ${totalPages}`
-          }
-        />
+        <Text>{right}</Text>
       </View>
     </View>
   );
