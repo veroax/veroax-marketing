@@ -408,10 +408,30 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: C.subtext,
   },
-  // Page footer — trailing block, no absolute positioning (which crashes
-  // React-PDF's layout). Re-attempt per-page fixed footer separately.
+  // Page header (top of each body page) — property address left,
+  // "AI-Assisted Disclosure Analysis | Confidential" right.
+  pageHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+    fontSize: 7.5,
+    color: C.subtext,
+  },
+  pageHeaderSeparator: {
+    height: 1,
+    backgroundColor: C.accent,
+    marginBottom: 12,
+  },
+  // Page footer (bottom of each body page) — agent line + page number.
+  pageFooterWrap: {
+    marginTop: 18,
+  },
+  pageFooterSeparator: {
+    height: 1,
+    backgroundColor: C.border,
+    marginBottom: 6,
+  },
   pageFooter: {
-    marginTop: 24,
     flexDirection: "row",
     justifyContent: "space-between",
     fontSize: 7.5,
@@ -453,6 +473,15 @@ export function ReportPDF({
   });
   const agentFooterLine = formatAgentFooter(agent);
 
+  // Body page grouping. Forced page breaks happen between groups:
+  //   Page 2: sections 1-3 (Snapshot, Executive Summary, Document Inventory)
+  //   Page 3: sections 4-5 (Critical/High, Moderate findings)
+  //   Page 4: sections 6-7 (Cosmetic, Repair Cost Summary)
+  //   Page 5: sections 8-10 (HOA, Permits, Insurance & Lender Risk)
+  //   Page 6: sections 11-14 (Negotiation, Environmental, Questions, Rating)
+  const totalBodyPages = 5;
+  const bodyPageNumber = (n: number) => `Page ${n} of ${totalBodyPages}`;
+
   return (
     <Document
       title={`Disclosure Analysis — ${property}`}
@@ -471,29 +500,87 @@ export function ReportPDF({
       </Page>
 
       {/* ============ BODY PAGES ============ */}
-      <Page size="LETTER" style={styles.page}>
+      <BodyPage
+        property={property}
+        agentLine={agentFooterLine}
+        pageLabel={bodyPageNumber(1)}
+      >
         <SectionPropertySnapshot report={report} analysisDate={analysisDate} />
         <SectionExecutiveSummary report={report} />
         <SectionDocumentInventory report={report} />
+      </BodyPage>
+
+      <BodyPage
+        property={property}
+        agentLine={agentFooterLine}
+        pageLabel={bodyPageNumber(2)}
+      >
         <SectionCritical report={report} />
         <SectionModerate report={report} />
+      </BodyPage>
+
+      <BodyPage
+        property={property}
+        agentLine={agentFooterLine}
+        pageLabel={bodyPageNumber(3)}
+      >
         <SectionCosmetic report={report} />
         <SectionCostSummary report={report} />
+      </BodyPage>
+
+      <BodyPage
+        property={property}
+        agentLine={agentFooterLine}
+        pageLabel={bodyPageNumber(4)}
+      >
         <SectionHoa report={report} />
         <SectionPermits report={report} />
         <SectionInsuranceLender report={report} />
+      </BodyPage>
+
+      <BodyPage
+        property={property}
+        agentLine={agentFooterLine}
+        pageLabel={bodyPageNumber(5)}
+      >
         <SectionNegotiation report={report} />
         <SectionEnvironmental report={report} />
         <SectionOutstanding report={report} />
         <SectionOverallRating report={report} />
-
-        <PageFooter
-          agentLine={agentFooterLine}
-          property={property}
-          analysisDate={analysisDate}
-        />
-      </Page>
+      </BodyPage>
     </Document>
+  );
+}
+
+function BodyPage({
+  children,
+  property,
+  agentLine,
+  pageLabel,
+}: {
+  children: React.ReactNode;
+  property: string;
+  agentLine: string;
+  pageLabel: string;
+}) {
+  return (
+    <Page size="LETTER" style={styles.page}>
+      <View style={styles.pageHeader}>
+        <Text>{property}</Text>
+        <Text>AI-Assisted Disclosure Analysis | Confidential</Text>
+      </View>
+      <View style={styles.pageHeaderSeparator} />
+
+      {children}
+
+      <View style={styles.pageFooterWrap}>
+        <View style={styles.pageFooterSeparator} />
+        <View style={styles.pageFooter}>
+          <Text>{agentLine || "Veroax disclosure analysis"}</Text>
+          <Text>{pageLabel}</Text>
+        </View>
+      </View>
+    </Page>
   );
 }
 
@@ -1097,25 +1184,6 @@ function SectionOverallRating({ report }: { report: ReportData }) {
           <Text style={styles.ratingContingency}>{r.contingency_advice}</Text>
         ) : null}
       </View>
-    </View>
-  );
-}
-
-function PageFooter({
-  agentLine,
-  property,
-  analysisDate,
-}: {
-  agentLine: string;
-  property: string;
-  analysisDate: string;
-}) {
-  return (
-    <View style={styles.pageFooter}>
-      <Text>{agentLine || "Veroax disclosure analysis"}</Text>
-      <Text>
-        {property} · {analysisDate}
-      </Text>
     </View>
   );
 }
