@@ -87,7 +87,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
     color: C.gold,
-    letterSpacing: 1,
     marginBottom: 6,
   },
   coverTitle: {
@@ -147,7 +146,6 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontFamily: "Helvetica-Bold",
     color: "#9BBDCC",
-    letterSpacing: 1,
   },
   sectionBannerTitleBox: {
     flexGrow: 1,
