@@ -1,12 +1,14 @@
 /* eslint-disable jsx-a11y/alt-text */
 
-// Renders a Veroax disclosure analysis report as a downloadable PDF.
-// Modeled on the Cowork output: clean text-based layout, numbered
-// sections, colored severity badges, source citations, agent branding
-// footer with auto page numbers.
+// Veroax disclosure analysis PDF — modeled on the Cowork output layout.
+// React-PDF (works in Vercel serverless without Chrome).
 //
-// Uses @react-pdf/renderer (works in Vercel serverless without
-// Chrome/headless-browser dependencies).
+// IMPORTANT layout rules learned the hard way:
+//   - No "border*" properties. They crash React-PDF on certain
+//     layouts. Use 1px View separators instead.
+//   - No Text with backgroundColor. Wrap in View.
+//   - No `gap`, `flexWrap`, `alignSelf: "flex-start"`, `wrap={false}`,
+//     or `position: "absolute"` + `fixed` combinations.
 
 import React from "react";
 import {
@@ -15,7 +17,6 @@ import {
   Text,
   View,
   StyleSheet,
-  Font,
 } from "@react-pdf/renderer";
 import type {
   ReportData,
@@ -25,220 +26,389 @@ import type {
 } from "@/lib/anthropic/schema";
 
 // ============================================================================
-// Theme
+// Color palette (matches Cowork disclosure analyzer)
 // ============================================================================
 
-const COLORS = {
-  ink: "#1A1A2E",
-  text: "#1A1A2E",
-  muted: "#4A4A4A",
-  hairline: "#C8C8DC",
-  cream: "#FAF8F2",
-  panel: "#F5F2EA",
-  indigo: "#1e1b4b",
-  indigoDeep: "#191970",
+const C = {
+  navy: "#1B2A4A",
+  slate: "#2E4057",
+  accent: "#2E86AB",
   gold: "#C9A84C",
-  critical: "#7A2E2E",
-  high: "#8B5A2B",
-  moderate: "#4A6A87",
-  cosmetic: "#6B7280",
+  critical: "#C0392B",
+  high: "#E67E22",
+  moderate: "#2980B9",
+  positive: "#27AE60",
+  light: "#F4F7FA",
+  rowAlt: "#EBF2FA",
+  border: "#D0DCE8",
+  text: "#1A1A2E",
+  subtext: "#4A4A6A",
   white: "#FFFFFF",
+  strengthsBg: "#EAF7EF",
+  concernsBg: "#FDECEA",
 } as const;
 
-// Notes on @react-pdf/renderer style quirks (learned the hard way):
-//   - Fractional border widths (0.5) can produce huge negative
-//     coordinates inside clipBorderTop, crashing pdfkit. Stick to
-//     integer widths.
-//   - "gap" and "flexWrap" are not reliably supported. Use margins.
-//   - "letterSpacing" is partially supported; safer to omit.
-//   - lineHeight as a multiplier works but be conservative.
+// ============================================================================
+// Styles
+// ============================================================================
+
 const styles = StyleSheet.create({
   page: {
+    fontSize: 9.5,
+    fontFamily: "Helvetica",
+    color: C.text,
+    lineHeight: 1.4,
     paddingTop: 56,
-    paddingBottom: 64,
+    paddingBottom: 56,
     paddingHorizontal: 56,
+  },
+  coverPage: {
     fontSize: 10,
     fontFamily: "Helvetica",
-    color: COLORS.text,
+    color: C.text,
     lineHeight: 1.4,
+    padding: 0,
   },
-  // ----- Cover page -----
-  coverHeader: {
+  // Cover layout
+  coverWrap: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingBottom: 8,
+    minHeight: 720,
   },
-  coverHeaderSeparator: {
-    height: 1,
-    backgroundColor: COLORS.hairline,
-    marginBottom: 8,
+  coverAccentBar: {
+    width: 24,
+    backgroundColor: C.gold,
   },
-  coverHeaderText: {
-    fontSize: 8,
-    color: COLORS.muted,
-    textTransform: "uppercase",
+  coverInner: {
+    flexGrow: 1,
+    paddingTop: 56,
+    paddingHorizontal: 40,
+    paddingBottom: 40,
+  },
+  coverEyebrow: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: C.gold,
+    letterSpacing: 1,
+    marginBottom: 6,
   },
   coverTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontFamily: "Helvetica-Bold",
-    color: COLORS.indigoDeep,
-    marginTop: 28,
-    marginBottom: 4,
+    color: C.navy,
+    marginBottom: 2,
   },
   coverSubtitle: {
-    fontSize: 11,
-    color: COLORS.muted,
-    marginBottom: 20,
+    fontSize: 13,
+    color: C.slate,
+    marginBottom: 10,
   },
-  coverPropertyLine: {
-    fontSize: 18,
-    fontFamily: "Helvetica-Bold",
-    color: COLORS.ink,
-    marginBottom: 12,
-  },
-  // ----- Section heading -----
-  // Background goes on the wrapping View, not the Text — @react-pdf
-  // produces huge negative coordinates when Text has both backgroundColor
-  // and is inside a flex row.
-  sectionHeader: {
-    flexDirection: "row",
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  sectionNumberBox: {
-    backgroundColor: COLORS.indigoDeep,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  sectionNumberText: {
-    color: COLORS.gold,
-    fontSize: 8,
-    fontFamily: "Helvetica-Bold",
-    textTransform: "uppercase",
-  },
-  sectionTitleBox: {
-    flexGrow: 1,
-    backgroundColor: COLORS.indigoDeep,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  sectionTitleText: {
-    color: COLORS.white,
-    fontSize: 11,
-    fontFamily: "Helvetica-Bold",
-  },
-  // ----- Table -----
-  // Bottom dividers are drawn as 1px Views below each row to avoid
-  // React-PDF's border-rendering crash on certain layouts.
-  tableRow: {
-    flexDirection: "row",
-  },
-  rowDivider: {
+  coverDivider: {
     height: 1,
-    backgroundColor: COLORS.hairline,
+    backgroundColor: C.border,
+    marginTop: 10,
+    marginBottom: 14,
   },
-  tableLabel: {
-    width: 140,
-    paddingVertical: 4,
-    paddingRight: 8,
-    color: COLORS.muted,
+  // Key/value table
+  kvRow: {
+    flexDirection: "row",
+  },
+  kvRowAlt: {
+    flexDirection: "row",
+    backgroundColor: C.rowAlt,
+  },
+  kvLabel: {
+    width: 130,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     fontFamily: "Helvetica-Bold",
     fontSize: 9,
+    color: C.slate,
   },
-  tableValue: {
+  kvValue: {
     flexGrow: 1,
-    paddingVertical: 4,
-    color: COLORS.ink,
-    fontSize: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 9,
+    color: C.text,
   },
-  // ----- Findings -----
-  finding: {
-    marginTop: 8,
-    paddingBottom: 6,
-  },
-  findingTitleRow: {
+  // Section banner
+  sectionBanner: {
     flexDirection: "row",
-    marginBottom: 3,
+    backgroundColor: C.navy,
+    marginTop: 14,
+    marginBottom: 10,
+  },
+  sectionBannerLabelBox: {
+    width: 60,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: C.navy,
+  },
+  sectionBannerLabel: {
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: "#9BBDCC",
+    letterSpacing: 1,
+  },
+  sectionBannerTitleBox: {
+    flexGrow: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: C.navy,
+  },
+  sectionBannerTitle: {
+    fontSize: 13,
+    fontFamily: "Helvetica-Bold",
+    color: C.white,
+  },
+  // Findings
+  finding: {
+    marginBottom: 10,
+  },
+  findingHeader: {
+    flexDirection: "row",
+    marginBottom: 4,
   },
   findingTitle: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 11,
-    color: COLORS.indigoDeep,
     flexGrow: 1,
+    fontFamily: "Helvetica-Bold",
+    fontSize: 10,
+    color: C.navy,
     paddingRight: 8,
   },
   source: {
-    fontSize: 9,
-    color: COLORS.muted,
+    fontSize: 8.5,
+    color: C.subtext,
     fontStyle: "italic",
     marginBottom: 4,
   },
+  description: {
+    fontSize: 9,
+    marginBottom: 4,
+  },
+  // Severity badge
   badgeBox: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   badgeText: {
-    color: COLORS.white,
+    color: C.white,
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
     textTransform: "uppercase",
   },
-  description: {
-    marginBottom: 3,
-  },
-  metaLabel: {
+  // Disclaimer block
+  disclaimerHead: {
+    fontSize: 9,
     fontFamily: "Helvetica-Bold",
+    color: C.navy,
+    marginBottom: 4,
+  },
+  disclaimer: {
+    fontSize: 8,
+    color: C.slate,
+    fontStyle: "italic",
+    marginBottom: 4,
+    lineHeight: 1.4,
+  },
+  // Prepared-by panel
+  preparedByLabel: {
+    fontSize: 8,
+    color: C.subtext,
+    marginBottom: 2,
+  },
+  preparedByName: {
+    fontSize: 12,
+    fontFamily: "Helvetica-Bold",
+    color: C.navy,
+    marginBottom: 1,
+  },
+  preparedByLine: {
+    fontSize: 10,
+    color: C.slate,
+    marginBottom: 1,
+  },
+  preparedByMeta: {
+    fontSize: 9,
+    color: C.subtext,
+  },
+  // Sub-header within a section
+  subHead: {
+    fontSize: 10.5,
+    fontFamily: "Helvetica-Bold",
+    color: C.navy,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  // Two-column dual block (Strengths/Concerns, etc.)
+  dualBlock: {
+    flexDirection: "row",
+    marginTop: 4,
+  },
+  dualBlockLeft: {
+    flexGrow: 1,
+    flexBasis: 0,
+    padding: 10,
+    backgroundColor: C.strengthsBg,
+  },
+  dualBlockRight: {
+    flexGrow: 1,
+    flexBasis: 0,
+    padding: 10,
+    backgroundColor: C.concernsBg,
+    marginLeft: 6,
+  },
+  dualBlockHeaderGreen: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: C.positive,
+    marginBottom: 4,
+  },
+  dualBlockHeaderRed: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: C.critical,
+    marginBottom: 4,
+  },
+  bullet: {
+    flexDirection: "row",
+    marginBottom: 3,
     fontSize: 9,
   },
-  // ----- Rating box -----
-  // Note: avoid `border*` properties — React-PDF crashes in clipBorderTop
-  // for certain layouts. Use background + spacing to suggest the box.
+  bulletDot: {
+    width: 12,
+    color: C.subtext,
+  },
+  bulletText: {
+    flexGrow: 1,
+  },
+  // Cost summary table
+  costSectionHeader: {
+    flexDirection: "row",
+    backgroundColor: C.slate,
+    marginTop: 10,
+  },
+  costSectionHeaderLabel: {
+    flexGrow: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: C.white,
+  },
+  costSectionHeaderCost: {
+    width: 140,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: C.white,
+    textAlign: "right",
+  },
+  costRow: {
+    flexDirection: "row",
+  },
+  costRowAlt: {
+    flexDirection: "row",
+    backgroundColor: C.rowAlt,
+  },
+  costRowLabel: {
+    flexGrow: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    fontSize: 9,
+    color: C.text,
+  },
+  costRowValue: {
+    width: 140,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    fontSize: 9,
+    color: C.text,
+    textAlign: "right",
+  },
+  costSubtotalRow: {
+    flexDirection: "row",
+    backgroundColor: C.light,
+  },
+  costSubtotalLabel: {
+    flexGrow: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: C.navy,
+  },
+  costSubtotalValue: {
+    width: 140,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: C.navy,
+    textAlign: "right",
+  },
+  costGrandTotalRow: {
+    flexDirection: "row",
+    backgroundColor: C.navy,
+    marginTop: 2,
+  },
+  costGrandTotalLabel: {
+    flexGrow: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    color: C.white,
+  },
+  costGrandTotalValue: {
+    width: 140,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    color: C.white,
+    textAlign: "right",
+  },
+  // Rating
   ratingBox: {
     marginTop: 8,
-    padding: 12,
-    backgroundColor: COLORS.cream,
+    padding: 14,
+    backgroundColor: C.light,
   },
-  // ratingPillBox is a stretched-width pill — accepting the wider look
-  // because alignSelf:"flex-start" was triggering React-PDF layout bugs.
   ratingPillRow: {
     flexDirection: "row",
     marginBottom: 8,
   },
   ratingPillBox: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
   },
   ratingPillText: {
-    color: COLORS.white,
     fontSize: 11,
     fontFamily: "Helvetica-Bold",
+    color: C.white,
     textTransform: "uppercase",
   },
-  // ----- Footer (trailing block, not fixed) -----
-  footerWrap: {
-    marginTop: 24,
-  },
-  footerSeparator: {
-    height: 1,
-    backgroundColor: COLORS.hairline,
+  ratingSummary: {
+    fontSize: 10,
     marginBottom: 6,
   },
-  footerRow: {
+  ratingContingency: {
+    fontSize: 9,
+    fontStyle: "italic",
+    color: C.subtext,
+  },
+  // Per-page footer (text only — no border)
+  pageFooter: {
+    position: "absolute",
+    bottom: 24,
+    left: 56,
+    right: 56,
     flexDirection: "row",
     justifyContent: "space-between",
-    fontSize: 8,
-    color: COLORS.muted,
-  },
-  bullet: {
-    flexDirection: "row",
-    marginBottom: 2,
-  },
-  bulletDot: {
-    width: 12,
-    color: COLORS.muted,
-  },
-  bulletText: {
-    flexGrow: 1,
+    fontSize: 7.5,
+    color: C.subtext,
   },
 });
 
@@ -269,266 +439,194 @@ export function ReportPDF({
   generatedAt: Date;
 }) {
   const shortId = reportId.slice(0, 8);
+  const analysisDate = generatedAt.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const agentFooterLine = formatAgentFooter(agent);
+
   return (
     <Document
       title={`Disclosure Analysis — ${property}`}
       author="Veroax"
       subject="AI-assisted disclosure analysis"
     >
+      {/* ============ COVER PAGE ============ */}
+      <Page size="LETTER" style={styles.coverPage}>
+        <CoverPage
+          property={property}
+          report={report}
+          agent={agent}
+          analysisDate={analysisDate}
+          shortId={shortId}
+        />
+      </Page>
+
+      {/* ============ BODY PAGES ============ */}
       <Page size="LETTER" style={styles.page}>
-        {/* Header strip (top of document, not per-page) */}
-        <View style={styles.coverHeader}>
-          <Text style={styles.coverHeaderText}>Disclosure Package Analysis</Text>
-          <Text style={styles.coverHeaderText}>Report ID: {shortId}</Text>
-        </View>
-        <View style={styles.coverHeaderSeparator} />
+        <SectionPropertySnapshot report={report} analysisDate={analysisDate} />
+        <SectionExecutiveSummary report={report} />
+        <SectionDocumentInventory report={report} />
+        <SectionCritical report={report} />
+        <SectionModerate report={report} />
+        <SectionCosmetic report={report} />
+        <SectionCostSummary report={report} />
+        <SectionHoa report={report} />
+        <SectionPermits report={report} />
+        <SectionInsuranceLender report={report} />
+        <SectionNegotiation report={report} />
+        <SectionEnvironmental report={report} />
+        <SectionOutstanding report={report} />
+        <SectionOverallRating report={report} />
 
-        <Text style={styles.coverTitle}>Disclosure Analysis</Text>
-        <Text style={styles.coverSubtitle}>
-          Buyer&apos;s review of the seller&apos;s disclosure package
-        </Text>
-        <Text style={styles.coverPropertyLine}>{property}</Text>
-
-        <SectionPropertySnapshot data={report} />
-        <SectionDocumentInventory data={report} />
-        <SectionExecutiveSummary data={report} />
-        <SectionCritical data={report} />
-        <SectionHighModerate data={report} />
-        <SectionCosmetic data={report} />
-        <SectionCostSummary data={report} />
-        <SectionHoa data={report} />
-        <SectionPermits data={report} />
-        <SectionInsuranceLender data={report} />
-        <SectionNegotiation data={report} />
-        <SectionEnvironmental data={report} />
-        <SectionOutstanding data={report} />
-        <SectionOverallRating data={report} />
-
-        {/* Footer (auto-rendered on every page) */}
-        <Footer agent={agent} property={property} generatedAt={generatedAt} />
+        <PageFooter
+          agentLine={agentFooterLine}
+          property={property}
+          analysisDate={analysisDate}
+        />
       </Page>
     </Document>
   );
 }
 
 // ============================================================================
-// Sections
+// Cover page
 // ============================================================================
 
-function SectionHeader({ number, title }: { number: number; title: string }) {
-  return (
-    <View style={styles.sectionHeader} wrap={true}>
-      <View style={styles.sectionNumberBox}>
-        <Text style={styles.sectionNumberText}>Section {number}</Text>
-      </View>
-      <View style={styles.sectionTitleBox}>
-        <Text style={styles.sectionTitleText}>{title}</Text>
-      </View>
-    </View>
-  );
-}
-
-function SectionPropertySnapshot({ data }: { data: ReportData }) {
-  const p = data.property_snapshot;
-  const rows: Array<[string, string]> = [];
-  if (p?.property_type)
-    rows.push(["Property type", p.property_type]);
-  if (p?.year_built) rows.push(["Year built", String(p.year_built)]);
-  if (p?.square_feet)
-    rows.push(["Square feet", p.square_feet.toLocaleString()]);
-  if (p?.bedrooms != null && p?.bathrooms != null)
-    rows.push(["Bed / Bath", `${p.bedrooms} bed · ${p.bathrooms} bath`]);
-  if (p?.list_price)
-    rows.push(["List price", formatUSD(p.list_price)]);
-  if (p?.days_on_market != null)
-    rows.push(["Days on market", String(p.days_on_market)]);
-  if (p?.market_region) rows.push(["Market region", p.market_region]);
-
-  return (
-    <View>
-      <SectionHeader number={1} title="Property Snapshot" />
-      {rows.length === 0 ? (
-        <Text>Property details not extracted.</Text>
-      ) : (
-        rows.map(([label, value], i) => (
-          <React.Fragment key={label}>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>{label}</Text>
-              <Text style={styles.tableValue}>{value}</Text>
-            </View>
-            {i < rows.length - 1 && <View style={styles.rowDivider} />}
-          </React.Fragment>
-        ))
-      )}
-    </View>
-  );
-}
-
-function SectionDocumentInventory({ data }: { data: ReportData }) {
-  const inv = data.document_inventory;
-  return (
-    <View>
-      <SectionHeader number={2} title="Document Inventory" />
-      <Text style={[styles.metaLabel, { marginTop: 4, marginBottom: 4 }]}>
-        Provided
-      </Text>
-      {inv?.documents_provided?.length ? (
-        inv.documents_provided.map((d, i) => (
-          <View key={i} style={styles.bullet}>
-            <Text style={styles.bulletDot}>·</Text>
-            <Text style={styles.bulletText}>
-              <Text style={styles.metaLabel}>{d.type}</Text>: {d.name}
-              {d.pages ? ` (${d.pages} pp)` : ""}
-            </Text>
-          </View>
-        ))
-      ) : (
-        <Text>None identified.</Text>
-      )}
-      <Text style={[styles.metaLabel, { marginTop: 8, marginBottom: 4 }]}>
-        Standard CA disclosures NOT in this package
-      </Text>
-      {inv?.documents_missing?.length ? (
-        inv.documents_missing.map((d, i) => (
-          <View key={i} style={styles.bullet}>
-            <Text style={styles.bulletDot}>·</Text>
-            <Text style={styles.bulletText}>{d}</Text>
-          </View>
-        ))
-      ) : (
-        <Text>Package appears complete.</Text>
-      )}
-    </View>
-  );
-}
-
-function SectionExecutiveSummary({ data }: { data: ReportData }) {
-  const crit = data.critical_findings?.length ?? 0;
-  const mod = data.moderate_findings?.length ?? 0;
-  const cos = data.cosmetic_findings?.length ?? 0;
-  const totalCritHigh = formatCostRange(data.cost_summary?.critical_high_total);
-  const totalGrand = formatCostRange(data.cost_summary?.grand_total);
-  const rating = data.overall_rating?.label ?? "Unrated";
-
-  return (
-    <View>
-      <SectionHeader number={3} title="Executive Summary" />
-      <Text style={{ marginBottom: 6 }}>
-        This analysis identified{" "}
-        <Text style={styles.metaLabel}>{crit} critical / high</Text>,{" "}
-        <Text style={styles.metaLabel}>{mod} moderate</Text>, and{" "}
-        <Text style={styles.metaLabel}>{cos} cosmetic</Text> finding{cos === 1 ? "" : "s"} across the disclosure
-        documents. Critical and high-priority repair exposure is estimated at{" "}
-        <Text style={styles.metaLabel}>{totalCritHigh}</Text>; total estimated
-        repair exposure across all severities is{" "}
-        <Text style={styles.metaLabel}>{totalGrand}</Text>.
-      </Text>
-      <Text>
-        Overall rating:{" "}
-        <Text style={styles.metaLabel}>{rating}</Text>. See Section 14 for the
-        full rating rationale and contingency guidance.
-      </Text>
-    </View>
-  );
-}
-
-function SectionCritical({ data }: { data: ReportData }) {
-  return (
-    <FindingsSection
-      number={4}
-      title="Critical & High-Priority Findings"
-      findings={data.critical_findings}
-      emptyMessage="No critical or high-priority findings identified."
-    />
-  );
-}
-
-function SectionHighModerate({ data }: { data: ReportData }) {
-  return (
-    <FindingsSection
-      number={5}
-      title="Moderate Findings"
-      findings={data.moderate_findings}
-      emptyMessage="No moderate findings identified."
-    />
-  );
-}
-
-function SectionCosmetic({ data }: { data: ReportData }) {
-  return (
-    <FindingsSection
-      number={6}
-      title="Cosmetic Findings"
-      findings={data.cosmetic_findings}
-      emptyMessage="No cosmetic findings identified."
-    />
-  );
-}
-
-function FindingsSection({
-  number,
-  title,
-  findings,
-  emptyMessage,
+function CoverPage({
+  property,
+  report,
+  agent,
+  analysisDate,
+  shortId,
 }: {
-  number: number;
-  title: string;
-  findings: Finding[] | undefined;
-  emptyMessage: string;
+  property: string;
+  report: ReportData;
+  agent: AgentBranding;
+  analysisDate: string;
+  shortId: string;
 }) {
+  const p = report.property_snapshot;
+  const addressParts = property.split(",");
+  const line1 = (addressParts[0] ?? property).trim();
+  const line2 = addressParts.slice(1).join(",").trim();
+
+  const coverKv: Array<[string, string]> = [];
+  if (p?.property_type) coverKv.push(["Property Type", p.property_type]);
+  if (p?.year_built) coverKv.push(["Year Built", String(p.year_built)]);
+  if (p?.list_price) coverKv.push(["List Price", formatUSD(p.list_price)]);
+  if (p?.market_region) coverKv.push(["Market Region", p.market_region]);
+  coverKv.push(["Analysis Date", analysisDate]);
+  coverKv.push(["Report ID", shortId]);
+
+  return (
+    <View style={styles.coverWrap}>
+      <View style={styles.coverAccentBar} />
+      <View style={styles.coverInner}>
+        <Text style={styles.coverEyebrow}>AI-ASSISTED DISCLOSURE ANALYSIS</Text>
+        <Text style={styles.coverTitle}>{line1}</Text>
+        {line2 ? <Text style={styles.coverSubtitle}>{line2}</Text> : null}
+
+        <View style={styles.coverDivider} />
+
+        <KvTable rows={coverKv} />
+
+        <View style={styles.coverDivider} />
+
+        <Text style={styles.disclaimerHead}>
+          IMPORTANT, AI-GENERATED REPORT DISCLAIMER
+        </Text>
+        <Text style={styles.disclaimer}>
+          This report was generated using artificial intelligence based on the
+          disclosure documents provided. It is intended as a preliminary
+          analytical aid to help buyers and their agents organize and prioritize
+          key issues in a disclosure package.
+        </Text>
+        <Text style={styles.disclaimer}>
+          This report is NOT a substitute for: (1) a thorough independent review
+          of the actual disclosure documents by the buyer and their agent; (2)
+          professional inspections by licensed contractors, engineers, and
+          inspectors; (3) legal advice from a qualified California real estate
+          attorney; or (4) lender review of the property and HOA.
+        </Text>
+        <Text style={styles.disclaimer}>
+          AI systems can make errors, miss context, misread ambiguous text, and
+          cannot physically inspect a property. All findings should be
+          independently verified against the source documents before making any
+          purchase decision. Cost estimates are ranges only; obtain licensed
+          contractor bids before relying on them.
+        </Text>
+        <Text style={styles.disclaimer}>
+          This report is confidential and prepared solely for the named buyer
+          client. It does not constitute a warranty, guarantee, or professional
+          opinion regarding the condition, value, or suitability of the
+          property.
+        </Text>
+
+        <View style={styles.coverDivider} />
+
+        <Text style={styles.preparedByLabel}>Prepared By</Text>
+        {agent.fullName ? (
+          <Text style={styles.preparedByName}>{agent.fullName}</Text>
+        ) : null}
+        {agent.brokerage ? (
+          <Text style={styles.preparedByLine}>{agent.brokerage}</Text>
+        ) : null}
+        {agent.phone ? (
+          <Text style={styles.preparedByMeta}>{agent.phone}</Text>
+        ) : null}
+        {agent.email ? (
+          <Text style={styles.preparedByMeta}>{agent.email}</Text>
+        ) : null}
+        {(agent.dreLicense || agent.brokerageDre) && (
+          <Text style={styles.preparedByMeta}>
+            {agent.dreLicense ? `DRE #${agent.dreLicense}` : ""}
+            {agent.dreLicense && agent.brokerageDre ? " / " : ""}
+            {agent.brokerageDre ? `Brokerage DRE #${agent.brokerageDre}` : ""}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ============================================================================
+// Reusable pieces
+// ============================================================================
+
+function SectionBanner({ number, title }: { number: number; title: string }) {
+  return (
+    <View style={styles.sectionBanner}>
+      <View style={styles.sectionBannerLabelBox}>
+        <Text style={styles.sectionBannerLabel}>SECTION {number}</Text>
+      </View>
+      <View style={styles.sectionBannerTitleBox}>
+        <Text style={styles.sectionBannerTitle}>{title.toUpperCase()}</Text>
+      </View>
+    </View>
+  );
+}
+
+function KvTable({ rows }: { rows: Array<[string, string]> }) {
   return (
     <View>
-      <SectionHeader number={number} title={title} />
-      {!findings?.length ? (
-        <Text style={{ fontStyle: "italic", color: COLORS.muted }}>{emptyMessage}</Text>
-      ) : (
-        findings.map((f, i) => <FindingBlock key={i} finding={f} index={i + 1} />)
-      )}
-    </View>
-  );
-}
-
-function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
-  return (
-    <View style={styles.finding} wrap={true}>
-      <View style={styles.findingTitleRow}>
-        <Text style={styles.findingTitle}>
-          {index}. {finding.title}
-        </Text>
-        <SeverityBadge severity={finding.severity} />
-      </View>
-      <Text style={styles.source}>{finding.source}</Text>
-      {finding.description ? (
-        <Text style={styles.description}>{finding.description}</Text>
-      ) : null}
-      <View style={{ marginTop: 4 }}>
-        <KeyValue label="Cost" value={formatCostRange(finding.cost_estimate)} />
-        <KeyValue label="Risk if ignored" value={finding.risk_if_ignored} />
-        <KeyValue label="Recommended action" value={finding.recommended_action} />
-        <KeyValue
-          label="Confidence"
-          value={finding.confidence.charAt(0).toUpperCase() + finding.confidence.slice(1)}
-        />
-      </View>
-    </View>
-  );
-}
-
-function KeyValue({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={{ flexDirection: "row", marginTop: 2 }}>
-      <Text style={[styles.metaLabel, { width: 110 }]}>{label}</Text>
-      <Text style={{ flexGrow: 1, fontSize: 9 }}>{value}</Text>
+      {rows.map(([label, value], i) => (
+        <View key={label} style={i % 2 === 1 ? styles.kvRowAlt : styles.kvRow}>
+          <Text style={styles.kvLabel}>{label}</Text>
+          <Text style={styles.kvValue}>{value}</Text>
+        </View>
+      ))}
     </View>
   );
 }
 
 function SeverityBadge({ severity }: { severity: Severity }) {
   const bg = {
-    critical: COLORS.critical,
-    high: COLORS.high,
-    moderate: COLORS.moderate,
-    cosmetic: COLORS.cosmetic,
+    critical: C.critical,
+    high: C.high,
+    moderate: C.moderate,
+    cosmetic: C.subtext,
   }[severity];
   return (
     <View style={[styles.badgeBox, { backgroundColor: bg }]}>
@@ -537,45 +635,282 @@ function SeverityBadge({ severity }: { severity: Severity }) {
   );
 }
 
-function SectionCostSummary({ data }: { data: ReportData }) {
-  const cs = data.cost_summary;
+function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
+  return (
+    <View style={styles.finding}>
+      <View style={styles.findingHeader}>
+        <Text style={styles.findingTitle}>
+          Issue {index}: {finding.title}
+        </Text>
+        <SeverityBadge severity={finding.severity} />
+      </View>
+      <Text style={styles.source}>{finding.source}</Text>
+      {finding.description ? (
+        <Text style={styles.description}>{finding.description}</Text>
+      ) : null}
+      <KvTable
+        rows={[
+          ["Source", finding.source],
+          ["Est. Cost", formatCostRange(finding.cost_estimate)],
+          ["Risk if Ignored", finding.risk_if_ignored],
+          ["Recommended Action", finding.recommended_action],
+          [
+            "Confidence",
+            finding.confidence.charAt(0).toUpperCase() +
+              finding.confidence.slice(1),
+          ],
+        ]}
+      />
+    </View>
+  );
+}
+
+// ============================================================================
+// Sections
+// ============================================================================
+
+function SectionPropertySnapshot({
+  report,
+  analysisDate,
+}: {
+  report: ReportData;
+  analysisDate: string;
+}) {
+  const p = report.property_snapshot;
+  const rows: Array<[string, string]> = [];
+  if (p?.address) rows.push(["Address", p.address]);
+  if (p?.property_type) rows.push(["Property Type", p.property_type]);
+  if (p?.year_built) rows.push(["Year Built", String(p.year_built)]);
+  if (p?.square_feet)
+    rows.push(["Square Feet", p.square_feet.toLocaleString()]);
+  if (p?.bedrooms != null || p?.bathrooms != null) {
+    rows.push([
+      "Bed / Bath",
+      `${p?.bedrooms ?? "—"} bed / ${p?.bathrooms ?? "—"} bath`,
+    ]);
+  }
+  if (p?.list_price) rows.push(["List Price", formatUSD(p.list_price)]);
+  if (p?.days_on_market != null)
+    rows.push(["Days on Market", String(p.days_on_market)]);
+  if (p?.market_region) rows.push(["Market Region", p.market_region]);
+  rows.push(["Analysis Date", analysisDate]);
+
   return (
     <View>
-      <SectionHeader number={7} title="Repair Cost Summary" />
+      <SectionBanner number={1} title="Property Snapshot" />
+      <KvTable rows={rows} />
+    </View>
+  );
+}
+
+function SectionExecutiveSummary({ report }: { report: ReportData }) {
+  const critCount = report.critical_findings?.length ?? 0;
+  const modCount = report.moderate_findings?.length ?? 0;
+  const cosmCount = report.cosmetic_findings?.length ?? 0;
+  const critHighTotal = formatCostRange(report.cost_summary?.critical_high_total);
+  const grandTotal = formatCostRange(report.cost_summary?.grand_total);
+  const ratingLabel = report.overall_rating?.label ?? "Unrated";
+
+  // Build "strengths" and "concerns" lists from data
+  // Strengths: derived from cosmetic-only findings or absent issues
+  // Concerns: top 3 critical/high findings by severity
+  const concerns = (report.critical_findings ?? [])
+    .slice(0, 3)
+    .map((f) => f.title);
+  while (concerns.length < 3) {
+    concerns.push(
+      modCount > 0
+        ? (report.moderate_findings?.[concerns.length]?.title ??
+          "Additional moderate items below")
+        : "(No additional concerns identified)",
+    );
+  }
+  const strengths: string[] = [];
+  if (critCount === 0)
+    strengths.push("No critical findings identified in the disclosure package");
+  if (report.hoa?.applicable && report.hoa.concerns?.length === 0)
+    strengths.push("HOA review surfaced no material financial concerns");
+  if ((report.environmental?.hazards?.length ?? 0) === 0)
+    strengths.push("No significant natural hazard zones disclosed");
+  while (strengths.length < 3) {
+    strengths.push(
+      cosmCount > 0
+        ? "Most findings are cosmetic and addressable post-close"
+        : "Standard contingency timelines should suffice",
+    );
+  }
+
+  return (
+    <View>
+      <SectionBanner number={2} title="Executive Summary" />
+      <Text style={{ fontSize: 9.5, marginBottom: 6 }}>
+        This analysis identified{" "}
+        <Text style={{ fontFamily: "Helvetica-Bold" }}>{critCount}</Text>{" "}
+        critical / high,{" "}
+        <Text style={{ fontFamily: "Helvetica-Bold" }}>{modCount}</Text>{" "}
+        moderate, and{" "}
+        <Text style={{ fontFamily: "Helvetica-Bold" }}>{cosmCount}</Text>{" "}
+        cosmetic findings across the disclosure package. Critical and
+        high-priority repair exposure is estimated at{" "}
+        <Text style={{ fontFamily: "Helvetica-Bold" }}>{critHighTotal}</Text>;
+        total estimated repair exposure across all severities is{" "}
+        <Text style={{ fontFamily: "Helvetica-Bold" }}>{grandTotal}</Text>.
+      </Text>
+      <Text style={{ fontSize: 9.5, marginBottom: 8 }}>
+        Overall rating:{" "}
+        <Text style={{ fontFamily: "Helvetica-Bold" }}>{ratingLabel}</Text>. See
+        Section 14 for the full rationale and contingency guidance.
+      </Text>
+
+      <View style={styles.dualBlock}>
+        <View style={styles.dualBlockLeft}>
+          <Text style={styles.dualBlockHeaderGreen}>THREE STRENGTHS</Text>
+          {strengths.slice(0, 3).map((s, i) => (
+            <Text key={i} style={{ fontSize: 9, marginBottom: 2 }}>
+              {i + 1}. {s}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.dualBlockRight}>
+          <Text style={styles.dualBlockHeaderRed}>THREE KEY CONCERNS</Text>
+          {concerns.slice(0, 3).map((c, i) => (
+            <Text key={i} style={{ fontSize: 9, marginBottom: 2 }}>
+              {i + 1}. {c}
+            </Text>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function SectionDocumentInventory({ report }: { report: ReportData }) {
+  const inv = report.document_inventory;
+  return (
+    <View>
+      <SectionBanner number={3} title="Document Inventory" />
+      <Text style={styles.subHead}>Provided</Text>
+      {inv?.documents_provided?.length ? (
+        inv.documents_provided.map((d, i) => (
+          <View key={i} style={styles.bullet}>
+            <Text style={styles.bulletDot}>·</Text>
+            <Text style={styles.bulletText}>
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>{d.type}</Text>:{" "}
+              {d.name}
+              {d.pages ? ` (${d.pages} pp)` : ""}
+            </Text>
+          </View>
+        ))
+      ) : (
+        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+          No documents identified.
+        </Text>
+      )}
+      <Text style={styles.subHead}>Standard CA Disclosures NOT in this package</Text>
+      {inv?.documents_missing?.length ? (
+        inv.documents_missing.map((d, i) => (
+          <View key={i} style={styles.bullet}>
+            <Text style={styles.bulletDot}>·</Text>
+            <Text style={styles.bulletText}>{d}</Text>
+          </View>
+        ))
+      ) : (
+        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+          Package appears complete.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function SectionCritical({ report }: { report: ReportData }) {
+  return (
+    <View>
+      <SectionBanner number={4} title="Critical & High-Priority Findings" />
+      {report.critical_findings?.length ? (
+        report.critical_findings.map((f, i) => (
+          <FindingBlock key={i} finding={f} index={i + 1} />
+        ))
+      ) : (
+        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+          No critical or high-priority findings identified.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function SectionModerate({ report }: { report: ReportData }) {
+  return (
+    <View>
+      <SectionBanner number={5} title="Moderate Findings" />
+      {report.moderate_findings?.length ? (
+        report.moderate_findings.map((f, i) => (
+          <FindingBlock key={i} finding={f} index={i + 1} />
+        ))
+      ) : (
+        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+          No moderate findings identified.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function SectionCosmetic({ report }: { report: ReportData }) {
+  return (
+    <View>
+      <SectionBanner number={6} title="Cosmetic Findings" />
+      {report.cosmetic_findings?.length ? (
+        report.cosmetic_findings.map((f, i) => (
+          <FindingBlock key={i} finding={f} index={i + 1} />
+        ))
+      ) : (
+        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+          No cosmetic findings identified.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function SectionCostSummary({ report }: { report: ReportData }) {
+  const cs = report.cost_summary;
+  return (
+    <View>
+      <SectionBanner number={7} title="Repair Cost Summary" />
       {cs?.line_items?.length
         ? cs.line_items.map((cat, ci) => (
-            <View key={ci} style={{ marginBottom: 6 }} wrap={true}>
-              <Text style={[styles.metaLabel, { marginTop: 6 }]}>{cat.category}</Text>
+            <View key={ci}>
+              <View style={styles.costSectionHeader}>
+                <Text style={styles.costSectionHeaderLabel}>{cat.category}</Text>
+                <Text style={styles.costSectionHeaderCost}>Est. Cost Range</Text>
+              </View>
               {cat.items.map((item, ii) => (
-                <React.Fragment key={ii}>
-                  <View style={styles.tableRow}>
-                    <Text style={[styles.tableValue, { flexGrow: 1 }]}>{item.label}</Text>
-                    <Text
-                      style={[styles.tableValue, { width: 120, textAlign: "right" }]}
-                    >
-                      {formatCostRange(item.cost)}
-                    </Text>
-                  </View>
-                  {ii < cat.items.length - 1 && <View style={styles.rowDivider} />}
-                </React.Fragment>
+                <View
+                  key={ii}
+                  style={ii % 2 === 1 ? styles.costRowAlt : styles.costRow}
+                >
+                  <Text style={styles.costRowLabel}>{item.label}</Text>
+                  <Text style={styles.costRowValue}>
+                    {formatCostRange(item.cost)}
+                  </Text>
+                </View>
               ))}
+              <View style={styles.costSubtotalRow}>
+                <Text style={styles.costSubtotalLabel}>Subtotal</Text>
+                <Text style={styles.costSubtotalValue}>
+                  {formatCostRange(sumLineCosts(cat.items))}
+                </Text>
+              </View>
             </View>
           ))
         : null}
-      <View
-        style={{
-          flexDirection: "row",
-          marginTop: 10,
-          paddingVertical: 6,
-          paddingHorizontal: 10,
-          backgroundColor: COLORS.indigoDeep,
-        }}
-        wrap={true}
-      >
-        <Text style={{ flexGrow: 1, color: COLORS.white, fontFamily: "Helvetica-Bold" }}>
+      <View style={styles.costGrandTotalRow}>
+        <Text style={styles.costGrandTotalLabel}>
           TOTAL ESTIMATED REPAIR EXPOSURE
         </Text>
-        <Text style={{ color: COLORS.white, fontFamily: "Helvetica-Bold" }}>
+        <Text style={styles.costGrandTotalValue}>
           {formatCostRange(cs?.grand_total)}
         </Text>
       </View>
@@ -583,21 +918,23 @@ function SectionCostSummary({ data }: { data: ReportData }) {
   );
 }
 
-function SectionHoa({ data }: { data: ReportData }) {
+function SectionHoa({ report }: { report: ReportData }) {
   return (
     <View>
-      <SectionHeader number={8} title="HOA Financial & Governance Review" />
-      {!data.hoa?.applicable ? (
-        <Text style={{ fontStyle: "italic", color: COLORS.muted }}>
+      <SectionBanner number={8} title="HOA Financial & Governance Review" />
+      {!report.hoa?.applicable ? (
+        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
           HOA documents not present or not applicable to this property.
         </Text>
       ) : (
         <View>
-          <Text style={{ marginBottom: 6 }}>{data.hoa.summary}</Text>
-          {data.hoa.concerns?.length ? (
+          <Text style={{ fontSize: 9.5, marginBottom: 6 }}>
+            {report.hoa.summary}
+          </Text>
+          {report.hoa.concerns?.length ? (
             <View>
-              <Text style={styles.metaLabel}>Concerns:</Text>
-              {data.hoa.concerns.map((c, i) => (
+              <Text style={styles.subHead}>Concerns</Text>
+              {report.hoa.concerns.map((c, i) => (
                 <View key={i} style={styles.bullet}>
                   <Text style={styles.bulletDot}>·</Text>
                   <Text style={styles.bulletText}>{c}</Text>
@@ -611,16 +948,16 @@ function SectionHoa({ data }: { data: ReportData }) {
   );
 }
 
-function SectionPermits({ data }: { data: ReportData }) {
+function SectionPermits({ report }: { report: ReportData }) {
   return (
     <View>
-      <SectionHeader number={9} title="Permits, Alterations & Code Compliance" />
-      <Text style={{ marginBottom: 6 }}>
-        {data.permit_compliance?.summary ||
+      <SectionBanner number={9} title="Permits, Alterations & Code Compliance" />
+      <Text style={{ fontSize: 9.5, marginBottom: 6 }}>
+        {report.permit_compliance?.summary ||
           "No permit-related issues surfaced in the documents reviewed."}
       </Text>
-      {data.permit_compliance?.findings?.length
-        ? data.permit_compliance.findings.map((f, i) => (
+      {report.permit_compliance?.findings?.length
+        ? report.permit_compliance.findings.map((f, i) => (
             <FindingBlock key={i} finding={f} index={i + 1} />
           ))
         : null}
@@ -628,15 +965,15 @@ function SectionPermits({ data }: { data: ReportData }) {
   );
 }
 
-function SectionInsuranceLender({ data }: { data: ReportData }) {
-  const r = data.insurance_lender_risk;
+function SectionInsuranceLender({ report }: { report: ReportData }) {
+  const r = report.insurance_lender_risk;
   return (
     <View>
-      <SectionHeader number={10} title="Insurance & Lender Risk" />
-      <Text style={{ marginBottom: 6 }}>{r?.summary}</Text>
+      <SectionBanner number={10} title="Insurance & Lender Risk" />
+      <Text style={{ fontSize: 9.5, marginBottom: 6 }}>{r?.summary}</Text>
       {r?.insurance_concerns?.length ? (
-        <View style={{ marginBottom: 6 }}>
-          <Text style={styles.metaLabel}>Insurance concerns</Text>
+        <View>
+          <Text style={styles.subHead}>Insurance concerns</Text>
           {r.insurance_concerns.map((c, i) => (
             <View key={i} style={styles.bullet}>
               <Text style={styles.bulletDot}>·</Text>
@@ -647,7 +984,7 @@ function SectionInsuranceLender({ data }: { data: ReportData }) {
       ) : null}
       {r?.lender_concerns?.length ? (
         <View>
-          <Text style={styles.metaLabel}>Lender concerns</Text>
+          <Text style={styles.subHead}>Lender concerns</Text>
           {r.lender_concerns.map((c, i) => (
             <View key={i} style={styles.bullet}>
               <Text style={styles.bulletDot}>·</Text>
@@ -660,14 +997,16 @@ function SectionInsuranceLender({ data }: { data: ReportData }) {
   );
 }
 
-function SectionNegotiation({ data }: { data: ReportData }) {
+function SectionNegotiation({ report }: { report: ReportData }) {
   return (
     <View>
-      <SectionHeader number={11} title="Negotiation Leverage" />
-      <Text style={{ marginBottom: 6 }}>{data.negotiation?.summary}</Text>
-      {data.negotiation?.leverage_points?.length ? (
+      <SectionBanner number={11} title="Negotiation Leverage" />
+      <Text style={{ fontSize: 9.5, marginBottom: 6 }}>
+        {report.negotiation?.summary}
+      </Text>
+      {report.negotiation?.leverage_points?.length ? (
         <View>
-          {data.negotiation.leverage_points.map((p, i) => (
+          {report.negotiation.leverage_points.map((p, i) => (
             <View key={i} style={styles.bullet}>
               <Text style={styles.bulletDot}>·</Text>
               <Text style={styles.bulletText}>{p}</Text>
@@ -679,38 +1018,41 @@ function SectionNegotiation({ data }: { data: ReportData }) {
   );
 }
 
-function SectionEnvironmental({ data }: { data: ReportData }) {
+function SectionEnvironmental({ report }: { report: ReportData }) {
   return (
     <View>
-      <SectionHeader number={12} title="Environmental & Natural Hazards" />
-      <Text style={{ marginBottom: 6 }}>{data.environmental?.summary}</Text>
-      {data.environmental?.hazards?.length ? (
-        data.environmental.hazards.map((h, i) => (
-          <View key={i} style={styles.bullet}>
-            <Text style={styles.bulletDot}>·</Text>
-            <Text style={styles.bulletText}>
-              <Text style={styles.metaLabel}>{h.name}</Text> ({h.severity}): {h.notes}
-            </Text>
-          </View>
-        ))
-      ) : null}
+      <SectionBanner number={12} title="Environmental & Natural Hazards" />
+      <Text style={{ fontSize: 9.5, marginBottom: 6 }}>
+        {report.environmental?.summary}
+      </Text>
+      {report.environmental?.hazards?.length
+        ? report.environmental.hazards.map((h, i) => (
+            <View key={i} style={styles.bullet}>
+              <Text style={styles.bulletDot}>·</Text>
+              <Text style={styles.bulletText}>
+                <Text style={{ fontFamily: "Helvetica-Bold" }}>{h.name}</Text> (
+                {h.severity}): {h.notes}
+              </Text>
+            </View>
+          ))
+        : null}
     </View>
   );
 }
 
-function SectionOutstanding({ data }: { data: ReportData }) {
+function SectionOutstanding({ report }: { report: ReportData }) {
   return (
     <View>
-      <SectionHeader number={13} title="Outstanding Questions" />
-      {data.outstanding_questions?.length ? (
-        data.outstanding_questions.map((q, i) => (
+      <SectionBanner number={13} title="Outstanding Questions" />
+      {report.outstanding_questions?.length ? (
+        report.outstanding_questions.map((q, i) => (
           <View key={i} style={styles.bullet}>
             <Text style={styles.bulletDot}>{i + 1}.</Text>
             <Text style={styles.bulletText}>{q}</Text>
           </View>
         ))
       ) : (
-        <Text style={{ fontStyle: "italic", color: COLORS.muted }}>
+        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
           No outstanding questions identified.
         </Text>
       )}
@@ -718,64 +1060,58 @@ function SectionOutstanding({ data }: { data: ReportData }) {
   );
 }
 
-function SectionOverallRating({ data }: { data: ReportData }) {
-  const r = data.overall_rating;
-  const ratingColor = ratingPillColor(r?.label);
+function SectionOverallRating({ report }: { report: ReportData }) {
+  const r = report.overall_rating;
+  const color = ratingColor(r?.label);
   return (
     <View>
-      <SectionHeader number={14} title="Overall Property Rating" />
-      <View style={styles.ratingBox} wrap={true}>
+      <SectionBanner number={14} title="Overall Property Rating" />
+      <View style={styles.ratingBox}>
         <View style={styles.ratingPillRow}>
-          <View style={[styles.ratingPillBox, { backgroundColor: ratingColor }]}>
+          <View style={[styles.ratingPillBox, { backgroundColor: color }]}>
             <Text style={styles.ratingPillText}>{r?.label ?? "Unrated"}</Text>
           </View>
         </View>
-        <Text style={{ marginBottom: 6 }}>{r?.summary}</Text>
+        <Text style={styles.ratingSummary}>{r?.summary}</Text>
         {r?.contingency_advice ? (
-          <Text style={{ fontStyle: "italic", color: COLORS.muted }}>
-            {r.contingency_advice}
-          </Text>
+          <Text style={styles.ratingContingency}>{r.contingency_advice}</Text>
         ) : null}
       </View>
     </View>
   );
 }
 
+function PageFooter({
+  agentLine,
+  property,
+  analysisDate,
+}: {
+  agentLine: string;
+  property: string;
+  analysisDate: string;
+}) {
+  return (
+    <View style={styles.pageFooter}>
+      <Text>{agentLine || "Veroax disclosure analysis"}</Text>
+      <Text>
+        {property} · {analysisDate}
+      </Text>
+    </View>
+  );
+}
+
 // ============================================================================
-// Footer (per-page) and helpers
+// Helpers
 // ============================================================================
 
-function Footer({
-  agent,
-  property,
-  generatedAt,
-}: {
-  agent: AgentBranding;
-  property: string;
-  generatedAt: Date;
-}) {
-  const agentLine = [
+function formatAgentFooter(agent: AgentBranding): string {
+  const parts = [
     agent.fullName,
     agent.brokerage,
     agent.dreLicense ? `DRE #${agent.dreLicense}` : null,
     agent.brokerageDre ? `Brokerage DRE #${agent.brokerageDre}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  const right = `${property} · ${generatedAt.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  })}`;
-  return (
-    <View style={styles.footerWrap}>
-      <View style={styles.footerSeparator} />
-      <View style={styles.footerRow}>
-        <Text>{agentLine || "Veroax disclosure analysis"}</Text>
-        <Text>{right}</Text>
-      </View>
-    </View>
-  );
+  ].filter(Boolean);
+  return parts.join(" · ");
 }
 
 function formatUSD(n: number | null | undefined): string {
@@ -795,21 +1131,31 @@ function formatCostRange(r: CostRange | null | undefined): string {
   return `${formatUSD(low)} – ${formatUSD(high)}`;
 }
 
-function ratingPillColor(
+function sumLineCosts(items: Array<{ cost: CostRange }>): CostRange {
+  let low = 0;
+  let high = 0;
+  for (const it of items) {
+    low += Number(it.cost?.low) || 0;
+    high += Number(it.cost?.high) || 0;
+  }
+  return { low, high };
+}
+
+function ratingColor(
   label: ReportData["overall_rating"]["label"] | undefined,
 ): string {
   switch (label) {
     case "Excellent":
-      return "#047857"; // emerald-700
+      return C.positive;
     case "Good":
-      return "#059669"; // emerald-600
+      return C.positive;
     case "Acceptable":
-      return COLORS.moderate;
+      return C.moderate;
     case "Significant Concerns":
-      return COLORS.high;
+      return C.high;
     case "Walk Away":
-      return COLORS.critical;
+      return C.critical;
     default:
-      return COLORS.cosmetic;
+      return C.subtext;
   }
 }
