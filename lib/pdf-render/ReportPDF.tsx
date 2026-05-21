@@ -45,6 +45,13 @@ const COLORS = {
   white: "#FFFFFF",
 } as const;
 
+// Notes on @react-pdf/renderer style quirks (learned the hard way):
+//   - Fractional border widths (0.5) can produce huge negative
+//     coordinates inside clipBorderTop, crashing pdfkit. Stick to
+//     integer widths.
+//   - "gap" and "flexWrap" are not reliably supported. Use margins.
+//   - "letterSpacing" is partially supported; safer to omit.
+//   - lineHeight as a multiplier works but be conservative.
 const styles = StyleSheet.create({
   page: {
     paddingTop: 56,
@@ -53,44 +60,44 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Helvetica",
     color: COLORS.text,
-    lineHeight: 1.45,
+    lineHeight: 1.4,
   },
   // ----- Cover page -----
   coverHeader: {
-    paddingBottom: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.hairline,
     flexDirection: "row",
     justifyContent: "space-between",
+  },
+  coverHeaderText: {
     fontSize: 8,
     color: COLORS.muted,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   coverTitle: {
     fontSize: 28,
     fontFamily: "Helvetica-Bold",
     color: COLORS.indigoDeep,
-    marginTop: 32,
+    marginTop: 28,
     marginBottom: 4,
   },
   coverSubtitle: {
     fontSize: 11,
     color: COLORS.muted,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   coverPropertyLine: {
     fontSize: 18,
     fontFamily: "Helvetica-Bold",
     color: COLORS.ink,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   // ----- Section heading -----
   sectionHeader: {
     flexDirection: "row",
-    marginTop: 18,
-    marginBottom: 10,
-    backgroundColor: COLORS.indigoDeep,
+    marginTop: 16,
+    marginBottom: 8,
   },
   sectionNumber: {
     backgroundColor: COLORS.indigoDeep,
@@ -98,23 +105,22 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 5,
     textTransform: "uppercase",
-    letterSpacing: 1,
   },
   sectionTitle: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: COLORS.indigoDeep,
     color: COLORS.white,
     fontSize: 11,
     fontFamily: "Helvetica-Bold",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   // ----- Table -----
   tableRow: {
     flexDirection: "row",
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 1,
     borderBottomColor: COLORS.hairline,
   },
   tableLabel: {
@@ -126,36 +132,34 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
   tableValue: {
-    flex: 1,
+    flexGrow: 1,
     paddingVertical: 4,
     color: COLORS.ink,
     fontSize: 10,
   },
   // ----- Findings -----
   finding: {
-    marginTop: 10,
-    paddingBottom: 8,
-    borderBottomWidth: 0.5,
+    marginTop: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
     borderBottomColor: COLORS.hairline,
   },
   findingTitleRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
+    marginBottom: 3,
   },
   findingTitle: {
     fontFamily: "Helvetica-Bold",
     fontSize: 11,
     color: COLORS.indigoDeep,
-    flex: 1,
+    flexGrow: 1,
     paddingRight: 8,
   },
   source: {
     fontSize: 9,
     color: COLORS.muted,
     fontStyle: "italic",
-    marginBottom: 6,
+    marginBottom: 4,
   },
   badge: {
     color: COLORS.white,
@@ -164,18 +168,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     textTransform: "uppercase",
-    letterSpacing: 0.8,
   },
   description: {
-    marginBottom: 4,
-  },
-  findingMeta: {
-    marginTop: 4,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    fontSize: 9,
-    color: COLORS.muted,
+    marginBottom: 3,
   },
   metaLabel: {
     fontFamily: "Helvetica-Bold",
@@ -183,22 +178,20 @@ const styles = StyleSheet.create({
   },
   // ----- Rating box -----
   ratingBox: {
-    marginTop: 10,
-    padding: 14,
+    marginTop: 8,
+    padding: 12,
     backgroundColor: COLORS.cream,
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: COLORS.hairline,
   },
   ratingPill: {
-    alignSelf: "flex-start",
     color: COLORS.white,
     fontSize: 11,
     fontFamily: "Helvetica-Bold",
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   // ----- Footer -----
   footer: {
@@ -210,20 +203,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     fontSize: 8,
     color: COLORS.muted,
-    borderTopWidth: 0.5,
+    borderTopWidth: 1,
     borderTopColor: COLORS.hairline,
-    paddingTop: 8,
+    paddingTop: 6,
   },
   bullet: {
     flexDirection: "row",
-    marginBottom: 3,
+    marginBottom: 2,
   },
   bulletDot: {
     width: 12,
     color: COLORS.muted,
   },
   bulletText: {
-    flex: 1,
+    flexGrow: 1,
   },
 });
 
@@ -262,9 +255,9 @@ export function ReportPDF({
     >
       <Page size="LETTER" style={styles.page}>
         {/* Header strip */}
-        <View style={styles.coverHeader}>
-          <Text>Disclosure Package Analysis</Text>
-          <Text>Report ID: {shortId}</Text>
+        <View style={styles.coverHeader} fixed>
+          <Text style={styles.coverHeaderText}>Disclosure Package Analysis</Text>
+          <Text style={styles.coverHeaderText}>Report ID: {shortId}</Text>
         </View>
 
         <Text style={styles.coverTitle}>Disclosure Analysis</Text>
@@ -495,7 +488,7 @@ function KeyValue({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ flexDirection: "row", marginTop: 2 }}>
       <Text style={[styles.metaLabel, { width: 110 }]}>{label}</Text>
-      <Text style={{ flex: 1, fontSize: 9 }}>{value}</Text>
+      <Text style={{ flexGrow: 1, fontSize: 9 }}>{value}</Text>
     </View>
   );
 }
@@ -523,7 +516,7 @@ function SectionCostSummary({ data }: { data: ReportData }) {
               <Text style={[styles.metaLabel, { marginTop: 6 }]}>{cat.category}</Text>
               {cat.items.map((item, ii) => (
                 <View key={ii} style={styles.tableRow}>
-                  <Text style={[styles.tableValue, { flex: 1 }]}>{item.label}</Text>
+                  <Text style={[styles.tableValue, { flexGrow: 1 }]}>{item.label}</Text>
                   <Text
                     style={[styles.tableValue, { width: 120, textAlign: "right" }]}
                   >
@@ -544,7 +537,7 @@ function SectionCostSummary({ data }: { data: ReportData }) {
         }}
         wrap={false}
       >
-        <Text style={{ flex: 1, color: COLORS.white, fontFamily: "Helvetica-Bold" }}>
+        <Text style={{ flexGrow: 1, color: COLORS.white, fontFamily: "Helvetica-Bold" }}>
           TOTAL ESTIMATED REPAIR EXPOSURE
         </Text>
         <Text style={{ color: COLORS.white, fontFamily: "Helvetica-Bold" }}>
