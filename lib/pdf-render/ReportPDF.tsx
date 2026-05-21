@@ -120,11 +120,17 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontFamily: "Helvetica-Bold",
     color: C.navy,
-    marginBottom: 2,
+    // Explicit lineHeight + larger marginBottom prevents the wrapped
+    // second line of a long address from visually colliding with the
+    // coverSubtitle below. React-PDF's default lineHeight inheritance
+    // can otherwise produce overlapping baselines at this font size.
+    lineHeight: 1.15,
+    marginBottom: 6,
   },
   coverSubtitle: {
     fontSize: 13,
     color: C.slate,
+    lineHeight: 1.3,
     marginBottom: 10,
   },
   coverDivider: {
@@ -849,8 +855,14 @@ function CoverPage({
             <Image src={agent.brokerageLogoUrl} style={styles.coverLogo} />
           ) : null}
         </View>
-        <Text style={styles.coverTitle}>{line1}</Text>
-        {line2 ? <Text style={styles.coverSubtitle}>{line2}</Text> : null}
+        {/* withSoftBreaks injects zero-width spaces into long unbroken
+            tokens so very long street names ("12345 SomeReallyLongHyphenated-
+            Street") wrap inside the cover instead of forcing the layout
+            to overflow off the right edge. */}
+        <Text style={styles.coverTitle}>{withSoftBreaks(line1)}</Text>
+        {line2 ? (
+          <Text style={styles.coverSubtitle}>{withSoftBreaks(line2)}</Text>
+        ) : null}
         {reportName ? (
           <Text style={styles.coverInternalRef}>
             Internal reference: {reportName}
