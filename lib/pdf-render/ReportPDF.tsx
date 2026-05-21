@@ -29,23 +29,33 @@ import type {
 // Color palette (matches Cowork disclosure analyzer)
 // ============================================================================
 
+// Severity colors follow a strict red-yellow-green traffic-light scheme:
+//   critical → red (stop)
+//   high     → red-orange (urgent)
+//   moderate → amber (caution)
+//   cosmetic → pale gray (de-emphasized; not a severity signal)
+//   positive → green (good news / strengths)
+// Structural chrome (section banners, cost-summary header bars, grand
+// total bar) stays navy/slate for professionalism — only the severity
+// language uses traffic-light colors.
 const C = {
   navy: "#1B2A4A",
   slate: "#2E4057",
   accent: "#2E86AB",
   gold: "#C9A84C",
-  critical: "#C0392B",
-  high: "#E67E22",
-  moderate: "#2980B9",
-  positive: "#27AE60",
+  critical: "#C0392B", // red — stop
+  high: "#E67E22", // red-orange — urgent
+  moderate: "#F39C12", // amber — caution (was blue #2980B9)
+  cosmetic: "#9CA3AF", // pale gray — de-emphasized
+  positive: "#27AE60", // green — go / strengths
   light: "#F4F7FA",
   rowAlt: "#EBF2FA",
   border: "#D0DCE8",
   text: "#1A1A2E",
   subtext: "#4A4A6A",
   white: "#FFFFFF",
-  strengthsBg: "#EAF7EF",
-  concernsBg: "#FDECEA",
+  strengthsBg: "#EAF7EF", // light green (matches C.positive)
+  concernsBg: "#FDECEA", // light red (matches C.critical)
 } as const;
 
 // ============================================================================
@@ -783,7 +793,7 @@ function SeverityBadge({ severity }: { severity: Severity }) {
     critical: C.critical,
     high: C.high,
     moderate: C.moderate,
-    cosmetic: C.subtext,
+    cosmetic: C.cosmetic,
   }[severity];
   return (
     <View style={[styles.badgeBox, { backgroundColor: bg }]}>
@@ -831,7 +841,7 @@ function severityHexColor(severity: Severity): string {
     critical: C.critical,
     high: C.high,
     moderate: C.moderate,
-    cosmetic: C.subtext,
+    cosmetic: C.cosmetic,
   }[severity];
 }
 
