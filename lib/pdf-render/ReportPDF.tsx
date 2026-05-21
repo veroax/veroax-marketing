@@ -239,6 +239,30 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: C.subtext,
   },
+  // Subtle "Internal reference: ..." line shown below the address when
+  // the agent gave the report a memorable label. Italicized + muted so
+  // it never competes visually with the property address.
+  coverInternalRef: {
+    fontSize: 9,
+    fontStyle: "italic",
+    color: C.subtext,
+    marginBottom: 4,
+  },
+  // "PREPARED FOR" panel — mirrors the "Prepared By" treatment but
+  // emphasizes the client. Sits above the Prepared By panel when a
+  // client name is supplied.
+  preparedForLabel: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    color: C.gold,
+    marginBottom: 2,
+  },
+  preparedForName: {
+    fontSize: 13,
+    fontFamily: "Helvetica-Bold",
+    color: C.navy,
+    marginBottom: 10,
+  },
   // Sub-header within a section
   subHead: {
     fontSize: 10.5,
@@ -465,6 +489,8 @@ export function ReportPDF({
   reportId,
   generatedAt,
   originalFiles,
+  reportName,
+  clientName,
 }: {
   report: ReportData;
   property: string;
@@ -476,6 +502,13 @@ export function ReportPDF({
   // Inventory section uses this list — the user sees exactly what they
   // uploaded, never the _part_N chunks Claude analyzed.
   originalFiles?: OriginalFile[] | null;
+  // Agent's internal label for the report ("Smith family · 945 Catkin").
+  // Shown as a subtle "Internal reference: ..." line under the address.
+  // Never used as the address itself — the address always comes from
+  // the disclosure documents.
+  reportName?: string | null;
+  // Buyer client's name, surfaced in the cover's "PREPARED FOR" panel.
+  clientName?: string | null;
 }) {
   const shortId = reportId.slice(0, 8);
   const analysisDate = generatedAt.toLocaleDateString("en-US", {
@@ -508,6 +541,8 @@ export function ReportPDF({
           agent={agent}
           analysisDate={analysisDate}
           shortId={shortId}
+          reportName={reportName}
+          clientName={clientName}
         />
       </Page>
 
@@ -606,12 +641,16 @@ function CoverPage({
   agent,
   analysisDate,
   shortId,
+  reportName,
+  clientName,
 }: {
   property: string;
   report: ReportData;
   agent: AgentBranding;
   analysisDate: string;
   shortId: string;
+  reportName?: string | null;
+  clientName?: string | null;
 }) {
   const p = report.property_snapshot;
   const addressParts = property.split(",");
@@ -633,6 +672,11 @@ function CoverPage({
         <Text style={styles.coverEyebrow}>AI-ASSISTED DISCLOSURE ANALYSIS</Text>
         <Text style={styles.coverTitle}>{line1}</Text>
         {line2 ? <Text style={styles.coverSubtitle}>{line2}</Text> : null}
+        {reportName ? (
+          <Text style={styles.coverInternalRef}>
+            Internal reference: {reportName}
+          </Text>
+        ) : null}
 
         <View style={styles.coverDivider} />
 
@@ -671,6 +715,13 @@ function CoverPage({
         </Text>
 
         <View style={styles.coverDivider} />
+
+        {clientName ? (
+          <View>
+            <Text style={styles.preparedForLabel}>PREPARED FOR</Text>
+            <Text style={styles.preparedForName}>{clientName}</Text>
+          </View>
+        ) : null}
 
         <Text style={styles.preparedByLabel}>Prepared By</Text>
         {agent.fullName ? (

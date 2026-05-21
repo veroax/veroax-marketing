@@ -66,10 +66,23 @@ export async function GET(
     };
 
     const reportData = report.report_data as ReportData;
+    // Source of truth for the cover address is the disclosure documents
+    // themselves (property_snapshot.address). property_address is now
+    // deprecated as user-input — we only keep it as a last-resort
+    // fallback for legacy reports that pre-date the new upload form.
     const propertyAddress =
-      report.property_address ??
       reportData.property_snapshot?.address ??
+      report.property_address ??
       "Disclosure Analysis";
+
+    const reportName =
+      typeof (report as { report_name?: unknown }).report_name === "string"
+        ? ((report as { report_name?: string }).report_name as string)
+        : null;
+    const clientName =
+      typeof (report as { client_name?: unknown }).client_name === "string"
+        ? ((report as { client_name?: string }).client_name as string)
+        : null;
 
     // original_files is captured in /finalize as the canonical
     // pre-split file inventory. Tolerate odd legacy shapes by passing
@@ -98,6 +111,8 @@ export async function GET(
         reportId={reportId}
         generatedAt={new Date()}
         originalFiles={originalFiles}
+        reportName={reportName}
+        clientName={clientName}
       />,
     );
 
