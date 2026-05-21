@@ -201,8 +201,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   description: {
-    fontSize: 9,
+    // Bumped 9 → 9.5 to match the base body size — the FindingBlock
+    // description and a body paragraph elsewhere are the same kind of
+    // information, so they should set at the same size.
+    fontSize: 9.5,
     marginBottom: 4,
+    lineHeight: 1.5,
   },
   // Severity badge
   badgeBox: {
@@ -280,6 +284,41 @@ const styles = StyleSheet.create({
     color: C.navy,
     marginTop: 8,
     marginBottom: 4,
+  },
+  // -- Standard typography tokens --------------------------------------
+  // These named styles replace what used to be 12+ inline { fontSize:
+  // 9.5, marginBottom: 6 } objects scattered across sections. The
+  // intent: one place to adjust paragraph rhythm; one shape to enforce
+  // consistency across the Executive Summary, narrative sections, and
+  // "no findings" empty states.
+  //
+  // Type scale (approximately 1.25 ratio, base 9.5):
+  //   caption (8)   — disclaimers, badges, source attribution
+  //   body    (9.5) — narrative paragraphs, finding descriptions
+  //   subHead (10.5)— field group titles within sections
+  //   section (13)  — section banner titles
+  body: {
+    fontSize: 9.5,
+    marginBottom: 6,
+    lineHeight: 1.5,
+  },
+  bodyTight: {
+    fontSize: 9.5,
+    marginBottom: 4,
+  },
+  // Italicized empty-state message ("No critical findings identified.").
+  // Used by every "no findings" branch so they read uniformly.
+  emptyState: {
+    fontSize: 9,
+    fontStyle: "italic",
+    color: C.subtext,
+    marginBottom: 4,
+  },
+  // Numbered item inside a dual block (Strengths / Concerns lists).
+  bulletNumbered: {
+    fontSize: 9,
+    marginBottom: 2,
+    lineHeight: 1.4,
   },
   // Two-column dual block (Strengths/Concerns, etc.)
   // flexBasis: 0 was triggering layout coordinate crashes — use width instead.
@@ -906,17 +945,12 @@ function SectionExecutiveSummary({ report }: { report: ReportData }) {
     <View>
       <SectionBanner number={2} title="Executive Summary" />
       {narrative.map((p, i) => (
-        <Text
-          key={i}
-          style={{ fontSize: 9.5, marginBottom: 6, lineHeight: 1.5 }}
-        >
+        <Text key={i} style={styles.body}>
           {p}
         </Text>
       ))}
 
-      <Text
-        style={{ fontSize: 9.5, marginBottom: 8, marginTop: 2 }}
-      >
+      <Text style={styles.body}>
         Finding totals across the disclosure package:{" "}
         <Text style={{ fontFamily: "Helvetica-Bold" }}>{critCount}</Text>{" "}
         critical / high,{" "}
@@ -931,7 +965,7 @@ function SectionExecutiveSummary({ report }: { report: ReportData }) {
         <View style={styles.dualBlockLeft}>
           <Text style={styles.dualBlockHeaderGreen}>THREE STRENGTHS</Text>
           {strengths.slice(0, 3).map((s, i) => (
-            <Text key={i} style={{ fontSize: 9, marginBottom: 2 }}>
+            <Text key={i} style={styles.bulletNumbered}>
               {i + 1}. {s}
             </Text>
           ))}
@@ -939,7 +973,7 @@ function SectionExecutiveSummary({ report }: { report: ReportData }) {
         <View style={styles.dualBlockRight}>
           <Text style={styles.dualBlockHeaderRed}>THREE KEY CONCERNS</Text>
           {concerns.slice(0, 3).map((c, i) => (
-            <Text key={i} style={{ fontSize: 9, marginBottom: 2 }}>
+            <Text key={i} style={styles.bulletNumbered}>
               {i + 1}. {c}
             </Text>
           ))}
@@ -1138,7 +1172,7 @@ function SectionDocumentInventory({
           </View>
         ))
       ) : (
-        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+        <Text style={styles.emptyState}>
           No documents identified.
         </Text>
       )}
@@ -1151,7 +1185,7 @@ function SectionDocumentInventory({
           </View>
         ))
       ) : (
-        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+        <Text style={styles.emptyState}>
           Package appears complete.
         </Text>
       )}
@@ -1175,7 +1209,7 @@ function SectionCritical({ report }: { report: ReportData }) {
           <FindingBlock key={i} finding={f} index={i + 1} />
         ))
       ) : (
-        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+        <Text style={styles.emptyState}>
           No critical or high-priority findings identified.
         </Text>
       )}
@@ -1192,7 +1226,7 @@ function SectionModerate({ report }: { report: ReportData }) {
           <FindingBlock key={i} finding={f} index={i + 1} />
         ))
       ) : (
-        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+        <Text style={styles.emptyState}>
           No moderate findings identified.
         </Text>
       )}
@@ -1209,7 +1243,7 @@ function SectionCosmetic({ report }: { report: ReportData }) {
           <FindingBlock key={i} finding={f} index={i + 1} />
         ))
       ) : (
-        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+        <Text style={styles.emptyState}>
           No cosmetic findings identified.
         </Text>
       )}
@@ -1266,12 +1300,12 @@ function SectionHoa({ report }: { report: ReportData }) {
     <View>
       <SectionBanner number={8} title="HOA Financial & Governance Review" />
       {!report.hoa?.applicable ? (
-        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+        <Text style={styles.emptyState}>
           HOA documents not present or not applicable to this property.
         </Text>
       ) : (
         <View>
-          <Text style={{ fontSize: 9.5, marginBottom: 6 }}>
+          <Text style={styles.body}>
             {report.hoa.summary}
           </Text>
           {report.hoa.concerns?.length ? (
@@ -1295,7 +1329,7 @@ function SectionPermits({ report }: { report: ReportData }) {
   return (
     <View>
       <SectionBanner number={9} title="Permits, Alterations & Code Compliance" />
-      <Text style={{ fontSize: 9.5, marginBottom: 6 }}>
+      <Text style={styles.body}>
         {report.permit_compliance?.summary ||
           "No permit-related issues surfaced in the documents reviewed."}
       </Text>
@@ -1313,7 +1347,7 @@ function SectionInsuranceLender({ report }: { report: ReportData }) {
   return (
     <View>
       <SectionBanner number={10} title="Insurance & Lender Risk" />
-      <Text style={{ fontSize: 9.5, marginBottom: 6 }}>{r?.summary}</Text>
+      <Text style={styles.body}>{r?.summary}</Text>
       {r?.insurance_concerns?.length ? (
         <View>
           <Text style={styles.subHead}>Insurance concerns</Text>
@@ -1344,7 +1378,7 @@ function SectionNegotiation({ report }: { report: ReportData }) {
   return (
     <View>
       <SectionBanner number={11} title="Negotiation Leverage" />
-      <Text style={{ fontSize: 9.5, marginBottom: 6 }}>
+      <Text style={styles.body}>
         {report.negotiation?.summary}
       </Text>
       {report.negotiation?.leverage_points?.length ? (
@@ -1365,7 +1399,7 @@ function SectionEnvironmental({ report }: { report: ReportData }) {
   return (
     <View>
       <SectionBanner number={12} title="Environmental & Natural Hazards" />
-      <Text style={{ fontSize: 9.5, marginBottom: 6 }}>
+      <Text style={styles.body}>
         {report.environmental?.summary}
       </Text>
       {report.environmental?.hazards?.length
@@ -1395,7 +1429,7 @@ function SectionOutstanding({ report }: { report: ReportData }) {
           </View>
         ))
       ) : (
-        <Text style={{ fontSize: 9, fontStyle: "italic", color: C.subtext }}>
+        <Text style={styles.emptyState}>
           No outstanding questions identified.
         </Text>
       )}
