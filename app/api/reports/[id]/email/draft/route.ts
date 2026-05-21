@@ -53,7 +53,7 @@ export async function POST(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, brokerage, dre_license, phone, display_email")
+    .select("full_name, brokerage, dre_license, phone, display_email, email_signature, scheduling_url")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -63,6 +63,20 @@ export async function POST(
   const signatureEmail =
     (profile as { display_email?: string | null } | null)?.display_email
       ?.trim() || user.email || null;
+
+  // When the agent has saved a custom email signature on /settings,
+  // it REPLACES the auto-generated formatSignoff output verbatim.
+  // PDF cover always uses the structured Name/Brokerage/DRE fields
+  // — only the email signature is overridable.
+  const customSignature = (
+    profile as { email_signature?: string | null } | null
+  )?.email_signature?.trim();
+
+  // Scheduling URL drives an explicit "Schedule a call: {url}" line
+  // right before the signature when set.
+  const schedulingUrl = (
+    profile as { scheduling_url?: string | null } | null
+  )?.scheduling_url?.trim();
 
   const reportData = report.report_data as ReportData;
   const address =
@@ -82,7 +96,15 @@ export async function POST(
 
   // -------- Plain-text body --------------------------------------
   const greeting = clientName ? `Hi ${firstName(clientName)},` : "Hi,";
-  const signoff = formatSignoff(profile, signatureEmail);
+  // Custom signature wins; otherwise auto-format from profile fields.
+  const signoff = customSignature ?? formatSignoff(profile, signatureEmail);
+
+  // Scheduling line is rendered ABOVE the signature when the agent
+  // has saved a scheduling URL. Filtered out of the join when absent
+  // so we don't leave a stray blank line.
+  const schedulingLine = schedulingUrl
+    ? `Schedule a call: ${schedulingUrl}`
+    : null;
 
   const bodyPlain = [
     greeting,
@@ -97,16 +119,24 @@ export async function POST(
     "",
     "I've attached the full report — call me when you've had a chance to read through it and we can talk next steps.",
     "",
+    ...(schedulingLine ? [schedulingLine, ""] : []),
     signoff,
   ].join("\n");
 
   // -------- HTML body --------------------------------------------
+  // Custom signature: preserve line breaks by converting \n to <br>
+  // and escape everything else to keep it inert as HTML.
+  const signoffHtml = customSignature
+    ? escapeHtml(customSignature).replace(/\n/g, "<br>")
+    : formatSignoffHtml(profile, signatureEmail);
+
   const bodyHtml = renderHtmlBody({
     greeting,
     address,
     strengths,
     concerns,
-    signoffHtml: formatSignoffHtml(profile, signatureEmail),
+    schedulingUrl: schedulingUrl ?? null,
+    signoffHtml,
   });
 
   return NextResponse.json({
@@ -163,11 +193,19 @@ function renderHtmlBody(params: {
   address: string;
   strengths: string[];
   concerns: string[];
+  schedulingUrl: string | null;
   signoffHtml: string;
 }): string {
-  const { greeting, address, strengths, concerns, signoffHtml } = params;
+  const { greeting, address, strengths, concerns, schedulingUrl, signoffHtml } =
+    params;
   const li = (items: string[]) =>
     items.map((s) => `<li style="margin:0 0 4px;">${escapeHtml(s)}</li>`).join("");
+
+  // Rendered as a real anchor so mail clients hyperlink it. Sits
+  // above the signature in its own paragraph block.
+  const schedulingHtml = schedulingUrl
+    ? `<p style="margin:18px 0 4px;">Schedule a call: <a href="${escapeAttr(schedulingUrl)}">${escapeHtml(schedulingUrl)}</a></p>`
+    : "";
 
   return `
 <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;line-height:1.55;max-width:560px;">
@@ -178,8 +216,16 @@ function renderHtmlBody(params: {
   <p style="margin:18px 0 4px;"><strong>Top 3 concerns</strong></p>
   <ol style="margin:0 0 14px 22px;padding:0;color:#7f1d1d;">${li(concerns)}</ol>
   <p>I&rsquo;ve attached the full report &mdash; call me when you&rsquo;ve had a chance to read through it and we can talk next steps.</p>
+  ${schedulingHtml}
   <p style="margin-top:22px;">${signoffHtml}</p>
 </div>`.trim();
+}
+
+// Stricter escape for use inside attribute values (href="..."). Keeps
+// the same shape as escapeHtml but always emits the entity form,
+// even where escapeHtml might leave a character unmolested.
+function escapeAttr(s: string): string {
+  return escapeHtml(s);
 }
 
 function escapeHtml(s: string): string {
