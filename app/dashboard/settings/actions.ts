@@ -15,6 +15,24 @@ function trim(formData: FormData, key: string): string | null {
   return t.length > 0 ? t : null;
 }
 
+// Normalize a URL field: empty stays empty; strings without a scheme
+// gain "https://" so common paste shapes ("luxuriantrealty.com") still
+// work. We do final validation afterward.
+function normalizeUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+}
+
+function isValidUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export type SettingsActionState = {
   ok?: boolean;
   error?: string;
@@ -32,6 +50,7 @@ export async function updateProfileAction(
     return { error: "Not authenticated." };
   }
 
+  // -------- Existing fields --------------------------------------
   const fullName = trim(formData, "full_name");
   const dreLicense = trim(formData, "dre_license");
   const brokerage = trim(formData, "brokerage");
@@ -39,13 +58,23 @@ export async function updateProfileAction(
   const phone = trim(formData, "phone");
   const displayEmail = trim(formData, "display_email");
 
+  // -------- New branding + public-detail fields ------------------
+  const brokerageLogoUrl = trim(formData, "brokerage_logo_url");
+  const headshotUrl = trim(formData, "headshot_url");
+  const brandAccentHexRaw = trim(formData, "brand_accent_hex");
+  const tagline = trim(formData, "tagline");
+  const websiteUrl = normalizeUrl(trim(formData, "website_url"));
+  const schedulingUrl = normalizeUrl(trim(formData, "scheduling_url"));
+  const officeAddress = trim(formData, "office_address");
+  const emailSignature = trim(formData, "email_signature");
+
+  // -------- Validation -------------------------------------------
   // Hard requirements — these fields appear on every PDF cover and
   // the report itself is blocked from download (412) without them.
   if (!fullName) return { error: "Full name is required." };
   if (!dreLicense) return { error: "DRE license is required." };
   if (!brokerage) return { error: "Brokerage name is required." };
 
-  // DRE numbers are 5-10 digits in CA.
   if (!/^\d{5,10}$/.test(dreLicense)) {
     return { error: "DRE license should be 5-10 digits." };
   }
@@ -53,11 +82,31 @@ export async function updateProfileAction(
     return { error: "Brokerage DRE should be 5-10 digits." };
   }
 
-  // Display email is optional, but if provided it must look like one.
   if (displayEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(displayEmail)) {
     return { error: "Display email isn't a valid email address." };
   }
 
+  // Accent color: must be #RRGGBB if provided. We store the hex
+  // directly (no theme name), null means "use the Veroax gold default."
+  if (brandAccentHexRaw && !/^#[0-9A-Fa-f]{6}$/.test(brandAccentHexRaw)) {
+    return { error: "Brand accent must be a 6-character hex like #C9A84C." };
+  }
+  // Normalize to uppercase so the saved value is stable.
+  const brandAccentHex = brandAccentHexRaw
+    ? brandAccentHexRaw.toUpperCase()
+    : null;
+
+  if (websiteUrl && !isValidUrl(websiteUrl)) {
+    return { error: "Website URL doesn't look like a valid URL." };
+  }
+  if (schedulingUrl && !isValidUrl(schedulingUrl)) {
+    return { error: "Scheduling URL doesn't look like a valid URL." };
+  }
+
+  // Logos: we don't validate as URLs because they're produced by our
+  // own Supabase Storage upload path. Trust what was uploaded.
+
+  // -------- Persist ----------------------------------------------
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -67,6 +116,14 @@ export async function updateProfileAction(
       brokerage_dre: brokerageDre,
       phone: phone,
       display_email: displayEmail,
+      brokerage_logo_url: brokerageLogoUrl,
+      headshot_url: headshotUrl,
+      brand_accent_hex: brandAccentHex,
+      tagline: tagline,
+      website_url: websiteUrl,
+      scheduling_url: schedulingUrl,
+      office_address: officeAddress,
+      email_signature: emailSignature,
     })
     .eq("id", user.id);
 

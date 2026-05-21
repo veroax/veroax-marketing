@@ -19,8 +19,21 @@ type Props = {
     brokerage_dre: string;
     phone: string;
     display_email: string;
+    brokerage_logo_url: string;
+    headshot_url: string;
+    brand_accent_hex: string;
+    tagline: string;
+    website_url: string;
+    scheduling_url: string;
+    office_address: string;
+    email_signature: string;
   };
 };
+
+// Veroax gold — the default accent color. Stored as null in the DB
+// when the agent hasn't picked one; here in the UI we still show the
+// gold so the preview never looks broken.
+const DEFAULT_ACCENT = "#C9A84C";
 
 // Format a US phone number as the agent types: "4155550100" →
 // "(415) 555-0100". Accepts any input shape (strips non-digits) so
@@ -55,9 +68,40 @@ export function SettingsForm({ email, initial }: Props) {
   const [phone, setPhone] = useState(formatPhone(initial.phone));
   const [displayEmail, setDisplayEmail] = useState(initial.display_email);
 
+  // New branding fields (item 2 stubs — items 3 and 4 will swap the
+  // URL inputs for upload widgets and the hex input for a swatch
+  // picker. The state shape stays the same).
+  const [brokerageLogoUrl, setBrokerageLogoUrl] = useState(
+    initial.brokerage_logo_url,
+  );
+  const [headshotUrl, setHeadshotUrl] = useState(initial.headshot_url);
+  const [brandAccentHex, setBrandAccentHex] = useState(initial.brand_accent_hex);
+  const [tagline, setTagline] = useState(initial.tagline);
+  const [websiteUrl, setWebsiteUrl] = useState(initial.website_url);
+  const [schedulingUrl, setSchedulingUrl] = useState(initial.scheduling_url);
+  const [officeAddress, setOfficeAddress] = useState(initial.office_address);
+  const [emailSignature, setEmailSignature] = useState(initial.email_signature);
+
   // What renders in the preview's email line: prefer the display email
   // (if set), otherwise fall back to the auth signup email.
   const previewEmail = displayEmail.trim() || email;
+  // Preview always paints with SOME accent so the bar doesn't look
+  // broken — fall back to gold when the agent hasn't chosen one.
+  const previewAccent = brandAccentHex.trim() || DEFAULT_ACCENT;
+
+  // Auto-generated default signature for the email-signature
+  // placeholder — keeps the agent oriented on what "leave blank" gets
+  // them. Matches the structure of formatSignoff() in
+  // /api/reports/[id]/email/draft/route.ts.
+  const defaultSignaturePreview = [
+    fullName || "Your name",
+    brokerage,
+    dreLicense ? `DRE #${dreLicense}` : "",
+    phone,
+    previewEmail,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
@@ -151,6 +195,105 @@ export function SettingsForm({ email, initial }: Props) {
           </Field>
         </Section>
 
+        <Section title="Branding" description="Personal touches that appear on the PDF cover. All optional — the report works without them.">
+          {/* The next loop iteration replaces these text inputs with
+              a proper upload widget. State shape stays identical. */}
+          <Field label="Brokerage logo URL" hint="Upload coming in the next iteration. For now, paste a public image URL.">
+            <input
+              name="brokerage_logo_url"
+              type="url"
+              value={brokerageLogoUrl}
+              onChange={(e) => setBrokerageLogoUrl(e.target.value)}
+              placeholder="https://…/logo.png"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </Field>
+          <Field label="Headshot URL" hint="Upload coming in the next iteration. Renders as a small thumbnail next to your name.">
+            <input
+              name="headshot_url"
+              type="url"
+              value={headshotUrl}
+              onChange={(e) => setHeadshotUrl(e.target.value)}
+              placeholder="https://…/headshot.jpg"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </Field>
+          <Field
+            label="Brand accent color"
+            hint="Six-character hex (e.g. #0F766E). Leave blank for the Veroax gold default. A swatch picker arrives in the next iteration; for now, paste a hex value."
+          >
+            <input
+              name="brand_accent_hex"
+              type="text"
+              value={brandAccentHex}
+              onChange={(e) => setBrandAccentHex(e.target.value)}
+              placeholder="#C9A84C"
+              maxLength={7}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </Field>
+        </Section>
+
+        <Section title="Public details" description="Surfaces on the PDF cover, the page footer, and the seeded client email.">
+          <Field label="Tagline" hint="Short subtitle under your name on the cover. Example: 'Bay Area Buyer's Agent · 15 years'.">
+            <input
+              name="tagline"
+              type="text"
+              value={tagline}
+              onChange={(e) => setTagline(e.target.value)}
+              placeholder="Bay Area Buyer's Agent · 15 years"
+              maxLength={120}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </Field>
+          <Field label="Website URL" hint="Rendered in the page footer and as a link in HTML emails.">
+            <input
+              name="website_url"
+              type="url"
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              placeholder="https://luxuriantrealty.com"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </Field>
+          <Field label="Scheduling URL" hint="Calendly, Cal.com, or similar. When set, drives a 'Schedule a call' link in the seeded client email.">
+            <input
+              name="scheduling_url"
+              type="url"
+              value={schedulingUrl}
+              onChange={(e) => setSchedulingUrl(e.target.value)}
+              placeholder="https://calendly.com/your-handle"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </Field>
+          <Field label="Office address" hint="Multi-line; renders in the page footer beneath your DRE numbers.">
+            <textarea
+              name="office_address"
+              value={officeAddress}
+              onChange={(e) => setOfficeAddress(e.target.value)}
+              placeholder={"123 Market St, Suite 400\nSan Francisco, CA 94103"}
+              rows={3}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </Field>
+        </Section>
+
+        <Section title="Email signature" description="Replaces the auto-generated signature in the seeded client email. The PDF cover always uses the structured fields above.">
+          <Field
+            label="Custom signature (optional)"
+            hint="Leave blank to use the auto-generated signature below."
+          >
+            <textarea
+              name="email_signature"
+              value={emailSignature}
+              onChange={(e) => setEmailSignature(e.target.value)}
+              placeholder={defaultSignaturePreview}
+              rows={6}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </Field>
+        </Section>
+
         {state?.error && (
           <p className="text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded">
             {state.error}
@@ -182,37 +325,90 @@ export function SettingsForm({ email, initial }: Props) {
         <p className="text-xs font-semibold tracking-widest text-slate-500 uppercase mb-2">
           Preview · PDF cover
         </p>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 sticky top-4">
-          <p className="text-[10px] font-semibold tracking-widest text-slate-500 uppercase mb-1">
-            Prepared By
-          </p>
-          {fullName ? (
-            <p className="text-base font-bold text-indigo-950 leading-snug">
-              {fullName}
+        <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden sticky top-4">
+          {/* Accent bar across the top mirrors the cover's vertical
+              gold stripe — exact-match isn't important, just signalling
+              the color choice to the agent before they save. */}
+          <div
+            className="h-2 w-full"
+            style={{ backgroundColor: previewAccent }}
+          />
+          <div className="p-5">
+            {brokerageLogoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={brokerageLogoUrl}
+                alt=""
+                className="max-h-12 mb-3"
+                onError={(e) => {
+                  // Hide on load failure so a typo doesn't break the
+                  // preview card layout.
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            )}
+            <p
+              className="text-[10px] font-semibold tracking-widest uppercase mb-1"
+              style={{ color: previewAccent }}
+            >
+              Prepared By
             </p>
-          ) : (
-            <p className="text-base font-bold text-slate-300 leading-snug italic">
-              Your name
+            <div className="flex items-start gap-3">
+              {headshotUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={headshotUrl}
+                  alt=""
+                  className="w-9 h-9 rounded-full object-cover border border-slate-200 mt-0.5 shrink-0"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
+              <div className="min-w-0">
+                {fullName ? (
+                  <p className="text-base font-bold text-indigo-950 leading-snug">
+                    {fullName}
+                  </p>
+                ) : (
+                  <p className="text-base font-bold text-slate-300 leading-snug italic">
+                    Your name
+                  </p>
+                )}
+                {tagline && (
+                  <p className="text-xs text-slate-500 italic mt-0.5">
+                    {tagline}
+                  </p>
+                )}
+                {brokerage && (
+                  <p className="text-sm text-slate-600 mt-1">{brokerage}</p>
+                )}
+              </div>
+            </div>
+            {phone && <p className="text-xs text-slate-500 mt-2">{phone}</p>}
+            <p className="text-xs text-slate-500">{previewEmail}</p>
+            {(dreLicense || brokerageDre) && (
+              <p className="text-xs text-slate-500">
+                {dreLicense && `DRE #${dreLicense}`}
+                {dreLicense && brokerageDre && " / "}
+                {brokerageDre && `Brokerage DRE #${brokerageDre}`}
+              </p>
+            )}
+            {officeAddress && (
+              <p className="text-xs text-slate-500 mt-1 whitespace-pre-line">
+                {officeAddress}
+              </p>
+            )}
+            {websiteUrl && (
+              <p className="text-xs text-slate-500">{websiteUrl}</p>
+            )}
+            <hr className="my-4 border-slate-100" />
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              This is exactly how the &ldquo;Prepared By&rdquo; panel
+              renders on the cover of every PDF you download. Page footers
+              also use these fields.
             </p>
-          )}
-          {brokerage && (
-            <p className="text-sm text-slate-600 mt-0.5">{brokerage}</p>
-          )}
-          {phone && <p className="text-xs text-slate-500 mt-2">{phone}</p>}
-          <p className="text-xs text-slate-500">{previewEmail}</p>
-          {(dreLicense || brokerageDre) && (
-            <p className="text-xs text-slate-500">
-              {dreLicense && `DRE #${dreLicense}`}
-              {dreLicense && brokerageDre && " / "}
-              {brokerageDre && `Brokerage DRE #${brokerageDre}`}
-            </p>
-          )}
-          <hr className="my-4 border-slate-100" />
-          <p className="text-[10px] text-slate-400 leading-relaxed">
-            This is exactly how the &ldquo;Prepared By&rdquo; panel
-            renders on the cover of every PDF you download. Page footers
-            also use these fields.
-          </p>
+          </div>
         </div>
       </aside>
     </div>

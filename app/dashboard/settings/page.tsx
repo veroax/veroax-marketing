@@ -16,9 +16,15 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, dre_license, brokerage, brokerage_dre, phone, display_email")
+    .select("full_name, dre_license, brokerage, brokerage_dre, phone, display_email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, scheduling_url, office_address, email_signature")
     .eq("id", user.id)
     .maybeSingle();
+
+  // Tolerate undefined values from old profile rows that pre-date the
+  // 0007/0008 migrations.
+  const p = (profile ?? {}) as Record<string, unknown>;
+  const str = (k: string) =>
+    typeof p[k] === "string" ? (p[k] as string) : "";
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -34,16 +40,20 @@ export default async function SettingsPage() {
       <SettingsForm
         email={user.email ?? ""}
         initial={{
-          full_name: profile?.full_name ?? "",
-          dre_license: profile?.dre_license ?? "",
-          brokerage: profile?.brokerage ?? "",
-          brokerage_dre:
-            (profile as { brokerage_dre?: string | null } | null)
-              ?.brokerage_dre ?? "",
-          phone: profile?.phone ?? "",
-          display_email:
-            (profile as { display_email?: string | null } | null)
-              ?.display_email ?? "",
+          full_name: str("full_name"),
+          dre_license: str("dre_license"),
+          brokerage: str("brokerage"),
+          brokerage_dre: str("brokerage_dre"),
+          phone: str("phone"),
+          display_email: str("display_email"),
+          brokerage_logo_url: str("brokerage_logo_url"),
+          headshot_url: str("headshot_url"),
+          brand_accent_hex: str("brand_accent_hex"),
+          tagline: str("tagline"),
+          website_url: str("website_url"),
+          scheduling_url: str("scheduling_url"),
+          office_address: str("office_address"),
+          email_signature: str("email_signature"),
         }}
       />
     </div>
