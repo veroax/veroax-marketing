@@ -36,9 +36,13 @@ export default function UploadPage() {
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
-  const [propertyAddress, setPropertyAddress] = useState("");
+  // Report metadata (none of these become the property's address —
+  // the address is derived from the disclosure documents themselves).
+  const [reportName, setReportName] = useState("");
+  const [clientName, setClientName] = useState("");
   const [listingUrl, setListingUrl] = useState("");
-  const [listingText, setListingText] = useState("");
+  const [mlsPdfFile, setMlsPdfFile] = useState<File | null>(null);
+  const mlsInputRef = useRef<HTMLInputElement>(null);
 
   function addFiles(filesIn: FileList | File[]) {
     setGlobalError(null);
@@ -109,9 +113,9 @@ export default function UploadPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          property_address: propertyAddress.trim() || null,
+          report_name: reportName.trim() || null,
+          client_name: clientName.trim() || null,
           listing_url: listingUrl.trim() || null,
-          listing_text: listingText.trim() || null,
         }),
       });
       const createJson = await createRes.json();
@@ -158,12 +162,37 @@ export default function UploadPage() {
         uploadedPaths.push(path);
       }
 
+      // Step 2.5: if the agent included an MLS-printout PDF, upload it to
+      // a sibling folder so finalize can extract text from it later.
+      let mlsFilePath: string | null = null;
+      if (mlsPdfFile) {
+        const safeMlsName = mlsPdfFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `${userId}/${reportId}/mls/${safeMlsName}`;
+        const { error: mlsUploadErr } = await supabase.storage
+          .from("disclosures")
+          .upload(path, mlsPdfFile, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: "application/pdf",
+          });
+        if (mlsUploadErr) {
+          throw new Error(
+            `MLS printout upload failed: ${mlsUploadErr.message}`,
+          );
+        }
+        mlsFilePath = path;
+      }
+
       // Step 3: tell the server we're done uploading. Server will extract any
-      // ZIPs and mark the report as ready for analysis.
+      // ZIPs, capture the original_files inventory, optionally extract text
+      // from the MLS PDF, and mark the report as ready for analysis.
       const finalizeRes = await fetch(`/api/reports/${reportId}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paths: uploadedPaths }),
+        body: JSON.stringify({
+          paths: uploadedPaths,
+          mls_file_path: mlsFilePath,
+        }),
       });
       const finalizeJson = await finalizeRes.json();
       if (!finalizeRes.ok) {
@@ -203,29 +232,54 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {/* Property address (optional, used as a hint for analysis) */}
+      {/* Report name — agent's label, NOT the property address.
+          The actual address is derived from the disclosure documents. */}
       <div>
         <label
-          htmlFor="property_address"
+          htmlFor="report_name"
           className="block text-sm font-medium text-slate-700 mb-1.5"
         >
-          Property address <span className="text-gray-400 font-normal">(optional)</span>
+          Report name <span className="text-gray-400 font-normal">(optional)</span>
         </label>
         <input
-          id="property_address"
+          id="report_name"
           type="text"
-          value={propertyAddress}
-          onChange={(e) => setPropertyAddress(e.target.value)}
-          placeholder="123 Main St, San Jose, CA 95128"
+          value={reportName}
+          onChange={(e) => setReportName(e.target.value)}
+          placeholder="Smith family · 945 Catkin · Final offer prep"
           className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <p className="text-xs text-gray-500 mt-1">
-          Helps the report header and filename. If you skip it, we&apos;ll extract it from the disclosure.
+          A label you&apos;ll recognize in your report list. Use whatever
+          works — client name, property nickname, offer round. The
+          property&apos;s actual address gets pulled from the disclosure
+          documents.
         </p>
       </div>
 
-      {/* MLS / Zillow listing input — optional, captures price + DOM
-          for the cover page and Section 1 facts. */}
+      {/* Client name — appears on the cover under "Prepared For". */}
+      <div>
+        <label
+          htmlFor="client_name"
+          className="block text-sm font-medium text-slate-700 mb-1.5"
+        >
+          Client name <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <input
+          id="client_name"
+          type="text"
+          value={clientName}
+          onChange={(e) => setClientName(e.target.value)}
+          placeholder="Jane & John Smith"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          The buyer client this report is for. Appears on the cover page
+          under &ldquo;Prepared For.&rdquo;
+        </p>
+      </div>
+
+      {/* MLS / Zillow listing URL */}
       <div>
         <label
           htmlFor="listing_url"
@@ -243,31 +297,71 @@ export default function UploadPage() {
           className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
         />
         <p className="text-xs text-gray-500 mt-1">
-          Zillow, Redfin, Realtor.com, or your MLS share URL. We&apos;ll pull
-          list price, days on market, and the canonical address into the
-          report.
+          Zillow, Redfin, Realtor.com, or your MLS share URL. We pull list
+          price, days on market, and the canonical address from it for
+          the report cover.
         </p>
       </div>
 
+      {/* MLS-printout PDF upload (replaces previous textarea — agents
+          typically have the printout as a PDF, not pasted text). */}
       <div>
         <label
-          htmlFor="listing_text"
+          htmlFor="mls_pdf"
           className="block text-sm font-medium text-slate-700 mb-1.5"
         >
-          Or paste MLS printout text{" "}
+          Or MLS printout PDF{" "}
           <span className="text-gray-400 font-normal">(optional)</span>
         </label>
-        <textarea
-          id="listing_text"
-          value={listingText}
-          onChange={(e) => setListingText(e.target.value)}
-          placeholder="Paste the MLS printout content here if you don't have a public link."
-          rows={4}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+        <input
+          ref={mlsInputRef}
+          id="mls_pdf"
+          type="file"
+          accept=".pdf,application/pdf"
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            setMlsPdfFile(f);
+          }}
+          className="hidden"
         />
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => mlsInputRef.current?.click()}
+            className="text-sm border border-gray-300 rounded-lg px-4 py-2 hover:bg-slate-50 transition-colors"
+          >
+            {mlsPdfFile ? "Replace file…" : "Choose PDF…"}
+          </button>
+          {mlsPdfFile ? (
+            <div className="flex items-center gap-2 text-sm text-slate-700 min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded shrink-0">
+                PDF
+              </span>
+              <span className="truncate">{mlsPdfFile.name}</span>
+              <span className="text-xs text-gray-400 shrink-0">
+                {fmtSize(mlsPdfFile.size)}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setMlsPdfFile(null);
+                  if (mlsInputRef.current) mlsInputRef.current.value = "";
+                }}
+                className="text-xs text-gray-400 hover:text-red-600 ml-1"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <span className="text-xs text-gray-500">
+              No file selected
+            </span>
+          )}
+        </div>
         <p className="text-xs text-gray-500 mt-1">
-          Same purpose as the link above — use whichever you have on hand.
-          You can skip both; the analysis still runs.
+          Same purpose as the link above. Drop the MLS printout PDF here
+          if you have one — we&apos;ll text-extract it server-side. You
+          can skip both fields; the analysis still runs.
         </p>
       </div>
 
