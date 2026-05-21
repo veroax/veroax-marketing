@@ -763,8 +763,19 @@ function CoverPage({
 // ============================================================================
 
 function SectionBanner({ number, title }: { number: number; title: string }) {
+  // The banner is the "header group" — a deliberately small wrapper
+  // (~32pt tall) marked wrap={false} so the banner itself can never
+  // be split across pages. minPresenceAhead={80} additionally tells
+  // React-PDF: if there's less than 80pt of room below the banner on
+  // the current page, push the WHOLE banner to the next page. That
+  // prevents the orphan case where a page ends with a banner sitting
+  // at the bottom and the content begins on the next page.
+  //
+  // wrap={false} is safe here despite the project-wide prohibition on
+  // wrap={false} for tall content — this wrapper is intentionally tiny
+  // (just the banner, ~32pt) and well under page height.
   return (
-    <View style={styles.sectionBanner}>
+    <View wrap={false} minPresenceAhead={80} style={styles.sectionBanner}>
       <View style={styles.sectionBannerLabelBox}>
         <Text style={styles.sectionBannerLabel}>SECTION {number}</Text>
       </View>
