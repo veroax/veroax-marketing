@@ -814,59 +814,33 @@ function SectionExecutiveSummary({ report }: { report: ReportData }) {
   const critCount = report.critical_findings?.length ?? 0;
   const modCount = report.moderate_findings?.length ?? 0;
   const cosmCount = report.cosmetic_findings?.length ?? 0;
-  const critHighTotal = formatCostRange(report.cost_summary?.critical_high_total);
-  const grandTotal = formatCostRange(report.cost_summary?.grand_total);
-  const ratingLabel = report.overall_rating?.label ?? "Unrated";
 
-  // Build "strengths" and "concerns" lists from data
-  // Strengths: derived from cosmetic-only findings or absent issues
-  // Concerns: top 3 critical/high findings by severity
-  const concerns = (report.critical_findings ?? [])
-    .slice(0, 3)
-    .map((f) => f.title);
-  while (concerns.length < 3) {
-    concerns.push(
-      modCount > 0
-        ? (report.moderate_findings?.[concerns.length]?.title ??
-          "Additional moderate items below")
-        : "(No additional concerns identified)",
-    );
-  }
-  const strengths: string[] = [];
-  if (critCount === 0)
-    strengths.push("No critical findings identified in the disclosure package");
-  if (report.hoa?.applicable && report.hoa.concerns?.length === 0)
-    strengths.push("HOA review surfaced no material financial concerns");
-  if ((report.environmental?.hazards?.length ?? 0) === 0)
-    strengths.push("No significant natural hazard zones disclosed");
-  while (strengths.length < 3) {
-    strengths.push(
-      cosmCount > 0
-        ? "Most findings are cosmetic and addressable post-close"
-        : "Standard contingency timelines should suffice",
-    );
-  }
+  const narrative = composeExecutiveNarrative(report);
+  const { strengths, concerns } = composeStrengthsAndConcerns(report);
 
   return (
     <View>
       <SectionBanner number={2} title="Executive Summary" />
-      <Text style={{ fontSize: 9.5, marginBottom: 6 }}>
-        This analysis identified{" "}
+      {narrative.map((p, i) => (
+        <Text
+          key={i}
+          style={{ fontSize: 9.5, marginBottom: 6, lineHeight: 1.5 }}
+        >
+          {p}
+        </Text>
+      ))}
+
+      <Text
+        style={{ fontSize: 9.5, marginBottom: 8, marginTop: 2 }}
+      >
+        Finding totals across the disclosure package:{" "}
         <Text style={{ fontFamily: "Helvetica-Bold" }}>{critCount}</Text>{" "}
         critical / high,{" "}
         <Text style={{ fontFamily: "Helvetica-Bold" }}>{modCount}</Text>{" "}
-        moderate, and{" "}
+        moderate,{" "}
         <Text style={{ fontFamily: "Helvetica-Bold" }}>{cosmCount}</Text>{" "}
-        cosmetic findings across the disclosure package. Critical and
-        high-priority repair exposure is estimated at{" "}
-        <Text style={{ fontFamily: "Helvetica-Bold" }}>{critHighTotal}</Text>;
-        total estimated repair exposure across all severities is{" "}
-        <Text style={{ fontFamily: "Helvetica-Bold" }}>{grandTotal}</Text>.
-      </Text>
-      <Text style={{ fontSize: 9.5, marginBottom: 8 }}>
-        Overall rating:{" "}
-        <Text style={{ fontFamily: "Helvetica-Bold" }}>{ratingLabel}</Text>. See
-        Section 14 for the full rationale and contingency guidance.
+        cosmetic. See Section 14 for the full overall rating and contingency
+        guidance.
       </Text>
 
       <View style={styles.dualBlock}>
@@ -889,6 +863,154 @@ function SectionExecutiveSummary({ report }: { report: ReportData }) {
       </View>
     </View>
   );
+}
+
+// Compose the lead-in narrative for the Executive Summary section.
+// Builds 2-3 substantive paragraphs from the report data: property
+// context, findings synthesis with cost exposure, and bottom line.
+function composeExecutiveNarrative(report: ReportData): string[] {
+  const p = report.property_snapshot;
+  const cs = report.cost_summary;
+  const ratingLabel = report.overall_rating?.label ?? "Unrated";
+
+  const paragraphs: string[] = [];
+
+  // ── Paragraph 1: Property overview ──
+  const typeLabel = p?.property_type
+    ? p.property_type.toLowerCase()
+    : "property";
+  const yearPart = p?.year_built
+    ? `built in ${p.year_built}`
+    : "of unknown vintage";
+  const sqftPart = p?.square_feet
+    ? `, ${p.square_feet.toLocaleString()} sq ft`
+    : "";
+  const bedBath =
+    p?.bedrooms != null && p?.bathrooms != null
+      ? `, ${p.bedrooms} bed / ${p.bathrooms} bath`
+      : "";
+  const regionPart = p?.market_region ? ` in the ${p.market_region} market` : "";
+  const pricePart = p?.list_price
+    ? ` and listed at ${formatUSD(p.list_price)}`
+    : "";
+  const domPart =
+    p?.days_on_market != null
+      ? `, with ${p.days_on_market} day${p.days_on_market === 1 ? "" : "s"} on market`
+      : "";
+  paragraphs.push(
+    `This report reviews the seller's disclosure package for a ${typeLabel} ${yearPart}${sqftPart}${bedBath}${regionPart}${pricePart}${domPart}. Every finding below is grounded in the documents that were actually provided; this is not a substitute for licensed professional inspection, attorney review, or lender underwriting.`,
+  );
+
+  // ── Paragraph 2: Findings synthesis with cost exposure ──
+  const critCount = report.critical_findings?.length ?? 0;
+  const modCount = report.moderate_findings?.length ?? 0;
+  let findingsPara = "";
+  if (critCount === 0 && modCount === 0) {
+    findingsPara =
+      "The package reveals no critical, high, or moderate findings that materially affect the buyer's decision — the disclosed condition is consistent with a well-maintained property.";
+  } else if (critCount === 0) {
+    findingsPara = `The package surfaces ${modCount} moderate item${modCount === 1 ? "" : "s"} reflecting typical aging-property maintenance, but no critical or high-severity findings. The work is bounded and routine.`;
+  } else {
+    const topCritical = (report.critical_findings ?? [])
+      .slice(0, 2)
+      .map((f) => f.title)
+      .join(" and ");
+    findingsPara = `${critCount} critical or high-severity finding${critCount === 1 ? "" : "s"} require immediate attention before contingency removal${topCritical ? ` — including ${topCritical}` : ""}.`;
+    if (modCount > 0) {
+      findingsPara += ` ${modCount} additional moderate item${modCount === 1 ? "" : "s"} add to the work scope.`;
+    }
+  }
+  if (cs?.grand_total && (cs.grand_total.low > 0 || cs.grand_total.high > 0)) {
+    findingsPara += ` Total estimated repair exposure across all severities is ${formatCostRange(cs.grand_total)}, with the critical/high portion at ${formatCostRange(cs.critical_high_total)}.`;
+  }
+  paragraphs.push(findingsPara);
+
+  // ── Paragraph 3: HOA + hazards + rating-driven bottom line ──
+  const bottomParts: string[] = [];
+  if (report.hoa?.applicable) {
+    if ((report.hoa.concerns?.length ?? 0) > 0) {
+      bottomParts.push(
+        `The HOA review surfaced ${report.hoa.concerns.length} concern${report.hoa.concerns.length === 1 ? "" : "s"} (Section 8) worth confirming with the association directly before contingency removal.`,
+      );
+    } else {
+      bottomParts.push(
+        "The HOA review surfaced no material financial concerns (Section 8).",
+      );
+    }
+  }
+  const hazardCount = report.environmental?.hazards?.length ?? 0;
+  if (hazardCount > 0) {
+    bottomParts.push(
+      `Natural hazard disclosures include ${hazardCount} zone determination${hazardCount === 1 ? "" : "s"} (Section 12) that may affect insurance availability and lender requirements.`,
+    );
+  }
+  bottomParts.push(
+    `Overall rating: ${ratingLabel}. ${report.overall_rating?.summary ?? ""}`,
+  );
+  paragraphs.push(bottomParts.join(" "));
+
+  return paragraphs;
+}
+
+// Build the Strengths and Concerns lists for the dual-column block.
+// Concerns surface the top critical/moderate items; Strengths describe
+// what's notably absent or healthy in the package.
+function composeStrengthsAndConcerns(report: ReportData): {
+  strengths: string[];
+  concerns: string[];
+} {
+  const critCount = report.critical_findings?.length ?? 0;
+  const modCount = report.moderate_findings?.length ?? 0;
+  const cosmCount = report.cosmetic_findings?.length ?? 0;
+
+  // Concerns: prefer critical findings, fall back to moderate.
+  const concerns: string[] = [];
+  for (const f of report.critical_findings ?? []) {
+    if (concerns.length >= 3) break;
+    concerns.push(f.title);
+  }
+  if (concerns.length < 3) {
+    for (const f of report.moderate_findings ?? []) {
+      if (concerns.length >= 3) break;
+      concerns.push(f.title);
+    }
+  }
+  while (concerns.length < 3) {
+    concerns.push("(No additional concerns identified)");
+  }
+
+  // Strengths: notable absences and good signals from the data.
+  const strengths: string[] = [];
+  if (critCount === 0) {
+    strengths.push("No critical or high-severity findings identified");
+  }
+  if (report.hoa?.applicable && (report.hoa.concerns?.length ?? 0) === 0) {
+    strengths.push("HOA review surfaced no material financial concerns");
+  } else if (!report.hoa?.applicable) {
+    strengths.push("No HOA review burden — property not subject to an HOA");
+  }
+  if ((report.environmental?.hazards?.length ?? 0) === 0) {
+    strengths.push("No significant natural hazard zones disclosed");
+  }
+  if (
+    (report.permit_compliance?.findings?.length ?? 0) === 0 &&
+    (report.permit_compliance?.summary?.length ?? 0) === 0
+  ) {
+    strengths.push("No permit or code-compliance issues surfaced");
+  }
+  if (
+    report.document_inventory?.documents_missing?.length === 0 &&
+    (report.document_inventory?.documents_provided?.length ?? 0) > 0
+  ) {
+    strengths.push("Disclosure package is complete with no missing standard documents");
+  }
+  if (cosmCount > 0 && critCount === 0 && modCount === 0) {
+    strengths.push("All identified findings are cosmetic and addressable post-close");
+  }
+  while (strengths.length < 3) {
+    strengths.push("Standard contingency timelines should suffice for due diligence");
+  }
+  return { strengths: strengths.slice(0, 3), concerns: concerns.slice(0, 3) };
 }
 
 function SectionDocumentInventory({ report }: { report: ReportData }) {
