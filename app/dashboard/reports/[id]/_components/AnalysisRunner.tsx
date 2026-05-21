@@ -29,6 +29,13 @@ type Props = {
 const POLL_INTERVAL_MS = 4000;
 const COMPLETION_DISPLAY_MS = 2000; // dwell time on "Complete!" before page refresh
 
+// Stuck detection: if elapsed exceeds this AND no new audit_log events
+// have arrived in the secondary window, surface a recovery UI instead
+// of letting the user stare at a dead spinner indefinitely. Tuned for
+// the realistic multi-pass upper bound (~7 minutes) plus margin.
+const STUCK_ELAPSED_THRESHOLD_SEC = 8 * 60; // 8 minutes total elapsed
+const STUCK_NO_EVENT_THRESHOLD_MS = 4 * 60 * 1000; // 4 minutes since last event
+
 export function AnalysisRunner({ reportId }: Props) {
   const router = useRouter();
   const triggered = useRef(false);
@@ -39,6 +46,8 @@ export function AnalysisRunner({ reportId }: Props) {
     label: string;
     detail?: string;
   }>({ label: "Starting analysis…" });
+  const [lastEventAt, setLastEventAt] = useState<number>(Date.now());
+  const [restarting, setRestarting] = useState(false);
 
   // Tick the elapsed timer while still running.
   useEffect(() => {
@@ -120,6 +129,17 @@ export function AnalysisRunner({ reportId }: Props) {
           return;
         }
 
+        // Track the timestamp of the latest event for stuck detection.
+        // If no events have arrived in the past N minutes, we'll show
+        // a recovery UI rather than spin forever.
+        if (data.events.length > 0) {
+          const newest = data.events[data.events.length - 1];
+          const t = new Date(newest.created_at).getTime();
+          if (Number.isFinite(t)) {
+            setLastEventAt((prev) => (t > prev ? t : prev));
+          }
+        }
+
         setProgress(stageFromEvents(data.events));
       } catch {
         // Swallow polling errors — they're transient.
@@ -152,6 +172,52 @@ export function AnalysisRunner({ reportId }: Props) {
           className="text-xs font-semibold text-red-900 underline underline-offset-2"
         >
           Retry analysis
+        </button>
+      </div>
+    );
+  }
+
+  // Stuck-state UI: if we've waited long enough AND haven't seen any new
+  // server-side progress in a while, the Vercel function likely died and
+  // the user should restart. Don't return this from a useEffect — render
+  // it inline so we always evaluate freshly.
+  const isStuck =
+    phase === "running" &&
+    elapsedSec >= STUCK_ELAPSED_THRESHOLD_SEC &&
+    Date.now() - lastEventAt >= STUCK_NO_EVENT_THRESHOLD_MS;
+
+  if (isStuck) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-4">
+        <div>
+          <h2 className="text-base font-bold text-amber-900 mb-1">
+            This is taking longer than expected
+          </h2>
+          <p className="text-sm text-amber-800 leading-relaxed">
+            The analysis has been running for {formatElapsed(elapsedSec)} with
+            no new server progress in the past few minutes. The most likely
+            cause is that the previous Vercel function died (timeout or deploy)
+            without recording a failure. Restart to start a fresh multi-pass
+            analysis — the documents are still in storage, no re-upload needed.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={async () => {
+            setRestarting(true);
+            try {
+              await fetch(`/api/reports/${reportId}/restart`, {
+                method: "POST",
+              });
+              router.refresh();
+            } catch {
+              setRestarting(false);
+            }
+          }}
+          disabled={restarting}
+          className="bg-amber-900 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-amber-800 transition-colors disabled:opacity-60"
+        >
+          {restarting ? "Restarting…" : "Restart analysis"}
         </button>
       </div>
     );
