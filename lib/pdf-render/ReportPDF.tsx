@@ -69,10 +69,9 @@ const styles = StyleSheet.create({
     lineHeight: 1.4,
     padding: 0,
   },
-  // Cover layout
+  // Cover layout — no minHeight (caused layout coordinate crashes)
   coverWrap: {
     flexDirection: "row",
-    minHeight: 720,
   },
   coverAccentBar: {
     width: 24,
@@ -241,22 +240,24 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   // Two-column dual block (Strengths/Concerns, etc.)
+  // flexBasis: 0 was triggering layout coordinate crashes — use width instead.
   dualBlock: {
     flexDirection: "row",
     marginTop: 4,
   },
+  // Letter width 612 - paddingHorizontal*2 (56*2=112) = 500 content area.
+  // Two 240-wide columns + 20pt gap = 500. Exact widths avoid percentage
+  // calc paths that crash React-PDF's layout engine.
   dualBlockLeft: {
-    flexGrow: 1,
-    flexBasis: 0,
+    width: 240,
     padding: 10,
     backgroundColor: C.strengthsBg,
   },
   dualBlockRight: {
-    flexGrow: 1,
-    flexBasis: 0,
+    width: 240,
     padding: 10,
     backgroundColor: C.concernsBg,
-    marginLeft: 6,
+    marginLeft: 20,
   },
   dualBlockHeaderGreen: {
     fontSize: 9,
@@ -399,12 +400,10 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: C.subtext,
   },
-  // Per-page footer (text only — no border)
+  // Page footer — trailing block, no absolute positioning (which crashes
+  // React-PDF's layout). Re-attempt per-page fixed footer separately.
   pageFooter: {
-    position: "absolute",
-    bottom: 24,
-    left: 56,
-    right: 56,
+    marginTop: 24,
     flexDirection: "row",
     justifyContent: "space-between",
     fontSize: 7.5,
