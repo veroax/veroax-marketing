@@ -106,6 +106,13 @@ export async function POST(
 
   const folder = `${user.id}/${reportId}`;
 
+  // Capture the canonical "original files" list (post-ZIP-extraction, but
+  // pre-splitting). This becomes the source of truth for the PDF document
+  // inventory — independent of whatever Claude's analysis reports later.
+  // The user sees exactly what they uploaded, not the internal _part_N
+  // chunks our splitter created.
+  const originalFiles: Array<{ name: string; pages: number; size_kb: number }> = [];
+
   // Split any PDF that exceeds Claude's 100-page-per-document limit into
   // 90-page chunks. This makes HOA CC&Rs, Bylaws, and other long documents
   // analyzable without ever bumping into the per-document page cap.
@@ -146,6 +153,13 @@ export async function POST(
             `try again.`,
         );
       }
+
+      // Record the original (pre-split) file metadata for the inventory.
+      originalFiles.push({
+        name: file.name,
+        pages: pageCount,
+        size_kb: Math.round((file.metadata?.size ?? buffer.length) / 1024),
+      });
 
       // Audit per-file page count for debugging future issues.
       try {
@@ -207,15 +221,17 @@ export async function POST(
   const pdfCount =
     finalFiles?.filter((f) => f.name.toLowerCase().endsWith(".pdf")).length ?? 0;
 
-  // Mark the report as ready for analysis. The actual analysis worker
-  // runs in slice 3 — for now we just transition the status so the UI
-  // can show a "processing" state.
+  // Mark the report as ready for analysis and persist the canonical
+  // original_files list (post-ZIP, pre-split) — the PDF document
+  // inventory reads from this column so the user always sees what they
+  // actually uploaded.
   const { error: updateErr } = await supabase
     .from("reports")
     .update({
       status: "analyzing",
       analysis_started_at: new Date().toISOString(),
       source_file_path: folder,
+      original_files: originalFiles.length > 0 ? originalFiles : null,
     })
     .eq("id", reportId);
   if (updateErr) {
