@@ -369,16 +369,21 @@ function synthesizeReportInCode(
   // when present.
   const property = mergeProperty(focused, propertyAddressHint);
 
-  // Document inventory — union, dedupe by name.
+  // Document inventory — union docs across passes, then consolidate any
+  // `{base}_part_N.pdf` split chunks back into a single `{base}.pdf` entry
+  // with the page counts summed. The user only ever uploaded the original
+  // file; the parts are an internal processing artifact and shouldn't
+  // surface in the PDF document inventory.
   const docByName = new Map<string, { name: string; type: string; pages?: number }>();
   for (const pass of focused) {
     for (const d of pass.document_inventory ?? []) {
       if (!docByName.has(d.name)) docByName.set(d.name, d);
     }
   }
+  const consolidated = consolidateSplitDocuments(Array.from(docByName.values()));
   const documentInventory = {
-    documents_provided: Array.from(docByName.values()),
-    documents_missing: detectMissingDocuments(Array.from(docByName.values())),
+    documents_provided: consolidated,
+    documents_missing: detectMissingDocuments(consolidated),
   };
 
   // Completeness audit — concat issues across passes.
@@ -579,6 +584,38 @@ const STANDARD_CA_DISCLOSURE_TYPES = [
   "NHD",
   "Preliminary Title Report",
 ];
+
+// Merge documents named `{base}_part_N.pdf` (artifacts of our internal
+// PDF splitting) back to a single `{base}.pdf` entry. The user uploaded
+// one file; we only split it server-side to fit Claude's per-document
+// page limit. Their PDF inventory should reflect what they uploaded.
+function consolidateSplitDocuments(
+  docs: Array<{ name: string; type: string; pages?: number }>,
+): Array<{ name: string; type: string; pages?: number }> {
+  const groups = new Map<
+    string,
+    { name: string; type: string; pages: number }
+  >();
+  for (const d of docs) {
+    const match = d.name.match(/^(.+)_part_(\d+)\.pdf$/i);
+    const baseName = match ? `${match[1]}.pdf` : d.name;
+    const existing = groups.get(baseName);
+    if (existing) {
+      existing.pages += d.pages ?? 0;
+    } else {
+      groups.set(baseName, {
+        name: baseName,
+        type: d.type,
+        pages: d.pages ?? 0,
+      });
+    }
+  }
+  return Array.from(groups.values()).map((g) => ({
+    name: g.name,
+    type: g.type,
+    pages: g.pages > 0 ? g.pages : undefined,
+  }));
+}
 
 function detectMissingDocuments(
   provided: Array<{ name: string; type: string }>,
