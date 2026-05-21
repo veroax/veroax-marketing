@@ -138,9 +138,28 @@ export async function POST(
   // (cookie/auth handoff would be fragile).
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, brokerage, dre_license, brokerage_dre, phone")
+    .select("full_name, brokerage, dre_license, brokerage_dre, phone, display_email")
     .eq("id", user.id)
     .maybeSingle();
+
+  // Same hard requirement as /pdf — name/DRE/brokerage must appear
+  // on the cover, so we won't send a report missing any of them.
+  const missing: string[] = [];
+  if (!profile?.full_name?.trim()) missing.push("full name");
+  if (!profile?.dre_license?.trim()) missing.push("DRE license");
+  if (!profile?.brokerage?.trim()) missing.push("brokerage");
+  if (missing.length > 0) {
+    return NextResponse.json(
+      {
+        error: `Complete your agent profile before sending reports — missing ${missing.join(", ")}. Visit /dashboard/settings to add them.`,
+      },
+      { status: 412 },
+    );
+  }
+
+  const displayEmail = (
+    profile as { display_email?: string | null } | null
+  )?.display_email?.trim();
 
   const agent: AgentBranding = {
     fullName: profile?.full_name ?? null,
@@ -149,7 +168,7 @@ export async function POST(
     brokerageDre:
       (profile as { brokerage_dre?: string | null } | null)?.brokerage_dre ?? null,
     phone: profile?.phone ?? null,
-    email: user.email ?? null,
+    email: displayEmail || user.email || null,
   };
 
   const reportData = report.report_data as ReportData;
@@ -216,7 +235,9 @@ export async function POST(
     const { error } = await resend.emails.send({
       from: fromEmail,
       to: recipient,
-      replyTo: user.email ?? undefined,
+      // Prefer the agent's display email so client replies route to
+      // their client-facing address rather than the signup mailbox.
+      replyTo: displayEmail || user.email || undefined,
       subject,
       text: bodyPlain || stripHtml(bodyHtml),
       html: bodyHtml || `<pre>${escapeHtml(bodyPlain)}</pre>`,

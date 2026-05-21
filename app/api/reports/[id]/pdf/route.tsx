@@ -57,9 +57,28 @@ export async function GET(
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, brokerage, dre_license, brokerage_dre, phone")
+      .select("full_name, brokerage, dre_license, brokerage_dre, phone, display_email")
       .eq("id", user.id)
       .maybeSingle();
+
+    // Profile is a hard precondition for download. Name / DRE /
+    // brokerage are printed on every cover; blanks here would make
+    // the PDF look unfinished. 412 surfaces a clear, actionable error
+    // pointing the agent at /dashboard/settings.
+    const missing: string[] = [];
+    if (!profile?.full_name?.trim()) missing.push("full name");
+    if (!profile?.dre_license?.trim()) missing.push("DRE license");
+    if (!profile?.brokerage?.trim()) missing.push("brokerage");
+    if (missing.length > 0) {
+      return new Response(
+        `Complete your agent profile before downloading reports — missing ${missing.join(", ")}. Visit /dashboard/settings to add them.`,
+        { status: 412 },
+      );
+    }
+
+    const displayEmail = (
+      profile as { display_email?: string | null } | null
+    )?.display_email?.trim();
 
     const agent: AgentBranding = {
       fullName: profile?.full_name ?? null,
@@ -69,7 +88,9 @@ export async function GET(
         (profile as { brokerage_dre?: string | null } | null)
           ?.brokerage_dre ?? null,
       phone: profile?.phone ?? null,
-      email: user.email ?? null,
+      // Prefer the display email when the agent has chosen one for
+      // client-facing materials; fall back to the auth email otherwise.
+      email: displayEmail || user.email || null,
     };
 
     // If a version was requested, swap in the snapshotted data

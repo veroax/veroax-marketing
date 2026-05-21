@@ -21,11 +21,18 @@ export default async function DashboardLayout({
   }
 
   // Fetch the profile row (created automatically by the on-signup trigger).
+  // full_name, dre_license, and brokerage are all REQUIRED before a
+  // report PDF will render — the dashboard nudges to /settings when
+  // any are missing.
   const { data: profile } = await supabase
     .from("profiles")
     .select("full_name, dre_license, brokerage")
     .eq("id", user.id)
     .maybeSingle();
+  const profileIncomplete =
+    !profile?.full_name?.trim() ||
+    !profile?.dre_license?.trim() ||
+    !profile?.brokerage?.trim();
 
   const displayName =
     profile?.full_name?.trim() || user.email?.split("@")[0] || "Agent";
@@ -79,11 +86,13 @@ export default async function DashboardLayout({
           </form>
         </header>
 
-        {/* Profile-completion banner (one-line nudge if DRE or brokerage missing) */}
-        {(!profile?.dre_license || !profile?.brokerage) && (
+        {/* Profile-completion banner — hard requirement now: reports
+            won't download until name + DRE + brokerage are all set. */}
+        {profileIncomplete && (
           <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 text-sm text-amber-900 flex items-center justify-between gap-4">
             <span>
-              Complete your profile to unlock branded reports and free-trial verification.
+              Add your name, DRE license, and brokerage before downloading
+              reports — these print on every PDF cover.
             </span>
             <Link
               href="/dashboard/settings"

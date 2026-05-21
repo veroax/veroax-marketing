@@ -37,13 +37,25 @@ export async function updateProfileAction(
   const brokerage = trim(formData, "brokerage");
   const brokerageDre = trim(formData, "brokerage_dre");
   const phone = trim(formData, "phone");
+  const displayEmail = trim(formData, "display_email");
 
-  // Light validation — DRE numbers are typically 7-9 digits.
-  if (dreLicense && !/^\d{5,10}$/.test(dreLicense)) {
+  // Hard requirements — these fields appear on every PDF cover and
+  // the report itself is blocked from download (412) without them.
+  if (!fullName) return { error: "Full name is required." };
+  if (!dreLicense) return { error: "DRE license is required." };
+  if (!brokerage) return { error: "Brokerage name is required." };
+
+  // DRE numbers are 5-10 digits in CA.
+  if (!/^\d{5,10}$/.test(dreLicense)) {
     return { error: "DRE license should be 5-10 digits." };
   }
   if (brokerageDre && !/^\d{5,10}$/.test(brokerageDre)) {
     return { error: "Brokerage DRE should be 5-10 digits." };
+  }
+
+  // Display email is optional, but if provided it must look like one.
+  if (displayEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(displayEmail)) {
+    return { error: "Display email isn't a valid email address." };
   }
 
   const { error } = await supabase
@@ -54,6 +66,7 @@ export async function updateProfileAction(
       brokerage: brokerage,
       brokerage_dre: brokerageDre,
       phone: phone,
+      display_email: displayEmail,
     })
     .eq("id", user.id);
 

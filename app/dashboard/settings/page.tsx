@@ -16,7 +16,7 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, dre_license, brokerage, brokerage_dre, phone")
+    .select("full_name, dre_license, brokerage, brokerage_dre, phone, display_email")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -41,6 +41,9 @@ export default async function SettingsPage() {
             (profile as { brokerage_dre?: string | null } | null)
               ?.brokerage_dre ?? "",
           phone: profile?.phone ?? "",
+          display_email:
+            (profile as { display_email?: string | null } | null)
+              ?.display_email ?? "",
         }}
       />
     </div>

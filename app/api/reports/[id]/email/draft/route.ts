@@ -53,9 +53,16 @@ export async function POST(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, brokerage, dre_license, phone")
+    .select("full_name, brokerage, dre_license, phone, display_email")
     .eq("id", user.id)
     .maybeSingle();
+
+  // Prefer the agent's display email on the seeded email signature so
+  // what the client sees in the email matches what's printed on the
+  // PDF cover.
+  const signatureEmail =
+    (profile as { display_email?: string | null } | null)?.display_email
+      ?.trim() || user.email || null;
 
   const reportData = report.report_data as ReportData;
   const address =
@@ -75,7 +82,7 @@ export async function POST(
 
   // -------- Plain-text body --------------------------------------
   const greeting = clientName ? `Hi ${firstName(clientName)},` : "Hi,";
-  const signoff = formatSignoff(profile, user.email ?? null);
+  const signoff = formatSignoff(profile, signatureEmail);
 
   const bodyPlain = [
     greeting,
@@ -99,7 +106,7 @@ export async function POST(
     address,
     strengths,
     concerns,
-    signoffHtml: formatSignoffHtml(profile, user.email ?? null),
+    signoffHtml: formatSignoffHtml(profile, signatureEmail),
   });
 
   return NextResponse.json({
