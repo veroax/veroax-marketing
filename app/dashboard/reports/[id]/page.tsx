@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AnalysisRunner } from "./_components/AnalysisRunner";
 import { RetryButton } from "./_components/RetryButton";
 import { AgentActions } from "./_components/AgentActions";
+import { RemoveFileButton } from "./_components/RemoveFileButton";
 import { VersionDownloadButton } from "./_components/VersionDownloadButton";
 import type { ReportData } from "@/lib/anthropic/schema";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
@@ -199,6 +200,24 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
           archived={Boolean(
             (report as { archived?: boolean | null } | null)?.archived,
           )}
+          originalFiles={
+            (Array.isArray(
+              (report as { original_files?: unknown }).original_files,
+            )
+              ? ((report as { original_files: Array<unknown> }).original_files
+                  .filter(
+                    (e): e is { name: string; pages: number; size_kb: number } =>
+                      typeof e === "object" &&
+                      e !== null &&
+                      typeof (e as { name?: unknown }).name === "string",
+                  )
+                  .map((e) => ({
+                    name: e.name,
+                    pages: Number(e.pages) || 0,
+                    size_kb: Number(e.size_kb) || 0,
+                  })))
+              : []) as Array<{ name: string; pages: number; size_kb: number }>
+          }
         />
       )}
 
@@ -494,6 +513,7 @@ function AgentSummary({
   lastUpdatedAt,
   versions,
   archived,
+  originalFiles,
 }: {
   reportId: string;
   userId: string;
@@ -505,6 +525,7 @@ function AgentSummary({
   lastUpdatedAt: string | null;
   versions: ReportVersionSnapshot[];
   archived: boolean;
+  originalFiles: Array<{ name: string; pages: number; size_kb: number }>;
 }) {
   const ageDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
   // Same narrative the PDF cover renders — single source of truth.
@@ -655,6 +676,46 @@ function AgentSummary({
         )}
       </div>
 
+      {/* ----- Uploaded documents (with per-row Remove) ---------- */}
+      {originalFiles.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+          <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase mb-3">
+            Uploaded documents
+          </h3>
+          <ul className="divide-y divide-slate-100 text-sm">
+            {originalFiles.map((f) => (
+              <li
+                key={f.name}
+                className="py-2 flex items-center gap-3"
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded shrink-0">
+                  PDF
+                </span>
+                <span className="flex-1 min-w-0 truncate text-slate-800">
+                  {f.name}
+                </span>
+                <span className="text-xs text-slate-400 shrink-0">
+                  {f.pages > 0 ? `${f.pages} pp` : ""}
+                  {f.pages > 0 && f.size_kb > 0 ? " · " : ""}
+                  {f.size_kb > 0 ? formatFileSize(f.size_kb) : ""}
+                </span>
+                <RemoveFileButton
+                  reportId={reportId}
+                  filename={f.name}
+                  ageDays={ageDays}
+                  isLastRemaining={originalFiles.length === 1}
+                />
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-slate-500 italic mt-3">
+            Removing a file triggers a re-analysis on the remaining
+            package. The current report is preserved in the version
+            history.
+          </p>
+        </div>
+      )}
+
       {/* ----- Action row (client component for modal state) ---- */}
       <AgentActions
         reportId={reportId}
@@ -706,6 +767,14 @@ function AgentSummary({
       )}
     </section>
   );
+}
+
+// Render a kilobyte count as KB or MB for the uploaded-documents
+// inventory. Keeps the right edge tidy when files have wildly
+// different sizes.
+function formatFileSize(sizeKb: number): string {
+  if (sizeKb >= 1024) return `${(sizeKb / 1024).toFixed(1)} MB`;
+  return `${sizeKb} KB`;
 }
 
 function formatDate(iso: string): string {
