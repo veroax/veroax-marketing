@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AnalysisRunner } from "./_components/AnalysisRunner";
+// DEV-ONLY — remove this import along with the DevRerunButton component
+// when shipping to broad availability. See DevRerunButton.tsx for the
+// removal checklist.
+import { DevRerunButton } from "./_components/DevRerunButton";
 import { RetryButton } from "./_components/RetryButton";
 import { AgentActions } from "./_components/AgentActions";
 import { RemoveFileButton } from "./_components/RemoveFileButton";
@@ -20,6 +24,19 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // is_admin gate for the dev-only DevRerunButton in the header. Regular
+  // agents never see the rerun button. REMOVE this lookup along with the
+  // DevRerunButton when shipping to broad availability — see the
+  // DevRerunButton file header for the removal checklist.
+  const { data: viewerProfile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+  const viewerIsAdmin = Boolean(
+    (viewerProfile as { is_admin?: boolean } | null)?.is_admin,
+  );
 
   const { data: report } = await supabase
     .from("reports")
@@ -128,6 +145,9 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
               chrome only shows the status pill now — duplicating the
               CTA in two places competed for attention. */}
           <StatusPill status={report.status} />
+          {/* DEV-ONLY: admin-gated rerun button. REMOVE before broad
+              launch — see DevRerunButton.tsx header for checklist. */}
+          {viewerIsAdmin ? <DevRerunButton reportId={report.id} /> : null}
         </div>
       </div>
 

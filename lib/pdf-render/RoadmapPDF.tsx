@@ -298,6 +298,15 @@ const SECTIONS: Section[] = [
       },
     ],
   },
+  {
+    title: "Pre-launch cleanup — REMOVE before going broadly live",
+    items: [
+      {
+        done: false,
+        text: "Remove DevRerunButton from the report detail page (admin-gated dev convenience). Files: app/dashboard/reports/[id]/_components/DevRerunButton.tsx + the import + render in page.tsx + the viewerProfile/viewerIsAdmin lookup",
+      },
+    ],
+  },
 ];
 
 export function RoadmapPDF() {
