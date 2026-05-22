@@ -176,6 +176,10 @@ const SECTIONS: Section[] = [
         text: "Client-facing email draft mirrors the on-page summary visually + verbatim",
       },
       {
+        done: true,
+        text: "Admin section: dashboard metrics, users list + detail with promote/demote, all-reports list, audit log viewer, system-health (stuck/failed/slow) at /admin/*",
+      },
+      {
         done: false,
         text: "Bulk-upload by drag of a single ZIP (already supported) → polish, plus per-file progress + cancel",
       },

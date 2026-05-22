@@ -23,16 +23,20 @@ export default async function DashboardLayout({
   // Fetch the profile row (created automatically by the on-signup trigger).
   // full_name, dre_license, and brokerage are all REQUIRED before a
   // report PDF will render — the dashboard nudges to /settings when
-  // any are missing.
+  // any are missing. is_admin gates the optional "Admin" link in the
+  // sidebar.
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, dre_license, brokerage")
+    .select("full_name, dre_license, brokerage, is_admin")
     .eq("id", user.id)
     .maybeSingle();
   const profileIncomplete =
     !profile?.full_name?.trim() ||
     !profile?.dre_license?.trim() ||
     !profile?.brokerage?.trim();
+  const isAdmin = Boolean(
+    (profile as { is_admin?: boolean } | null)?.is_admin,
+  );
 
   const displayName =
     profile?.full_name?.trim() || user.email?.split("@")[0] || "Agent";
@@ -54,6 +58,21 @@ export default async function DashboardLayout({
           <NavLink href="/dashboard/upload" label="New report" />
           <NavLink href="/dashboard/archive" label="Archive" />
           <NavLink href="/dashboard/settings" label="Settings" />
+          {/* Admin link — visible only when profiles.is_admin = true.
+              Rendered with a red accent + caps badge so it's
+              visually obvious you're crossing into a privileged
+              surface. */}
+          {isAdmin ? (
+            <Link
+              href="/admin"
+              className="flex items-center justify-between px-3 py-2 rounded-lg text-indigo-100 hover:bg-white/5 hover:text-white transition-colors mt-4 border-t border-white/10 pt-4"
+            >
+              <span>Admin</span>
+              <span className="text-[9px] font-bold tracking-widest uppercase bg-red-700 text-white px-1.5 py-0.5 rounded">
+                Admin
+              </span>
+            </Link>
+          ) : null}
         </nav>
         {/* Support contact block — sits just above the signed-in
             chrome so it's visible without scrolling, but doesn't
