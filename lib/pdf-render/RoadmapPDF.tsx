@@ -127,10 +127,6 @@ const SECTIONS: Section[] = [
       },
       {
         done: false,
-        text: "Agent QA gate: pause analysis to surface critical/high findings for sign-off BEFORE PDF render",
-      },
-      {
-        done: false,
         text: "Test corpus (10+ packages, ground-truth findings) to catch prompt-change quality regressions",
       },
     ],
@@ -282,6 +278,23 @@ const SECTIONS: Section[] = [
       {
         done: false,
         text: "Outbound: 100-agent pilot list, first-touch email + 30-day follow-up cadence",
+      },
+    ],
+  },
+  {
+    title: "Future considerations — track but not gating marketing",
+    items: [
+      {
+        done: false,
+        text: "Agent QA gate before PDF render (Cowork-skill style). Current direct-to-Ready workflow is the right call for now per founder feedback 2026-05-22",
+      },
+      {
+        done: false,
+        text: "Compliance-grade audit log fork (7-year retention, license-gate outcomes, immutable backend) for E&O / DRE inquiry survival",
+      },
+      {
+        done: false,
+        text: "International — explicitly out of scope; US-only roadmap",
       },
     ],
   },

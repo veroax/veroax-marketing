@@ -196,11 +196,18 @@ multi-state expansion:
    present critical/high findings to the agent for explicit sign-off
    BEFORE generating the PDF. The agent must reply "approved" or the
    PDF is blocked. Catches Claude errors (wrong severity, misread
-   source) before they're baked in. Veroax goes directly to
-   "qa_pending" status — that label was supposed to gate human QA
-   but no review step exists. To match the skill we'd need (a) a
-   dashboard intermediate state where the agent reviews + edits
-   findings, (b) only THEN flip to "Ready" + render PDF.
+   source) before they're baked in.
+
+   **DECISION 2026-05-22 — founder review:** the current Veroax
+   workflow (direct-to-Ready, agent reviews on the dashboard before
+   sharing) makes more sense for the product as it stands. A
+   synchronous QA gate adds friction without clear quality wins now
+   that the analyzer prompt rules (HOA scoping, property-type
+   filter, obvious-fact filter, owner-vs-HOA cost split) are doing
+   most of the de-noising the gate was meant to catch. Re-evaluate
+   if we see Claude errors slipping into delivered reports at a
+   rate the dashboard review can't catch — keep the option in the
+   roadmap as a future bucket, not a launch gate.
 
 2. **Per-run fresh regional cost reference via web search.** The
    skill builds the cost-reference library at the START of every
