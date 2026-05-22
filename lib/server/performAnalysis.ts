@@ -40,6 +40,8 @@ const GROUP_TRANSPORT: Record<PassGroup, "pdf" | "text"> = {
   hazards: "text",
 };
 import type { ReportData } from "@/lib/anthropic/schema";
+import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
+import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 
@@ -463,66 +465,218 @@ async function sendReportReadyEmail(params: {
   const moderateCount = params.report.moderate_findings?.length ?? 0;
   const cosmeticCount = params.report.cosmetic_findings?.length ?? 0;
 
+  // Talking points + strengths/concerns from the SAME helpers that
+  // power the dashboard's on-screen summary, the PDF cover's executive
+  // summary, and the client-facing email draft. Single source of truth
+  // for what shows up across every surface — so the agent's first
+  // impression in this email matches what they'll see on the dashboard.
+  const narrative = composeExecutiveNarrative(params.report);
+  const { strengths, concerns } = composeAgentStrengthsAndConcerns(params.report);
+
+  // Rating drives the hero color so the agent's eye lands on the right
+  // signal first. Excellent / Good / Acceptable are green; Significant
+  // Concerns is amber; Walk Away is red.
+  const ratingTone = ratingToHeroTone(rating);
+
+  // Cost summary — buyer out-of-pocket only (HOA-paid is informational
+  // and lives in the PDF). The synthesizer now scopes grand_total to
+  // buyer-pays so we can surface it directly.
+  const grand = params.report.cost_summary?.grand_total;
+  const costLine =
+    grand && grand.high > 0
+      ? `${formatUsdCompact(grand.low)}–${formatUsdCompact(grand.high)}`
+      : null;
+
+  const subject =
+    rating === "Walk Away" || rating === "Significant Concerns"
+      ? `[${rating}] Veroax report: ${params.propertyAddress}`
+      : `Veroax report ready: ${params.propertyAddress}`;
+
   await resend.emails.send({
     from: "Veroax Reports <contact@veroax.com>",
     to: params.to,
-    subject: `Your Veroax report is ready: ${params.propertyAddress}`,
-    text:
-      `Your disclosure analysis for ${params.propertyAddress} is ready to review.\n\n` +
-      `View the report: ${reportUrl}\n\n` +
-      `Summary:\n` +
-      `  Overall rating: ${rating}\n` +
-      `  Critical / high findings: ${criticalCount}\n` +
-      `  Moderate findings: ${moderateCount}\n` +
-      `  Cosmetic findings: ${cosmeticCount}\n\n` +
-      `The report is in "QA pending" status — review the findings before sharing with your client.\n\n` +
-      `— Veroax\n` +
-      `support@veroax.com · (866) 247-8833`,
-    html: `
-      <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;max-width:560px;margin:0 auto;">
-        <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:24px;border-radius:12px 12px 0 0;text-align:center;">
-          <h1 style="margin:0;color:#fff;font-size:20px;font-weight:bold;letter-spacing:-0.01em;">Veroax</h1>
-          <p style="margin:6px 0 0;color:#a5b4fc;font-size:13px;">Your disclosure analysis is ready</p>
-        </div>
-        <div style="background:#fff;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 12px 12px;padding:24px;">
-          <h2 style="margin:0 0 4px;font-size:18px;color:#0f172a;">${escapeHtml(params.propertyAddress)}</h2>
-          <p style="margin:0 0 20px;color:#64748b;font-size:14px;">Your 14-section analysis is complete and ready to review.</p>
-
-          <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px;">
-            <tr>
-              <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#64748b;">Overall rating</td>
-              <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-weight:600;text-align:right;">${escapeHtml(rating)}</td>
-            </tr>
-            <tr>
-              <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#64748b;">Critical / high findings</td>
-              <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-weight:600;text-align:right;">${criticalCount}</td>
-            </tr>
-            <tr>
-              <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#64748b;">Moderate findings</td>
-              <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-weight:600;text-align:right;">${moderateCount}</td>
-            </tr>
-            <tr>
-              <td style="padding:8px 0;color:#64748b;">Cosmetic findings</td>
-              <td style="padding:8px 0;color:#0f172a;font-weight:600;text-align:right;">${cosmeticCount}</td>
-            </tr>
-          </table>
-
-          <a href="${reportUrl}" style="display:inline-block;background:#fbbf24;color:#1e1b4b;font-weight:600;text-decoration:none;padding:14px 28px;border-radius:10px;box-shadow:0 4px 12px rgba(251,191,36,0.25);">
-            Open the full report →
-          </a>
-
-          <p style="margin:24px 0 0;color:#64748b;font-size:13px;line-height:1.5;">
-            The report is in <strong>QA pending</strong> status. Review the
-            findings — especially the Critical &amp; High-Priority section —
-            before sharing with your client.
-          </p>
-        </div>
-        <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;text-align:center;">
-          Veroax, Inc · <a href="mailto:support@veroax.com" style="color:#94a3b8;">support@veroax.com</a> · (866) 247-8833
-        </p>
-      </div>
-    `,
+    subject,
+    text: buildReportReadyPlainText({
+      propertyAddress: params.propertyAddress,
+      reportUrl,
+      rating,
+      criticalCount,
+      moderateCount,
+      cosmeticCount,
+      costLine,
+      narrative,
+      strengths: strengths.map((s) => s.text),
+      concerns: concerns.map((c) => c.text),
+    }),
+    html: buildReportReadyHtml({
+      propertyAddress: params.propertyAddress,
+      reportUrl,
+      rating,
+      ratingBg: ratingTone.bg,
+      ratingFg: ratingTone.fg,
+      ratingBadge: ratingTone.badge,
+      criticalCount,
+      moderateCount,
+      cosmeticCount,
+      costLine,
+      narrative,
+      strengths: strengths.map((s) => s.text),
+      concerns: concerns.map((c) => c.text),
+    }),
   });
+}
+
+function ratingToHeroTone(rating: string): {
+  bg: string;
+  fg: string;
+  badge: string;
+} {
+  // Hero band background, text color on it, and the pill background
+  // behind the rating label. Chosen for legibility on most email
+  // clients (Gmail, Outlook 365, Apple Mail).
+  switch (rating) {
+    case "Excellent":
+    case "Good":
+      return { bg: "#065f46", fg: "#ffffff", badge: "#a7f3d0" };
+    case "Acceptable":
+      return { bg: "#1e1b4b", fg: "#ffffff", badge: "#fcd34d" };
+    case "Significant Concerns":
+      return { bg: "#9a3412", fg: "#ffffff", badge: "#fed7aa" };
+    case "Walk Away":
+      return { bg: "#7f1d1d", fg: "#ffffff", badge: "#fecaca" };
+    default:
+      return { bg: "#1e1b4b", fg: "#ffffff", badge: "#a5b4fc" };
+  }
+}
+
+function formatUsdCompact(n: number): string {
+  if (n >= 1_000_000)
+    return `$${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1000) return `$${Math.round(n / 1000)}K`;
+  return `$${Math.round(n)}`;
+}
+
+function buildReportReadyPlainText(args: {
+  propertyAddress: string;
+  reportUrl: string;
+  rating: string;
+  criticalCount: number;
+  moderateCount: number;
+  cosmeticCount: number;
+  costLine: string | null;
+  narrative: string[];
+  strengths: string[];
+  concerns: string[];
+}): string {
+  return [
+    `Your Veroax disclosure analysis for ${args.propertyAddress} is ready.`,
+    "",
+    `OVERALL RATING: ${args.rating}`,
+    `Findings: ${args.criticalCount} critical/high · ${args.moderateCount} moderate · ${args.cosmeticCount} cosmetic`,
+    ...(args.costLine
+      ? [`Buyer out-of-pocket exposure: ${args.costLine}`]
+      : []),
+    "",
+    "AGENT SUMMARY",
+    ...args.narrative.flatMap((p) => [p, ""]),
+    "TOP STRENGTHS",
+    ...args.strengths.map((s, i) => `  ${i + 1}. ${s}`),
+    "",
+    "TOP CONCERNS",
+    ...args.concerns.map((c, i) => `  ${i + 1}. ${c}`),
+    "",
+    `Open the full report: ${args.reportUrl}`,
+    "",
+    "— Veroax",
+    "support@veroax.com · (866) 247-8833",
+  ].join("\n");
+}
+
+function buildReportReadyHtml(args: {
+  propertyAddress: string;
+  reportUrl: string;
+  rating: string;
+  ratingBg: string;
+  ratingFg: string;
+  ratingBadge: string;
+  criticalCount: number;
+  moderateCount: number;
+  cosmeticCount: number;
+  costLine: string | null;
+  narrative: string[];
+  strengths: string[];
+  concerns: string[];
+}): string {
+  const narrativeHtml = args.narrative
+    .map(
+      (p) =>
+        `<p style="margin:0 0 10px;color:#334155;line-height:1.6;">${escapeHtml(p)}</p>`,
+    )
+    .join("");
+
+  const liGreen = (items: string[]) =>
+    items
+      .map(
+        (s) =>
+          `<li style="margin:0 0 6px;color:#022c22;line-height:1.5;">${escapeHtml(s)}</li>`,
+      )
+      .join("");
+  const liRed = (items: string[]) =>
+    items
+      .map(
+        (s) =>
+          `<li style="margin:0 0 6px;color:#450a0a;line-height:1.5;">${escapeHtml(s)}</li>`,
+      )
+      .join("");
+
+  const costRow = args.costLine
+    ? `<tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Buyer out-of-pocket</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${escapeHtml(args.costLine)}</td></tr>`
+    : "";
+
+  return `
+  <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;line-height:1.55;max-width:600px;margin:0 auto;">
+    <div style="background-color:${args.ratingBg};color:${args.ratingFg};padding:24px 24px 20px;border-radius:12px 12px 0 0;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;opacity:0.85;margin:0 0 6px;">Veroax · Disclosure Analysis</div>
+      <div style="font-size:18px;font-weight:700;line-height:1.3;margin:0 0 14px;">${escapeHtml(args.propertyAddress)}</div>
+      <div style="display:inline-block;background-color:${args.ratingBadge};color:#0f172a;font-weight:700;font-size:11px;padding:6px 12px;border-radius:6px;letter-spacing:0.5px;text-transform:uppercase;">${escapeHtml(args.rating)}</div>
+    </div>
+
+    <div style="background:#fff;border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px;padding:20px 22px;">
+      <table style="width:100%;border-collapse:collapse;margin:0 0 16px;">
+        <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Critical / high findings</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${args.criticalCount}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Moderate findings</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${args.moderateCount}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Cosmetic findings</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${args.cosmeticCount}</td></tr>
+        ${costRow}
+      </table>
+
+      <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin:0 0 14px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#334155;text-transform:uppercase;margin:0 0 10px;">Agent Summary</div>
+        ${narrativeHtml}
+      </div>
+
+      <div style="background-color:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:14px 16px;margin:0 0 12px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#065f46;text-transform:uppercase;margin:0 0 8px;">Top Strengths</div>
+        <ol style="margin:0;padding:0 0 0 20px;">${liGreen(args.strengths)}</ol>
+      </div>
+
+      <div style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;margin:0 0 18px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#991b1b;text-transform:uppercase;margin:0 0 8px;">Top Concerns</div>
+        <ol style="margin:0;padding:0 0 0 20px;">${liRed(args.concerns)}</ol>
+      </div>
+
+      <div style="text-align:center;margin:6px 0 0;">
+        <a href="${args.reportUrl}" style="display:inline-block;background:#fbbf24;color:#1e1b4b;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:10px;box-shadow:0 4px 12px rgba(251,191,36,0.25);">Open the full report →</a>
+      </div>
+
+      <p style="margin:18px 0 0;color:#64748b;font-size:12px;line-height:1.5;">
+        Review the Critical &amp; High-Priority section before sharing with your client. The client-facing PDF preserves the same talking points and findings.
+      </p>
+    </div>
+
+    <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;text-align:center;">
+      Veroax, Inc · <a href="mailto:support@veroax.com" style="color:#94a3b8;">support@veroax.com</a> · (866) 247-8833
+    </p>
+  </div>`;
 }
 
 function escapeHtml(s: string): string {
