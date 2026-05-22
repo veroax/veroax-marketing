@@ -7,6 +7,8 @@ import { AgentActions } from "./_components/AgentActions";
 import { VersionDownloadButton } from "./_components/VersionDownloadButton";
 import type { ReportData } from "@/lib/anthropic/schema";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
+import { composeExecutiveNarrative } from "@/lib/reports/narrative";
+import { CompletionTimestamp } from "./_components/CompletionTimestamp";
 
 type Params = Promise<{ id: string }>;
 
@@ -183,6 +185,7 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
             (report as { client_name?: string | null }).client_name ?? null
           }
           createdAt={report.created_at}
+          analysisCompletedAt={report.analysis_completed_at ?? null}
           lastUpdatedAt={
             (report as { last_updated_at?: string | null }).last_updated_at ??
             null
@@ -484,6 +487,7 @@ function AgentSummary({
   reportName,
   clientName,
   createdAt,
+  analysisCompletedAt,
   lastUpdatedAt,
   versions,
 }: {
@@ -493,10 +497,14 @@ function AgentSummary({
   reportName: string | null;
   clientName: string | null;
   createdAt: string;
+  analysisCompletedAt: string | null;
   lastUpdatedAt: string | null;
   versions: ReportVersionSnapshot[];
 }) {
   const ageDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+  // Same narrative the PDF cover renders — single source of truth.
+  // Used in the new "Talking points for your client" panel below.
+  const narrative = composeExecutiveNarrative(reportData);
   const address =
     reportData.property_snapshot?.address?.trim() || "Address not extracted";
   const { strengths, concerns } = composeAgentStrengthsAndConcerns(reportData);
@@ -525,6 +533,14 @@ function AgentSummary({
             <span className="font-semibold text-slate-700">Created</span>{" "}
             {formatDate(createdAt)}
           </span>
+          {analysisCompletedAt && (
+            // Rendered via client component so it picks up the
+            // BROWSER's locale rather than the Vercel function's UTC.
+            <CompletionTimestamp
+              iso={analysisCompletedAt}
+              label="Analysis completed"
+            />
+          )}
           {lastUpdatedAt && (
             <span>
               <span className="font-semibold text-slate-700">Last updated</span>{" "}
@@ -551,6 +567,21 @@ function AgentSummary({
           <span>{reportData.update_note}</span>
         </div>
       )}
+
+      {/* ----- Talking points (above Strengths / Concerns) ------ */}
+      {/* 2-3 narrative paragraphs derived from the same helper that
+          drives the PDF cover's Executive Summary — so what the
+          agent reads here matches what the PDF says verbatim. */}
+      <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+        <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase mb-3">
+          Talking points for your client
+        </h3>
+        <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
+          {narrative.map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
+        </div>
+      </div>
 
       {/* ----- Strengths / Concerns dual block ------------------- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
