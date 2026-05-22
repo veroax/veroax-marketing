@@ -402,6 +402,17 @@ async function analyzeFocusedPass(
       // each time. A 0-temperature run is also a better baseline for
       // human review — the only source of variation is the documents
       // themselves.
+      //
+      // TODO(admin-settings): expose this value in a future admin
+      // section of the app so an admin can tune the analyzer's
+      // temperature without a code change. Default stays at 0
+      // (deterministic). The admin path would let us experiment with
+      // small non-zero values (0.1–0.2) for novel-form QA workflows
+      // — surfacing alternate interpretations during human review —
+      // without affecting the standard deterministic production
+      // path. When that admin section ships, this literal becomes
+      // a field read from the agent/admin profile or a system-wide
+      // setting.
       temperature: 0,
       system: systemPrompt,
       tools: [FOCUSED_TOOL_SCHEMA],
