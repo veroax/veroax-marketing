@@ -1,44 +1,88 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import {
+  ReportListTable,
+  type ReportRow,
+  type SortKey,
+  type SortDir,
+} from "./_components/ReportListTable";
+import { SearchBar } from "./_components/SearchBar";
 
 export const metadata = {
   title: "Reports — Veroax",
 };
 
-type ReportRow = {
-  id: string;
-  status: string;
-  property_address: string | null;
-  created_at: string;
-  delivered_at: string | null;
-};
+// Search-param shape: ?sort=property|status|created &dir=asc|desc &q=…
+type SearchParams = Promise<{
+  sort?: string;
+  dir?: string;
+  q?: string;
+}>;
 
-const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
-  uploaded: { label: "Uploaded", tone: "bg-slate-100 text-slate-700" },
-  analyzing: { label: "Analyzing", tone: "bg-indigo-100 text-indigo-700" },
-  qa_pending: { label: "QA pending", tone: "bg-amber-100 text-amber-700" },
-  qa_approved: { label: "QA approved", tone: "bg-emerald-100 text-emerald-700" },
-  delivered: { label: "Delivered", tone: "bg-emerald-100 text-emerald-700" },
-  failed: { label: "Failed", tone: "bg-red-100 text-red-700" },
-};
+function parseSortKey(raw?: string): SortKey {
+  if (raw === "property" || raw === "status" || raw === "created") return raw;
+  return "created";
+}
+function parseSortDir(raw?: string): SortDir {
+  return raw === "asc" ? "asc" : "desc";
+}
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const sp = await searchParams;
+  const sortKey = parseSortKey(sp.sort);
+  const sortDir = parseSortDir(sp.dir);
+  const searchQuery = sp.q?.trim() ?? "";
+
   const supabase = await createClient();
-  const { data: reports } = await supabase
-    .from("reports")
-    .select("id, status, property_address, created_at, delivered_at")
-    .order("created_at", { ascending: false })
-    .limit(50);
 
+  // Map UI sort keys → DB column names. "property" uses
+  // property_address; rows without one fall back to report_name in
+  // the table render so the visual sort isn't perfect when address
+  // is null — that's an acceptable trade-off for not needing a
+  // computed column.
+  const dbSortColumn =
+    sortKey === "property"
+      ? "property_address"
+      : sortKey === "status"
+        ? "status"
+        : "created_at";
+
+  let query = supabase
+    .from("reports")
+    .select(
+      "id, status, property_address, client_name, report_name, created_at",
+    )
+    .eq("archived", false)
+    .order(dbSortColumn, { ascending: sortDir === "asc" });
+
+  if (searchQuery) {
+    // Postgres ILIKE for case-insensitive contains. We OR across
+    // property_address and client_name so agents can find a report
+    // by either the address (what shows) or the buyer's name (what
+    // they remember).
+    const pattern = `%${searchQuery.replace(/[%_]/g, "\\$&")}%`;
+    query = query.or(
+      `property_address.ilike.${pattern},client_name.ilike.${pattern}`,
+    );
+  }
+
+  const { data: reports } = await query.limit(100);
   const rows = (reports ?? []) as ReportRow[];
 
+  const hasFilters = searchQuery.length > 0;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Your reports</h1>
           <p className="text-sm text-gray-500 mt-1">
-            All disclosure analyses you&apos;ve generated. Reports are tied to your account.
+            All active disclosure analyses tied to your account. Archived
+            reports are hidden here — see the Archive link in the sidebar.
           </p>
         </div>
         <Link
@@ -49,54 +93,22 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
+      <SearchBar initialQuery={searchQuery} />
+
       {rows.length === 0 ? (
-        <EmptyState />
+        hasFilters ? (
+          <NoSearchMatches query={searchQuery} />
+        ) : (
+          <EmptyState />
+        )
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
-              <tr>
-                <th className="text-left font-semibold px-6 py-3">Property</th>
-                <th className="text-left font-semibold px-6 py-3">Status</th>
-                <th className="text-left font-semibold px-6 py-3">Created</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {rows.map((row) => {
-                const status = STATUS_LABEL[row.status] ?? {
-                  label: row.status,
-                  tone: "bg-slate-100 text-slate-700",
-                };
-                return (
-                  <tr key={row.id} className="hover:bg-slate-50/50">
-                    <td className="px-6 py-4 font-medium text-slate-900">
-                      <Link
-                        href={`/dashboard/reports/${row.id}`}
-                        className="hover:text-indigo-700"
-                      >
-                        {row.property_address ?? "Untitled report"}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${status.tone}`}
-                      >
-                        {status.label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-500">
-                      {new Date(row.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ReportListTable
+          rows={rows}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          basePath="/dashboard"
+          searchQuery={searchQuery}
+        />
       )}
     </div>
   );
@@ -131,6 +143,21 @@ function EmptyState() {
       >
         Start your first report
       </Link>
+    </div>
+  );
+}
+
+function NoSearchMatches({ query }: { query: string }) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+      <p className="text-sm text-slate-600">
+        No reports match{" "}
+        <span className="font-mono text-slate-900">&ldquo;{query}&rdquo;</span>.
+      </p>
+      <p className="text-xs text-slate-500 mt-2">
+        Try a shorter substring of the address or client name, or check the
+        Archive in the sidebar — archived reports don&apos;t appear here.
+      </p>
     </div>
   );
 }

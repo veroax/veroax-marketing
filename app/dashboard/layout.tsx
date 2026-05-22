@@ -52,6 +52,7 @@ export default async function DashboardLayout({
         <nav className="flex-1 px-3 py-6 space-y-1 text-sm">
           <NavLink href="/dashboard" label="Reports" />
           <NavLink href="/dashboard/upload" label="New report" />
+          <NavLink href="/dashboard/archive" label="Archive" />
           <NavLink href="/dashboard/settings" label="Settings" />
         </nav>
         <div className="px-6 py-4 border-t border-white/5">
