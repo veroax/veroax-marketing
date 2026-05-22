@@ -19,13 +19,17 @@ import { useRouter } from "next/navigation";
 //   1. Delete this file: app/dashboard/reports/[id]/_components/DevRerunButton.tsx
 //   2. Remove the import + the conditional render in
 //      app/dashboard/reports/[id]/page.tsx (search "DevRerunButton")
-//   3. Remove the corresponding open box from the roadmap PDF
-//      (lib/pdf-render/RoadmapPDF.tsx — section: Future considerations)
+//   3. Delete the supporting admin endpoint:
+//      app/api/admin/force-rerun/[id]/route.ts
+//   4. Remove the corresponding open box from the roadmap PDF
+//      (lib/pdf-render/RoadmapPDF.tsx — section: Pre-launch cleanup)
 //
-// Behavior: confirms with the user, calls /restart (flips to failed),
+// Behavior: confirms with the user, calls /api/admin/force-rerun
+// (admin-override reset that bypasses /restart's qa_pending guardrail),
 // then immediately calls /analyze (kicks off a fresh run via the
 // existing AnalysisRunner pipeline), then refreshes the page so the
-// runner mounts.
+// runner mounts. The force-rerun endpoint is admin-only so this
+// chain only works for the same accounts that can see the button.
 
 type Props = {
   reportId: string;
@@ -46,19 +50,23 @@ export function DevRerunButton({ reportId }: Props) {
     setPending(true);
     setError(null);
     try {
-      // Step 1: flip the report to "failed" via the existing restart
-      // endpoint. This is the canonical reset path — it nulls
-      // analysis_started_at and writes a failure_reason marker.
-      const restartRes = await fetch(`/api/reports/${reportId}/restart`, {
+      // Step 1: admin-force reset to a clean "failed" state. Unlike
+      // /restart, force-rerun has no status guardrail — it accepts
+      // qa_pending / delivered / etc. and discards them on purpose.
+      // The endpoint requires admin on the server side so the UI gate
+      // and the server gate match.
+      const resetRes = await fetch(`/api/admin/force-rerun/${reportId}`, {
         method: "POST",
       });
-      if (!restartRes.ok) {
-        const data = await restartRes.json().catch(() => ({}));
-        throw new Error(data?.error ?? `Restart failed (HTTP ${restartRes.status}).`);
+      if (!resetRes.ok) {
+        const data = await resetRes.json().catch(() => ({}));
+        throw new Error(
+          data?.error ?? `Force-rerun failed (HTTP ${resetRes.status}).`,
+        );
       }
 
-      // Step 2: kick off a fresh analyze. The analyze route detects the
-      // "failed" status and starts a new background run via after().
+      // Step 2: kick off a fresh analyze. The analyze route accepts
+      // status="failed" and starts a new background run via after().
       const analyzeRes = await fetch(`/api/reports/${reportId}/analyze`, {
         method: "POST",
       });

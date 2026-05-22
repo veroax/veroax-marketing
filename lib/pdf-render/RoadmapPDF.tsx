@@ -307,7 +307,7 @@ const SECTIONS: Section[] = [
     items: [
       {
         done: false,
-        text: "Remove DevRerunButton from the report detail page (admin-gated dev convenience). Files: app/dashboard/reports/[id]/_components/DevRerunButton.tsx + the import + render in page.tsx + the viewerProfile/viewerIsAdmin lookup",
+        text: "Remove DevRerunButton from the report detail page (admin-gated dev convenience). Files: app/dashboard/reports/[id]/_components/DevRerunButton.tsx + app/api/admin/force-rerun/[id]/route.ts + the import + render in page.tsx + the viewerProfile/viewerIsAdmin lookup",
       },
     ],
   },
