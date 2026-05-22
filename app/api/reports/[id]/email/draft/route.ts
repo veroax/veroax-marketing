@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
+import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 import type { ReportData } from "@/lib/anthropic/schema";
 
 // POST /api/reports/[id]/email/draft
@@ -96,6 +97,24 @@ export async function POST(
   const strengths = picked.strengths.map((s) => s.text);
   const concerns = picked.concerns.map((c) => c.text);
 
+  // Same narrative the on-page "Talking points for your client" panel
+  // and the PDF cover's Executive Summary render. Single source of
+  // truth — what the agent reads on the dashboard, what the buyer
+  // reads in the email, and what's printed on the PDF cover are
+  // VERBATIM identical, so an agent forwarding a paragraph from the
+  // email matches the PDF exactly.
+  const talkingPoints = composeExecutiveNarrative(reportData);
+
+  // Overall rating + cost-exposure band so the email's hero card can
+  // mirror the dashboard's hero metadata strip. Optional — when the
+  // analysis didn't populate them, those bits just don't render.
+  const overallRating = reportData.overall_rating?.label ?? null;
+  const grandTotal = reportData.cost_summary?.grand_total ?? null;
+  const costRange =
+    grandTotal && grandTotal.high > 0
+      ? `${formatUSD(grandTotal.low)}–${formatUSD(grandTotal.high)}`
+      : null;
+
   // -------- Subject ----------------------------------------------
   const subject = `Disclosure analysis for ${address}`;
 
@@ -111,15 +130,30 @@ export async function POST(
     ? `Schedule a call: ${schedulingUrl}`
     : null;
 
+  // Plain-text version of the rich layout. Talking points lead so even
+  // recipients on a text-only mail client (or screen readers) get the
+  // most important context first; the strengths / concerns lists
+  // follow, then the close.
   const bodyPlain = [
     greeting,
     "",
-    `I just finished reviewing the disclosure package on ${address}. Here's a quick summary.`,
+    `I just finished reviewing the disclosure package on ${address}. Here's what stood out — talking points first, then the highlights.`,
     "",
-    "Top 3 strengths:",
+    ...(clientName || overallRating || costRange
+      ? [
+          ...(clientName ? [`Prepared for: ${clientName}`] : []),
+          `Property: ${address}`,
+          ...(overallRating ? [`Overall rating: ${overallRating}`] : []),
+          ...(costRange ? [`Estimated cost exposure: ${costRange}`] : []),
+          "",
+        ]
+      : []),
+    "TALKING POINTS",
+    ...talkingPoints.flatMap((p) => [p, ""]),
+    "TOP STRENGTHS",
     ...strengths.map((s, i) => `  ${i + 1}. ${s}`),
     "",
-    "Top 3 concerns:",
+    "TOP CONCERNS",
     ...concerns.map((c, i) => `  ${i + 1}. ${c}`),
     "",
     "I've attached the full report — call me when you've had a chance to read through it and we can talk next steps.",
@@ -138,6 +172,10 @@ export async function POST(
   const bodyHtml = renderHtmlBody({
     greeting,
     address,
+    clientName,
+    overallRating,
+    costRange,
+    talkingPoints,
     strengths,
     concerns,
     schedulingUrl: schedulingUrl ?? null,
@@ -196,33 +234,117 @@ function formatSignoffHtml(profile: ProfileBits, email: string | null): string {
 function renderHtmlBody(params: {
   greeting: string;
   address: string;
+  clientName: string | null;
+  overallRating: string | null;
+  costRange: string | null;
+  talkingPoints: string[];
   strengths: string[];
   concerns: string[];
   schedulingUrl: string | null;
   signoffHtml: string;
 }): string {
-  const { greeting, address, strengths, concerns, schedulingUrl, signoffHtml } =
-    params;
-  const li = (items: string[]) =>
-    items.map((s) => `<li style="margin:0 0 4px;">${escapeHtml(s)}</li>`).join("");
+  const {
+    greeting,
+    address,
+    clientName,
+    overallRating,
+    costRange,
+    talkingPoints,
+    strengths,
+    concerns,
+    schedulingUrl,
+    signoffHtml,
+  } = params;
 
-  // Rendered as a real anchor so mail clients hyperlink it. Sits
-  // above the signature in its own paragraph block.
+  // Color palette mirrors the on-page AgentSummary panels (Tailwind
+  // indigo-950 / amber-300 / emerald / red / slate). Inline styles only
+  // — most email clients strip <style> blocks or sandbox them. Border
+  // radius + background colors render well in Gmail, Apple Mail, and
+  // Outlook 365 / web; OWA on older desktop Outlook is less reliable
+  // with rounded corners but degrades to a clean rectangle which is
+  // still readable.
+  const li = (items: string[], color: string) =>
+    items
+      .map(
+        (s) =>
+          `<li style="margin:0 0 6px;color:${color};line-height:1.5;">${escapeHtml(s)}</li>`,
+      )
+      .join("");
+
+  // Hero banner — mirrors the dashboard's indigo header card.
+  // "Prepared For" label hidden when clientName is null, same as the
+  // dashboard's behavior.
+  const preparedFor = clientName
+    ? `<div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#fcd34d;text-transform:uppercase;margin:0 0 4px;">Prepared For · ${escapeHtml(clientName)}</div>`
+    : "";
+
+  // Metadata strip under the hero — rating + cost when available, in
+  // a compact horizontal row. Both fields graceful-degrade to nothing.
+  const metaParts: string[] = [];
+  if (overallRating) {
+    metaParts.push(
+      `<span style="color:#475569;"><span style="font-weight:600;color:#334155;">Overall rating</span> ${escapeHtml(overallRating)}</span>`,
+    );
+  }
+  if (costRange) {
+    metaParts.push(
+      `<span style="color:#475569;"><span style="font-weight:600;color:#334155;">Cost exposure</span> ${escapeHtml(costRange)}</span>`,
+    );
+  }
+  const metaStrip =
+    metaParts.length > 0
+      ? `<div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px;padding:10px 20px;font-size:12px;margin:-12px 0 18px;">${metaParts.join(' &nbsp;·&nbsp; ')}</div>`
+      : "";
+
+  const heroBorderRadius =
+    metaParts.length > 0 ? "12px 12px 0 0" : "12px";
+  const heroMarginBottom = metaParts.length > 0 ? "0" : "18px";
+
+  // Talking points — narrative paragraphs in a neutral card.
+  const talkingPointsHtml = talkingPoints
+    .map(
+      (p) =>
+        `<p style="margin:0 0 10px;color:#334155;line-height:1.6;">${escapeHtml(p)}</p>`,
+    )
+    .join("");
+
   const schedulingHtml = schedulingUrl
-    ? `<p style="margin:18px 0 4px;">Schedule a call: <a href="${escapeAttr(schedulingUrl)}">${escapeHtml(schedulingUrl)}</a></p>`
+    ? `<p style="margin:22px 0 4px;color:#334155;">Schedule a call: <a href="${escapeAttr(schedulingUrl)}" style="color:#4338ca;">${escapeHtml(schedulingUrl)}</a></p>`
     : "";
 
   return `
-<div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;line-height:1.55;max-width:560px;">
-  <p>${escapeHtml(greeting)}</p>
-  <p>I just finished reviewing the disclosure package on <strong>${escapeHtml(address)}</strong>. Here&rsquo;s a quick summary.</p>
-  <p style="margin:18px 0 4px;"><strong>Top 3 strengths</strong></p>
-  <ol style="margin:0 0 14px 22px;padding:0;color:#065f46;">${li(strengths)}</ol>
-  <p style="margin:18px 0 4px;"><strong>Top 3 concerns</strong></p>
-  <ol style="margin:0 0 14px 22px;padding:0;color:#7f1d1d;">${li(concerns)}</ol>
-  <p>I&rsquo;ve attached the full report &mdash; call me when you&rsquo;ve had a chance to read through it and we can talk next steps.</p>
+<div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;line-height:1.55;max-width:600px;">
+  <p style="margin:0 0 14px;">${escapeHtml(greeting)}</p>
+  <p style="margin:0 0 18px;">I just finished reviewing the disclosure package on <strong>${escapeHtml(address)}</strong>. Below are the talking points I'd lead with, plus the top strengths and concerns. The full report is attached.</p>
+
+  <!-- Hero banner -->
+  <div style="background-color:#1e1b4b;color:#ffffff;border-radius:${heroBorderRadius};padding:18px 22px;margin:0 0 ${heroMarginBottom};">
+    ${preparedFor}
+    <div style="font-size:18px;font-weight:700;line-height:1.3;">${escapeHtml(address)}</div>
+  </div>
+  ${metaStrip}
+
+  <!-- Talking points -->
+  <div style="background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin:0 0 14px;">
+    <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#334155;text-transform:uppercase;margin:0 0 12px;">Talking points</div>
+    ${talkingPointsHtml}
+  </div>
+
+  <!-- Top Strengths -->
+  <div style="background-color:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:16px 20px;margin:0 0 14px;">
+    <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#065f46;text-transform:uppercase;margin:0 0 10px;">Top Strengths</div>
+    <ol style="margin:0;padding:0 0 0 20px;">${li(strengths, "#022c22")}</ol>
+  </div>
+
+  <!-- Top Concerns -->
+  <div style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 20px;margin:0 0 18px;">
+    <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#991b1b;text-transform:uppercase;margin:0 0 10px;">Top Concerns</div>
+    <ol style="margin:0;padding:0 0 0 20px;">${li(concerns, "#450a0a")}</ol>
+  </div>
+
+  <p style="margin:0 0 0;color:#334155;">I&rsquo;ve attached the full report &mdash; call me when you&rsquo;ve had a chance to read through it and we can talk next steps.</p>
   ${schedulingHtml}
-  <p style="margin-top:22px;">${signoffHtml}</p>
+  <p style="margin:24px 0 0;color:#0f172a;">${signoffHtml}</p>
 </div>`.trim();
 }
 
@@ -231,6 +353,17 @@ function renderHtmlBody(params: {
 // even where escapeHtml might leave a character unmolested.
 function escapeAttr(s: string): string {
   return escapeHtml(s);
+}
+
+// USD currency formatter for the email's cost-exposure metadata strip.
+// Whole-dollar precision is more readable in a casual client-facing
+// email than the cents-precise version the dashboard uses.
+function formatUSD(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
 function escapeHtml(s: string): string {

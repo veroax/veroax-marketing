@@ -28,10 +28,11 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
     .maybeSingle();
   if (!report) notFound();
 
-  const folder = `${user.id}/${report.id}`;
-  const { data: files } = await supabase.storage.from("disclosures").list(folder);
-  const pdfs = (files ?? []).filter((f) => f.name.toLowerCase().endsWith(".pdf"));
-  const sourceGroups = groupSplitFiles(pdfs);
+  // We used to list storage objects here for a top-of-page "Source
+  // documents" panel, but the same data renders inside AgentSummary
+  // (as the "Uploaded documents" card built from reports.original_files),
+  // so the top panel was duplicative. Dropped — saves a storage round-
+  // trip on every detail page load and removes the redundant section.
 
   const reportData = report.report_data as ReportData | null;
 
@@ -168,22 +169,6 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
         </div>
       )}
 
-      {/* Source documents — always shown */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="text-sm font-semibold text-slate-900 mb-3">
-          Source documents ({sourceGroups.length})
-        </h2>
-        {sourceGroups.length === 0 ? (
-          <p className="text-sm text-gray-500">No PDFs found in the report folder.</p>
-        ) : (
-          <ul className="space-y-1.5 text-sm">
-            {sourceGroups.map((group) => (
-              <SourceGroupRow key={group.displayName} group={group} />
-            ))}
-          </ul>
-        )}
-      </section>
-
       {/* Agent-focused summary view — replaces the old inline 14-section
           render. The full report is downloadable as PDF; this page now
           orients the agent around what they need to ACT on. */}
@@ -242,128 +227,11 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
 
 // Sonnet pricing — $3/M input, $15/M output. Update if we switch models.
 // ============================================================================
-// Source documents grouping (collapses _part_N.pdf chunks back under
-// the user's original filename in the UI)
-// ============================================================================
-
-type SourcePart = {
-  name: string;
-  sizeBytes: number;
-  partNumber?: number;
-};
-
-type SourceGroup = {
-  displayName: string; // e.g. "5._HOA_Docs.pdf"
-  parts: SourcePart[];
-  totalBytes: number;
-};
-
-type StorageFileLike = {
-  name: string;
-  metadata?: { size?: number | null } | null;
-};
-
-function groupSplitFiles(files: StorageFileLike[]): SourceGroup[] {
-  const groups = new Map<string, SourceGroup>();
-
-  for (const f of files) {
-    const sizeBytes = f.metadata?.size ?? 0;
-    // Match split-suffix pattern: anything ending in _part_<N>.pdf
-    const match = f.name.match(/^(.+)_part_(\d+)\.pdf$/i);
-    if (match) {
-      const baseName = `${match[1]}.pdf`;
-      const partNumber = parseInt(match[2], 10);
-      const existing = groups.get(baseName);
-      if (existing) {
-        existing.parts.push({ name: f.name, sizeBytes, partNumber });
-        existing.totalBytes += sizeBytes;
-      } else {
-        groups.set(baseName, {
-          displayName: baseName,
-          parts: [{ name: f.name, sizeBytes, partNumber }],
-          totalBytes: sizeBytes,
-        });
-      }
-    } else {
-      groups.set(f.name, {
-        displayName: f.name,
-        parts: [{ name: f.name, sizeBytes }],
-        totalBytes: sizeBytes,
-      });
-    }
-  }
-
-  // Sort parts within each group, and sort groups by displayName.
-  const result = Array.from(groups.values());
-  for (const g of result) {
-    g.parts.sort((a, b) => (a.partNumber ?? 0) - (b.partNumber ?? 0));
-  }
-  result.sort((a, b) => a.displayName.localeCompare(b.displayName));
-  return result;
-}
-
-function fmtKb(bytes: number): string {
-  return `${Math.round(bytes / 1024)} KB`;
-}
-
-function PdfBadge() {
-  return (
-    <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded shrink-0">
-      PDF
-    </span>
-  );
-}
-
-function SourceGroupRow({ group }: { group: SourceGroup }) {
-  // Single-part files render as a flat row.
-  if (group.parts.length === 1) {
-    return (
-      <li className="flex items-center gap-3 text-slate-700">
-        <PdfBadge />
-        <span className="flex-1 truncate">{group.displayName}</span>
-        <span className="text-xs text-gray-400">{fmtKb(group.totalBytes)}</span>
-      </li>
-    );
-  }
-
-  // Multi-part files collapse into a native <details> disclosure.
-  // Layout choices:
-  //  - Arrow lives immediately after the filename so the disclosure
-  //    control is anchored to the thing it discloses.
-  //  - "N parts" label hidden until expanded — most users don't need
-  //    to know the file was split; they just need to see their report.
-  //  - File size always visible on the right for consistency with
-  //    flat (non-split) source-document rows.
-  return (
-    <li>
-      <details className="group">
-        <summary className="flex items-center gap-3 text-slate-700 cursor-pointer list-none hover:bg-slate-50 -mx-1 px-1 py-0.5 rounded">
-          <PdfBadge />
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <span className="font-medium truncate">{group.displayName}</span>
-            <span className="text-gray-400 text-xs transition-transform group-open:rotate-90 shrink-0 inline-block w-3 text-center select-none">
-              ▶
-            </span>
-            <span className="text-xs text-gray-500 shrink-0 hidden group-open:inline">
-              {group.parts.length} parts
-            </span>
-          </div>
-          <span className="text-xs text-gray-400 shrink-0">{fmtKb(group.totalBytes)}</span>
-        </summary>
-        <ul className="mt-1.5 ml-8 space-y-1 text-xs text-slate-500">
-          {group.parts.map((p) => (
-            <li key={p.name} className="flex items-center gap-2.5">
-              <span className="text-gray-400">part {p.partNumber}</span>
-              <span className="flex-1 truncate font-mono text-gray-400">{p.name}</span>
-              <span className="text-gray-400">{fmtKb(p.sizeBytes)}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
-    </li>
-  );
-}
-
+// Note: the old top-of-page Source documents panel (with its split-PDF
+// collapsing helpers) was removed because AgentSummary already renders
+// an "Uploaded documents" card from reports.original_files. Saved a
+// storage list() call per page load. If we ever want that panel back,
+// the data shape is reports.original_files (Array<{name, pages, size_kb}>).
 // ============================================================================
 
 function TokenBurnCard({
