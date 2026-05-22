@@ -10,7 +10,11 @@ import {
   type CostRange,
   type Severity,
 } from "./schema";
-import { type PassGroup } from "@/lib/pdf/classify";
+import {
+  classifyDocument,
+  type DocumentType,
+  type PassGroup,
+} from "@/lib/pdf/classify";
 import {
   selectMarketReference,
   formatMarketReferenceForPrompt,
@@ -1188,11 +1192,62 @@ function consolidateSplitDocuments(
 function detectMissingDocuments(
   provided: Array<{ name: string; type: string }>,
 ): string[] {
+  // Two-channel detection: Claude's type label AND our filename-based
+  // classifier. The Claude-supplied type is variable in wording
+  // ("Prelim Package", "Preliminary Title", "Title Report", etc.)
+  // so a strict substring match on STANDARD_CA_DISCLOSURE_TYPES
+  // frequently misses real documents. We supplement with
+  // classifyDocument on the filename — a file named "4._Prelim_
+  // Package.pdf" classifies cleanly as "title" regardless of what
+  // Claude called its type, so the "Preliminary Title Report"
+  // requirement is satisfied.
   const typesLower = provided.map((d) => (d.type ?? "").toLowerCase());
+  const filenameClassifications = new Set(
+    provided.map((d) => classifyDocument(d.name)),
+  );
+
+  // Map required-disclosure label → which document type satisfies it.
+  // If either the Claude-supplied type OR the filename classification
+  // matches, we consider the requirement met. This is intentionally
+  // generous; an explicit OMISSION is a stronger statement than a
+  // false-positive missing.
+  const requiredToType: Record<
+    string,
+    { typeKeywords: string[]; classifiesAs: DocumentType[] }
+  > = {
+    TDS: {
+      typeKeywords: ["tds", "transfer disclosure"],
+      classifiesAs: ["seller_disclosures"],
+    },
+    SPQ: {
+      typeKeywords: ["spq", "seller property questionnaire"],
+      classifiesAs: ["seller_disclosures"],
+    },
+    AVID: {
+      typeKeywords: ["avid", "agent visual"],
+      classifiesAs: ["seller_disclosures"],
+    },
+    NHD: {
+      typeKeywords: ["nhd", "natural hazard", "hazard disclosure"],
+      classifiesAs: ["hazards"],
+    },
+    "Preliminary Title Report": {
+      typeKeywords: ["prelim", "preliminary title", "title report", "escrow"],
+      classifiesAs: ["title"],
+    },
+  };
+
   const missing: string[] = [];
   for (const required of STANDARD_CA_DISCLOSURE_TYPES) {
-    const reqLower = required.toLowerCase();
-    if (!typesLower.some((t) => t.includes(reqLower) || reqLower.includes(t))) {
+    const cfg = requiredToType[required];
+    if (!cfg) continue;
+    const typeMatches = cfg.typeKeywords.some((kw) =>
+      typesLower.some((t) => t.includes(kw)),
+    );
+    const filenameMatches = cfg.classifiesAs.some((t) =>
+      filenameClassifications.has(t),
+    );
+    if (!typeMatches && !filenameMatches) {
       missing.push(required);
     }
   }

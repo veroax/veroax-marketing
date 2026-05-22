@@ -70,8 +70,15 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica",
     color: C.text,
     lineHeight: 1.4,
-    paddingTop: 56,
-    paddingBottom: 56,
+    // Padding gives the fixed header (anchored at top) and fixed footer
+    // (anchored at bottom) a safe area to render without overlapping
+    // the content flow. The header is ~28pt tall (one row of 7.5pt
+    // text + 1pt separator + small gap); the footer is ~50pt tall
+    // (1pt separator + 1-3 lines of 7.5pt extras + the main row +
+    // bottom anchor offset). Padding values below account for that
+    // plus a few points of breathing room.
+    paddingTop: 64,
+    paddingBottom: 64,
     paddingHorizontal: 56,
   },
   coverPage: {
@@ -80,10 +87,18 @@ const styles = StyleSheet.create({
     color: C.text,
     lineHeight: 1.4,
     padding: 0,
+    // Without flexDirection on the Page, children don't flex-grow to
+    // fill the page height. The coverWrap (a single child) needs to
+    // fill the page so the gold/brand accent bar runs top-to-bottom.
+    flexDirection: "column",
   },
-  // Cover layout — no minHeight (caused layout coordinate crashes)
+  // Cover layout — flexGrow:1 stretches the wrap to fill the full
+  // page height so the accent bar runs edge-to-edge. We previously
+  // had a minHeight here that crashed React-PDF; flex growth is the
+  // safe equivalent.
   coverWrap: {
     flexDirection: "row",
+    flexGrow: 1,
   },
   coverAccentBar: {
     width: 24,
@@ -239,6 +254,21 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginBottom: 4,
   },
+  // Property snapshot — compact inline summary instead of a tall
+  // KvTable. Dot-separated facts on one line; supplemental "Analysis
+  // date" line below in muted color so the reader sees the key facts
+  // first.
+  propertySnapshotInline: {
+    fontSize: 10.5,
+    color: C.text,
+    lineHeight: 1.45,
+    marginBottom: 4,
+  },
+  propertySnapshotMeta: {
+    fontSize: 9,
+    color: C.subtext,
+    marginBottom: 4,
+  },
   // Stacked label/value pair inside a FindingBlock. Replaces the
   // previous two-column KvTable for finding details where the values
   // (Risk if Ignored, Recommended Action) are sentence-length and were
@@ -382,14 +412,20 @@ const styles = StyleSheet.create({
   //   body    (9.5) — narrative paragraphs, finding descriptions
   //   subHead (10.5)— field group titles within sections
   //   section (13)  — section banner titles
+  // Body paragraph rhythm tuned to feel closer to the on-screen
+  // dashboard read — bigger leading + slightly more space between
+  // paragraphs so the Executive Summary doesn't feel cramped. Agent
+  // feedback was that the previous tighter rhythm looked dense
+  // compared to the dashboard's leading-relaxed paragraphs.
   body: {
-    fontSize: 9.5,
-    marginBottom: 6,
-    lineHeight: 1.5,
+    fontSize: 10,
+    marginBottom: 8,
+    lineHeight: 1.55,
   },
   bodyTight: {
-    fontSize: 9.5,
-    marginBottom: 4,
+    fontSize: 10,
+    marginBottom: 5,
+    lineHeight: 1.5,
   },
   // Italicized empty-state message ("No critical findings identified.").
   // Used by every "no findings" branch so they read uniformly.
@@ -400,42 +436,53 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   // Numbered item inside a dual block (Strengths / Concerns lists).
+  // Bumped from 9pt to 10pt with more leading + bottom margin so the
+  // list reads cleanly instead of feeling stacked-tight.
   bulletNumbered: {
-    fontSize: 9,
-    marginBottom: 2,
-    lineHeight: 1.4,
+    fontSize: 10,
+    marginBottom: 5,
+    lineHeight: 1.45,
   },
   // Two-column dual block (Strengths/Concerns, etc.)
   // flexBasis: 0 was triggering layout coordinate crashes — use width instead.
   dualBlock: {
     flexDirection: "row",
-    marginTop: 4,
+    marginTop: 8,
+    marginBottom: 4,
   },
   // Letter width 612 - paddingHorizontal*2 (56*2=112) = 500 content area.
   // Two 240-wide columns + 20pt gap = 500. Exact widths avoid percentage
   // calc paths that crash React-PDF's layout engine.
+  // Bumped vertical padding 10 → 14 so the cards have more breathing
+  // room around the text — readability-driven, matches the dashboard's
+  // ~20px padding feel.
   dualBlockLeft: {
     width: 240,
-    padding: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     backgroundColor: C.strengthsBg,
   },
   dualBlockRight: {
     width: 240,
-    padding: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     backgroundColor: C.concernsBg,
     marginLeft: 20,
   },
+  // Header captions on the strengths/concerns cards. Bumped 9 → 9.5
+  // and gave the bottom margin a bit more space so the heading reads
+  // as its own block before the list begins.
   dualBlockHeaderGreen: {
-    fontSize: 9,
+    fontSize: 9.5,
     fontFamily: "Helvetica-Bold",
     color: C.positive,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   dualBlockHeaderRed: {
-    fontSize: 9,
+    fontSize: 9.5,
     fontFamily: "Helvetica-Bold",
     color: C.critical,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   bullet: {
     flexDirection: "row",
@@ -571,23 +618,46 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: C.subtext,
   },
-  // Page header (top of each body page) — property address left,
-  // "AI-Assisted Disclosure Analysis | Confidential" right.
+  // Page header (top of each body page) — anchored to the top edge
+  // of every page including auto-paginated continuation pages.
+  //
+  // We use position:absolute so the fixed header sits at a known
+  // top-of-page coordinate rather than at the position the flow
+  // happens to leave it (which was causing text overlay on
+  // continuation pages — the unstyled fixed header on page 2 landed
+  // wherever the content had ended on page 1). The Page's paddingTop
+  // (set above) keeps content from flowing into this band. NOTE: the
+  // older CLAUDE.md note discouraged position:absolute on footer
+  // because of a past layout crash — that crash was tied to a
+  // different combination of properties (minHeight + flex column).
+  // Using only `position: absolute` plus left/right/top with no
+  // minHeight is safe and is the documented React-PDF pattern for
+  // page chrome.
   pageHeader: {
+    position: "absolute",
+    top: 32,
+    left: 56,
+    right: 56,
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 4,
     fontSize: 7.5,
     color: C.subtext,
   },
   pageHeaderSeparator: {
+    position: "absolute",
+    top: 50,
+    left: 56,
+    right: 56,
     height: 1,
     backgroundColor: C.accent,
-    marginBottom: 12,
   },
-  // Page footer (bottom of each body page) — agent line + page number.
+  // Page footer (bottom of each body page) — anchored to the bottom
+  // edge of every page so it never overlaps content above it.
   pageFooterWrap: {
-    marginTop: 18,
+    position: "absolute",
+    bottom: 24,
+    left: 56,
+    right: 56,
   },
   pageFooterSeparator: {
     height: 1,
@@ -1082,17 +1152,22 @@ function CoverPage({
 function SectionBanner({ number, title }: { number: number; title: string }) {
   // The banner is the "header group" — a deliberately small wrapper
   // (~32pt tall) marked wrap={false} so the banner itself can never
-  // be split across pages. minPresenceAhead={80} additionally tells
-  // React-PDF: if there's less than 80pt of room below the banner on
-  // the current page, push the WHOLE banner to the next page. That
-  // prevents the orphan case where a page ends with a banner sitting
-  // at the bottom and the content begins on the next page.
+  // be split across pages.
+  //
+  // minPresenceAhead=180 says: if there's less than 180pt of vertical
+  // room below the banner on the current page, push the WHOLE banner
+  // to the next page. We previously used 80pt, which was enough to
+  // prevent the banner from being split mid-text but not enough to
+  // prevent an orphan banner (banner sitting alone at the bottom of
+  // a page with content forced to the next). 180pt is roughly enough
+  // for the section heading + an intro paragraph + a couple bullets,
+  // so the banner stays with its content.
   //
   // wrap={false} is safe here despite the project-wide prohibition on
   // wrap={false} for tall content — this wrapper is intentionally tiny
   // (just the banner, ~32pt) and well under page height.
   return (
-    <View wrap={false} minPresenceAhead={80} style={styles.sectionBanner}>
+    <View wrap={false} minPresenceAhead={180} style={styles.sectionBanner}>
       <View style={styles.sectionBannerLabelBox}>
         <Text style={styles.sectionBannerLabel}>SECTION {number}</Text>
       </View>
@@ -1281,28 +1356,46 @@ function SectionPropertySnapshot({
   analysisDate: string;
 }) {
   const p = report.property_snapshot;
-  const rows: Array<[string, string]> = [];
-  if (p?.address) rows.push(["Address", p.address]);
-  if (p?.property_type) rows.push(["Property Type", p.property_type]);
-  if (p?.year_built) rows.push(["Year Built", String(p.year_built)]);
-  if (p?.square_feet)
-    rows.push(["Square Feet", p.square_feet.toLocaleString()]);
-  if (p?.bedrooms != null || p?.bathrooms != null) {
-    rows.push([
-      "Bed / Bath",
-      `${p?.bedrooms ?? "—"} bed / ${p?.bathrooms ?? "—"} bath`,
-    ]);
+
+  // Property snapshot used to be a tall KvTable that duplicated almost
+  // every field already on the cover (address, year built, beds/baths,
+  // sqft, list price, market region — all shown on the cover KV). The
+  // body version was eating 1/3 of page 2 for information the reader
+  // had already seen. Now we render a compact inline summary strip: a
+  // single line of dot-separated facts plus the analysis date. The
+  // cover stays as the authoritative property identity panel.
+  const parts: string[] = [];
+  if (p?.property_type) parts.push(p.property_type);
+  const bedBath: string[] = [];
+  if (p?.bedrooms != null) bedBath.push(`${p.bedrooms} bd`);
+  if (p?.bathrooms != null) bedBath.push(`${p.bathrooms} ba`);
+  if (p?.square_feet != null) {
+    bedBath.push(`${p.square_feet.toLocaleString()} sqft`);
   }
-  if (p?.list_price) rows.push(["List Price", formatUSD(p.list_price)]);
-  if (p?.days_on_market != null)
-    rows.push(["Days on Market", String(p.days_on_market)]);
-  if (p?.market_region) rows.push(["Market Region", p.market_region]);
-  rows.push(["Analysis Date", analysisDate]);
+  if (bedBath.length > 0) parts.push(bedBath.join(" / "));
+  if (p?.year_built) parts.push(`Built ${p.year_built}`);
+  if (p?.days_on_market != null) parts.push(`${p.days_on_market} DOM`);
+  if (p?.market_region) parts.push(p.market_region);
 
   return (
     <View>
       <SectionBanner number={1} title="Property Snapshot" />
-      <KvTable rows={rows} />
+      {parts.length > 0 ? (
+        <Text style={styles.propertySnapshotInline}>
+          {parts.join(" · ")}
+        </Text>
+      ) : null}
+      <Text style={styles.propertySnapshotMeta}>
+        Analysis date: <Text style={{ fontFamily: "Helvetica-Bold" }}>{analysisDate}</Text>
+        {p?.cost_reference_market ? (
+          <>
+            {"  ·  "}Cost reference market:{" "}
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>
+              {p.cost_reference_market}
+            </Text>
+          </>
+        ) : null}
+      </Text>
     </View>
   );
 }
