@@ -831,11 +831,87 @@ function CoverPage({
   // override on the static StyleSheet entries.
   const accentColor = agent.brandAccentHex || C.gold;
 
+  // Build the coverKv rows in a deliberate order:
+  //   1. Identity        (property type with beds/baths/sqft, year built)
+  //   2. Listing details (APN, MLS#, list price, days on market, Zestimate)
+  //   3. HOA             (dues + last increase)
+  //   4. Physical        (parking)
+  //   5. Geographic      (market region)
+  //   6. Cost reference  (which market drove the cost estimates)
+  //   7. Meta            (analysis date, report ID)
+  // Rows are conditionally added when data is present — a sparsely
+  // populated snapshot just renders fewer rows. The existing KvTable
+  // component handles the alternating-row stripes automatically.
   const coverKv: Array<[string, string]> = [];
-  if (p?.property_type) coverKv.push(["Property Type", p.property_type]);
+
+  // --- 1. Identity ---------------------------------------------------
+  if (p?.property_type) {
+    const bedBath: string[] = [];
+    if (p?.bedrooms != null) bedBath.push(`${p.bedrooms} bd`);
+    if (p?.bathrooms != null) bedBath.push(`${p.bathrooms} ba`);
+    if (p?.square_feet != null) {
+      bedBath.push(`${p.square_feet.toLocaleString()} sqft`);
+    }
+    const typeValue =
+      bedBath.length > 0
+        ? `${p.property_type} (${bedBath.join(" / ")})`
+        : p.property_type;
+    coverKv.push(["Property Type", typeValue]);
+  }
   if (p?.year_built) coverKv.push(["Year Built", String(p.year_built)]);
-  if (p?.list_price) coverKv.push(["List Price", formatUSD(p.list_price)]);
+
+  // --- 2. Listing details -------------------------------------------
+  if (p?.apn) coverKv.push(["APN", withSoftBreaks(p.apn)]);
+  // MLS# only shown for live/pending listings — historical MLS# on a
+  // sold/withdrawn record is noise for the buyer.
+  if (
+    p?.mls_number &&
+    (p?.list_status === "active" || p?.list_status === "pending")
+  ) {
+    coverKv.push(["MLS#", withSoftBreaks(p.mls_number)]);
+  }
+  if (p?.list_price) {
+    const showListDate = p?.list_status === "active" && p?.list_date;
+    const listPriceValue = showListDate
+      ? `${formatUSD(p.list_price)} — listed ${formatIsoDate(p.list_date!)}`
+      : formatUSD(p.list_price);
+    coverKv.push(["List Price", listPriceValue]);
+  }
+  if (p?.days_on_market != null) {
+    const domValue = p?.list_date
+      ? `${p.days_on_market} (listed ${formatIsoDate(p.list_date)})`
+      : String(p.days_on_market);
+    coverKv.push(["Days on Market", domValue]);
+  }
+  if (p?.zestimate) coverKv.push(["Zestimate", formatUSD(p.zestimate)]);
+
+  // --- 3. HOA --------------------------------------------------------
+  if (p?.hoa_dues_monthly != null) {
+    let duesValue = `${formatUSD(p.hoa_dues_monthly)}/mo`;
+    if (p?.hoa_last_increase_date && p?.hoa_last_increase_amount != null) {
+      duesValue += ` (last raised ${formatIsoDate(p.hoa_last_increase_date)} +${formatUSD(p.hoa_last_increase_amount)})`;
+    } else if (p?.hoa_last_increase_date) {
+      duesValue += ` (last raised ${formatIsoDate(p.hoa_last_increase_date)})`;
+    }
+    coverKv.push(["HOA Dues", duesValue]);
+  }
+
+  // --- 4. Physical ---------------------------------------------------
+  if (p?.parking) coverKv.push(["Parking", withSoftBreaks(p.parking)]);
+
+  // --- 5. Geographic -------------------------------------------------
   if (p?.market_region) coverKv.push(["Market Region", p.market_region]);
+
+  // --- 6. Cost reference --------------------------------------------
+  // Always shown so the agent / client know which market drove the
+  // repair-cost numbers. mergeProperty falls back to the Bay Area
+  // default when the analyzer didn't supply one.
+  coverKv.push([
+    "Cost Reference",
+    p?.cost_reference_market || "California Bay Area / Silicon Valley",
+  ]);
+
+  // --- 7. Meta -------------------------------------------------------
   coverKv.push(["Analysis Date", analysisDate]);
   coverKv.push(["Report ID", shortId]);
 
@@ -1672,6 +1748,20 @@ function formatAgentFooter(agent: AgentBranding): string {
     agent.brokerageDre ? `Brokerage DRE #${agent.brokerageDre}` : null,
   ].filter(Boolean);
   return parts.join(" · ");
+}
+
+// Render an ISO date (YYYY-MM-DD) as "Mar 14, 2026". Falls back to
+// the raw string when the input doesn't parse — better to show what
+// we got than blank out the field. Used on the cover KvTable for
+// list_date and hoa_last_increase_date.
+function formatIsoDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatUSD(n: number | null | undefined): string {
