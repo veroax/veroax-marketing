@@ -1051,6 +1051,35 @@ export default function Home() {
               &copy; {new Date().getFullYear()} Veroax, Inc. All rights reserved.
             </p>
           </div>
+          {/* Resource menu — sits above the legal strip so it gets
+              its own visual breathing room. Stub pages stand in for
+              Blog / Demo / FAQ / Help while we build content; the
+              Feedback link goes to a real form that emails support. */}
+          <div className="pt-4 border-t border-white/5">
+            <p className="text-white font-semibold text-xs uppercase tracking-widest mb-3 text-center sm:text-left">
+              Resources
+            </p>
+            <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm justify-center sm:justify-start">
+              <a href="/blog" className="hover:text-white transition-colors">
+                Blog
+              </a>
+              <a href="/demo" className="hover:text-white transition-colors">
+                Watch a Demo
+              </a>
+              <a href="/faq" className="hover:text-white transition-colors">
+                FAQ
+              </a>
+              <a href="/help" className="hover:text-white transition-colors">
+                Help Videos
+              </a>
+              <a
+                href="/feedback"
+                className="hover:text-white transition-colors text-amber-300 font-semibold"
+              >
+                Feedback
+              </a>
+            </nav>
+          </div>
           <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
             <div className="flex items-center gap-5">
               <a

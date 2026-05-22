@@ -55,6 +55,34 @@ export default async function DashboardLayout({
           <NavLink href="/dashboard/archive" label="Archive" />
           <NavLink href="/dashboard/settings" label="Settings" />
         </nav>
+        {/* Support contact block — sits just above the signed-in
+            chrome so it's visible without scrolling, but doesn't
+            shout for attention. Both lines are clickable: phone
+            opens the OS dialer / FaceTime / etc. via tel:, email
+            opens the default mail client via mailto:. */}
+        <div className="px-6 py-4 border-t border-white/5 text-xs">
+          <p className="text-indigo-300 font-semibold tracking-widest uppercase text-[10px] mb-2">
+            Need help?
+          </p>
+          <a
+            href="tel:+18662478833"
+            className="block text-indigo-100 hover:text-white transition-colors"
+          >
+            (866) 247-8833
+          </a>
+          <a
+            href="mailto:support@veroax.com"
+            className="block text-indigo-100 hover:text-white transition-colors underline underline-offset-2 truncate"
+          >
+            support@veroax.com
+          </a>
+          <a
+            href="/feedback"
+            className="block text-amber-300 hover:text-amber-200 transition-colors mt-2"
+          >
+            Send feedback →
+          </a>
+        </div>
         <div className="px-6 py-4 border-t border-white/5">
           <p className="text-xs text-indigo-300 mb-1">Signed in as</p>
           <p className="text-sm text-white truncate">{displayName}</p>
