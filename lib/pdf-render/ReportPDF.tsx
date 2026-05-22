@@ -735,15 +735,16 @@ export function ReportPDF({
   });
   const agentFooterLine = formatAgentFooter(agent);
 
-  // Body page grouping. Forced page breaks happen between groups:
-  //   Page 2: sections 1-3 (Snapshot, Executive Summary, Document Inventory)
-  //   Page 3: sections 4-5 (Critical/High, Moderate findings)
-  //   Page 4: sections 6-7 (Cosmetic, Repair Cost Summary)
-  //   Page 5: sections 8-10 (HOA, Permits, Insurance & Lender Risk)
-  //   Page 6: sections 11-14 (Negotiation, Environmental, Questions, Rating)
-  const totalBodyPages = 5;
-  const bodyPageNumber = (n: number) => `Page ${n} of ${totalBodyPages}`;
-
+  // Body page grouping. The heavy-hitter sections (Critical/High,
+  // Moderate, Cosmetic, Cost Summary) each get their OWN BodyPage so
+  // they can't overflow into a continuation page where the fixed
+  // footer would overlap content. Short sections group together.
+  //
+  // Page count varies with how many of the conditionally-rendered
+  // pages have content. The fixed page-number footer renders via
+  // `<Text render={({pageNumber, totalPages}) => ...}>` so the
+  // labeling adjusts automatically — no totalBodyPages constant
+  // needed.
   return (
     <Document
       title={`Disclosure Analysis — ${property}`}
@@ -764,58 +765,82 @@ export function ReportPDF({
       </Page>
 
       {/* ============ BODY PAGES ============ */}
+      {/* Page 1: Property + Executive Summary + Document Inventory.
+          All three are bounded by data shape (snapshot is one inline
+          row, exec summary is 2-3 paragraphs, inventory is the
+          uploaded-files list capped at the user's actual upload
+          count). Comfortably fits one Letter page in practice. */}
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
-        pageLabel={bodyPageNumber(1)}
       >
         <SectionPropertySnapshot report={report} analysisDate={analysisDate} />
         <SectionExecutiveSummary report={report} />
         <SectionDocumentInventory report={report} originalFiles={originalFiles} />
       </BodyPage>
 
+      {/* Page 2: Critical/High findings alone. Heavy section. With
+          the unit-feature filter pruning inapplicable findings the
+          page is usually 3-8 entries; even a heavy run rarely needs
+          to overflow. */}
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
-        pageLabel={bodyPageNumber(2)}
       >
         <SectionCritical report={report} />
-        <SectionModerate report={report} />
       </BodyPage>
 
+      {/* Page 3: Moderate + Cosmetic. Both are usually short post-
+          filter; grouping them keeps the doc from ballooning to
+          mostly-empty pages. */}
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
-        pageLabel={bodyPageNumber(3)}
       >
+        <SectionModerate report={report} />
         <SectionCosmetic report={report} />
+      </BodyPage>
+
+      {/* Page 4: Cost Summary alone. Two subsections (buyer-pays
+          and HOA-paid-informational) plus subtotals can run long if
+          there are many line items. Own page so subtotal rows
+          don't get orphaned. */}
+      <BodyPage
+        property={property}
+        agentLine={agentFooterLine}
+        websiteUrl={agent.websiteUrl}
+        officeAddress={agent.officeAddress}
+      >
         <SectionCostSummary report={report} />
       </BodyPage>
 
+      {/* Page 5: HOA + Permits + Insurance. Short narrative
+          sections; permits findings render as FindingBlocks but
+          usually 0-3 of them. */}
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
-        pageLabel={bodyPageNumber(4)}
       >
         <SectionHoa report={report} />
         <SectionPermits report={report} />
         <SectionInsuranceLender report={report} />
       </BodyPage>
 
+      {/* Page 6: Negotiation + Environmental + Questions + Rating.
+          Closing pages — usually short. */}
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
-        pageLabel={bodyPageNumber(5)}
       >
         <SectionNegotiation report={report} />
         <SectionEnvironmental report={report} />
@@ -830,14 +855,12 @@ function BodyPage({
   children,
   property,
   agentLine,
-  pageLabel,
   websiteUrl,
   officeAddress,
 }: {
   children: React.ReactNode;
   property: string;
   agentLine: string;
-  pageLabel: string;
   // Optional extras rendered above the main agentLine row when the
   // agent has filled them in.
   websiteUrl?: string | null;
