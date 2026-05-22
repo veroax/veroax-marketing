@@ -371,12 +371,25 @@ CRITICAL RULES:
    - Earthquake retrofit of the building shell (HOA-paid; covered by the HOA-paid findings rule above)
    For SFR buyers, those items DO apply and SHOULD be surfaced when relevant. The decision pivot is property_facts.property_type: when it's condo/condominium/townhome/townhouse/PUD/co-op, drop findings whose subject is plainly common-area or city-curb obligations. When the boundary is ambiguous (balcony exclusive-use, in-unit assigned parking, in-unit window glass with HOA frame), surface the finding with cost_responsibility="shared" or "owner" and explain in the description what the CC&Rs say.
 
-8. HOA SCOPING. HOA documents often contain a lot of information ABOUT THE BUILDING and OTHER UNITS that does not affect THIS buyer's purchase. Filter aggressively:
-   - Architectural violations or fines against OTHER units: DROP unless they reveal a systemic issue with HOA enforcement or are part of pending litigation that affects reserves
-   - Disputes between OTHER owners and the HOA: DROP unless they reveal HOA-level dysfunction (e.g., recurring board turnover, lawsuits)
-   - Maintenance items in OTHER units' exclusive-use areas (a neighbor's balcony issue): DROP
+7.5. UNIT-FEATURE APPLICABILITY FILTER. The reader is buying ONE SPECIFIC UNIT. A finding about a physical feature the buyer's unit doesn't have is noise — DROP it entirely. Concrete examples from real reports we've seen go wrong:
+   - A "balcony deferred maintenance" finding surfaced as Critical on a GROUND-FLOOR unit. Ground-floor units typically have no balcony. The finding doesn't apply.
+   - A "roof structural concern" finding surfaced for every unit in a multi-story building. Only the TOP-FLOOR unit owners see roof-attached issues; mid-floor units have other units' floors as their "roof."
+   - A "garage stall water intrusion" finding surfaced for a unit whose CC&Rs assign no garage stall, only street parking.
+   To enable filtering, ALWAYS populate property_facts.unit_features with the lowercase tokens describing this specific unit's physical features when the documents make them clear: balcony, patio, private_yard, garage_stall_assigned, in_unit_laundry, top_floor, ground_floor, fireplace, in_unit_hvac. Add other tokens as needed. CRITICAL DISCIPLINE: only list a feature if you're confident this unit ACTUALLY has it. The downstream filter drops findings whose subject is a feature missing from unit_features — so "balcony" being absent means balcony findings get cut. When in doubt, OMIT — better to surface a marginal finding than to falsely claim a feature exists. Also populate property_facts.unit_number and property_facts.floor when available; they help the agent + buyer mentally place the unit in the building.
+
+8. HOA SCOPING — PRIORITY ORDER FOR ANY FINDING SOURCED FROM HOA DOCUMENTS. Apply this checklist top-down and DROP if none of the conditions hold:
+   (a) Does this finding affect the BUYER'S PHYSICAL UNIT — its interior, an exclusive-use area assigned to it per the CC&Rs, or a feature this unit actually has? → surface, severity based on impact.
+   (b) Does this finding affect the RESERVES the buyer will pay into through dues? Reserve shortfall, planned underfunded capital project, etc. → surface as an HOA finding with cost_responsibility="hoa". Severity reflects financial exposure to the buyer (a $500K building roof at 60% reserve funding is High, not Critical, because the buyer's share is a possible dues increase or special assessment, not a $500K check).
+   (c) Does this finding create SPECIAL-ASSESSMENT RISK that would hit the buyer's pocket directly (already-levied assessment, imminently-planned assessment, lawsuit reserve risk)? → surface with cost_responsibility="owner" or "shared", showing the buyer's pro-rata share.
+   (d) Does this finding restrict the buyer's USE of THIS unit (rental cap that affects them, pet policy, architectural review for changes they plan)? → surface with low cost.
+   None of the above? → DROP.
+   Explicit examples of findings that should be dropped under this rule:
+   - Architectural violations or fines against OTHER units: DROP (unless the dollar amount in reserves is large enough to threaten the reserve fund itself — and then re-frame the finding as a reserves-health concern, not "Issue 7: Violations Against Unit 4C")
+   - Building-wide capital projects when this unit's pro-rata share is modest and reserves cover it: surface in the HOA section narrative, NOT as a Critical/High finding
+   - Maintenance items in OTHER units' exclusive-use areas (a neighbor's balcony, a different floor's HVAC): DROP
    - Generic CC&R restrictions that exist in every CA HOA (no commercial vehicles in driveways, quiet hours, pet weight limits): DROP unless materially unusual
-   The reader is buying ONE unit. Surface HOA findings only when they impact (a) THIS unit's owner obligations, (b) the reserves/dues that the buyer will pay into, (c) special-assessment risk that would hit the buyer, or (d) restrictions that materially affect how the buyer can use THIS unit. If the finding describes someone else's problem, it doesn't belong in this report.
+   - Board turnover / governance gossip that doesn't translate to financial or use-of-unit risk: DROP
+   If the finding describes someone else's problem, it doesn't belong in this report.
 
 9. PROPERTY SNAPSHOT FIELDS — populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
    - apn (Assessor's Parcel Number): typically in the prelim title report, escrow instructions, or county tax bill (usually formatted like "123-45-678" in California).
@@ -678,9 +691,33 @@ function synthesizeReportInCode(
   // says. The prompt's OBVIOUS-FACT FILTER catches most; this catches
   // the rest by pattern-matching titles/descriptions that read like
   // listing copy with no defect, risk, or actionable content.
-  const filteredAllFindings = allFindings.filter((f) => !isObviousFactFinding(f));
-  const filteredPermitFindings = permitFindings.filter(
+  const obviousFiltered = allFindings.filter((f) => !isObviousFactFinding(f));
+  const obviousFilteredPermits = permitFindings.filter(
     (f) => !isObviousFactFinding(f),
+  );
+
+  // -------- POST-PROCESSING: drop unit-feature-mismatch findings -------
+  // Real-customer issue: a Critical "balcony deferred maintenance"
+  // finding appeared on a ground-floor unit that doesn't have a
+  // balcony. The prompt asks Claude to drop these, but Claude is
+  // variable on unit-level applicability — building-wide reserve-study
+  // items get pulled in as if they affect every unit. The merged
+  // property_snapshot includes a unit_features list when the analyzer
+  // could pin them down; we use that list to drop findings whose
+  // subject matches a feature NOT in it.
+  //
+  // Compute the merged property snapshot here (was further down) so
+  // we have the unit_features available for the filter. The same
+  // value is reused in the final return object.
+  const property = mergeProperty(focused, propertyAddressHint);
+  const unitFeatures = new Set(
+    (property.unit_features ?? []).map((f) => f.toLowerCase()),
+  );
+  const filteredAllFindings = obviousFiltered.filter(
+    (f) => !mismatchesUnitFeatures(f, unitFeatures, property.property_type),
+  );
+  const filteredPermitFindings = obviousFilteredPermits.filter(
+    (f) => !mismatchesUnitFeatures(f, unitFeatures, property.property_type),
   );
 
   // -------- Bucket + SORT by severity, then by cost.high descending ---
@@ -794,10 +831,8 @@ function synthesizeReportInCode(
     ([category, items]) => ({ category, items }),
   );
 
-  // Property snapshot — merge across passes preferring the first
-  // populated value, with the agent's address hint taking top priority
-  // when present.
-  const property = mergeProperty(focused, propertyAddressHint);
+  // Property snapshot was computed up above (alongside the unit-feature
+  // filter that needs it). The `property` const is in scope here.
 
   // Document inventory — union docs across passes, then consolidate any
   // `{base}_part_N.pdf` split chunks back into a single `{base}.pdf` entry
@@ -1108,6 +1143,66 @@ function isObviousFactFinding(f: Finding): boolean {
   return false;
 }
 
+// Drop findings whose subject is a physical feature the buyer's unit
+// doesn't have. Real customer example: a Critical "balcony defect"
+// finding on a ground-floor unit without a balcony. The prompt asks
+// Claude to skip these, but it's variable on unit-level applicability
+// when the source document describes a building-wide issue.
+//
+// Strategy: for each feature token we know about (balcony, top floor
+// only, etc.), define a text pattern that signals the finding's
+// subject. If the finding's title/description matches the pattern AND
+// the property's unit_features set does NOT contain the feature, drop.
+// Only runs when we have a populated unit_features list — without it
+// we can't make the call confidently, so we keep the finding.
+//
+// For SFR property types we skip this filter entirely (single-family
+// homes have all their own features by definition).
+const FEATURE_PATTERNS: Array<{ feature: string; pattern: RegExp }> = [
+  { feature: "balcony", pattern: /\bbalcon(y|ies)\b/i },
+  { feature: "patio", pattern: /\bpatio\b/i },
+  { feature: "private_yard", pattern: /\bprivate\s+yard\b|\bexclusive[-\s]?use\s+yard\b/i },
+  {
+    feature: "garage_stall_assigned",
+    pattern: /\bassigned\s+(garage|parking|stall)\b|\bgarage\s+stall\b/i,
+  },
+  { feature: "in_unit_laundry", pattern: /\bin[-\s]?unit\s+laundry\b/i },
+  { feature: "fireplace", pattern: /\bfireplace\b|\bwood[-\s]?burning\b/i },
+  { feature: "in_unit_hvac", pattern: /\bin[-\s]?unit\s+(HVAC|furnace|AC|air\s+condition)\b/i },
+  // Floor-specific signals: top-floor-only roof concerns; ground-
+  // floor-only foundation/soil/slab concerns. We treat these as
+  // requiring the matching feature token to be present.
+  { feature: "top_floor", pattern: /\b(top[-\s]?floor|attic|roof\s+(leak|condition))\b/i },
+];
+function mismatchesUnitFeatures(
+  f: Finding,
+  unitFeatures: Set<string>,
+  propertyType: string | null,
+): boolean {
+  // No filter for SFRs — they're presumed to have all common features.
+  const typeLower = (propertyType ?? "").toLowerCase();
+  const isCondoLike =
+    typeLower.includes("condo") ||
+    typeLower.includes("townho") ||
+    typeLower.includes("pud") ||
+    typeLower.includes("co-op") ||
+    typeLower.includes("coop");
+  if (!isCondoLike) return false;
+  // No filter when we have no signal about what features the unit
+  // has — better to keep the finding than guess wrong.
+  if (unitFeatures.size === 0) return false;
+
+  const blob = `${f.title ?? ""} ${f.description ?? ""} ${f.risk_if_ignored ?? ""} ${f.recommended_action ?? ""}`;
+  for (const { feature, pattern } of FEATURE_PATTERNS) {
+    if (pattern.test(blob) && !unitFeatures.has(feature)) {
+      // Title-bar pattern match: the finding's text discusses a
+      // feature this unit doesn't have. Drop.
+      return true;
+    }
+  }
+  return false;
+}
+
 // Decide whether finding language indicates an active hazard, water
 // intrusion, structural issue, or insurance/lender-blocking condition.
 // Used to PROTECT a Critical finding from the auto-downgrade we apply
@@ -1148,6 +1243,9 @@ function mergeProperty(
     hoa_last_increase_date: null,
     hoa_last_increase_amount: null,
     cost_reference_market: null,
+    unit_number: null,
+    floor: null,
+    unit_features: null,
   };
   // Walk passes in order (seller_disclosures first via splitDocumentsForBudget
   // ordering); fill in the first non-null value for each field.

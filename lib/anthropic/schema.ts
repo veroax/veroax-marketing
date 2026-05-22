@@ -85,6 +85,25 @@ export type ReportData = {
     // PDF cover so the agent / client know which market drove the
     // numbers.
     cost_reference_market?: string | null;
+    // Unit identifier (e.g., "Unit 102", "#3B") for multi-unit
+    // properties. Pulled from the TDS / disclosure cover or the
+    // listing. Null for SFRs.
+    unit_number?: string | null;
+    // Floor number for stacked condos / townhomes. Null for SFRs and
+    // for condos where the floor isn't documented. Drives the
+    // "is this finding about a feature this unit physically has?"
+    // post-process filter — e.g., roof or top-floor balcony findings
+    // don't apply to a ground-floor unit.
+    floor?: number | null;
+    // Physical features the BUYER'S SPECIFIC UNIT has, populated
+    // when the analyzer can determine them from the documents. Used
+    // for the unit-feature applicability filter: a finding about a
+    // balcony defect gets dropped if "balcony" isn't here. Free-form
+    // lowercase strings; canonical tokens include: balcony, patio,
+    // private_yard, garage_stall_assigned, in_unit_laundry,
+    // top_floor, ground_floor, fireplace, in_unit_hvac. Add more as
+    // the analyzer encounters them — order doesn't matter.
+    unit_features?: string[] | null;
   };
   document_inventory: {
     documents_provided: Array<{ name: string; type: string; pages?: number }>;
@@ -242,6 +261,19 @@ export const FOCUSED_TOOL_SCHEMA = {
           cost_reference_market: {
             type: ["string", "null"],
             description: "Regional pricing reference assumed for repair-cost estimates. Default 'California Bay Area / Silicon Valley' if unclear.",
+          },
+          unit_number: {
+            type: ["string", "null"],
+            description: "Unit identifier for multi-unit properties (e.g., 'Unit 102', '#3B'). Null for SFRs.",
+          },
+          floor: {
+            type: ["integer", "null"],
+            description: "Floor number for stacked condos/townhomes. Null for SFRs and units where the floor isn't documented.",
+          },
+          unit_features: {
+            type: ["array", "null"],
+            items: { type: "string" },
+            description: "Lowercase tokens describing physical features THIS specific unit has. Canonical tokens: balcony, patio, private_yard, garage_stall_assigned, in_unit_laundry, top_floor, ground_floor, fireplace, in_unit_hvac. Add more as needed. CRITICAL: only include a feature when you're confident this unit actually has it — the downstream filter drops findings about features missing from this list (so a 'balcony repair' finding gets dropped if 'balcony' isn't here, on a first-floor unit that doesn't have one).",
           },
         },
       },
@@ -434,6 +466,12 @@ export const REPORT_TOOL_SCHEMA = {
           hoa_last_increase_date: { type: ["string", "null"] },
           hoa_last_increase_amount: { type: ["integer", "null"] },
           cost_reference_market: { type: ["string", "null"] },
+          unit_number: { type: ["string", "null"] },
+          floor: { type: ["integer", "null"] },
+          unit_features: {
+            type: ["array", "null"],
+            items: { type: "string" },
+          },
         },
         required: [
           "address",
