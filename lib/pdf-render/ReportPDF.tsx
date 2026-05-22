@@ -239,6 +239,25 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginBottom: 4,
   },
+  // Stacked label/value pair inside a FindingBlock. Replaces the
+  // previous two-column KvTable for finding details where the values
+  // (Risk if Ignored, Recommended Action) are sentence-length and were
+  // overflowing the column.
+  findingDetailRow: {
+    marginTop: 6,
+  },
+  findingDetailLabel: {
+    fontSize: 7.5,
+    fontFamily: "Helvetica-Bold",
+    color: C.slate,
+    marginBottom: 2,
+    textTransform: "uppercase",
+  },
+  findingDetailValue: {
+    fontSize: 9,
+    color: C.text,
+    lineHeight: 1.45,
+  },
   description: {
     // Bumped 9 → 9.5 to match the base body size — the FindingBlock
     // description and a body paragraph elsewhere are the same kind of
@@ -761,22 +780,39 @@ function BodyPage({
   property: string;
   agentLine: string;
   pageLabel: string;
-  // Optional extras rendered above the main footer row when the
+  // Optional extras rendered above the main agentLine row when the
   // agent has filled them in.
   websiteUrl?: string | null;
   officeAddress?: string | null;
 }) {
+  // Both the header and footer are wrapped in `<View fixed>` so they
+  // repeat on every page including auto-paginated continuation pages.
+  // Agent feedback was that long sections (Critical Findings, the Cost
+  // Summary) were producing continuation pages with no header/footer
+  // chrome — buyers would see a "page in the middle of nowhere."
+  //
+  // We intentionally do NOT use `position: absolute` to bottom-anchor
+  // the footer. Past React-PDF versions in this codebase crashed with
+  // layout-coordinate errors when absolute positioning combined with
+  // flex columns. The trade-off: when a page's content is shorter than
+  // the available space, the footer renders right after the content
+  // rather than at the page bottom. That's a minor visual nit; the
+  // important property — header/footer on EVERY page — holds.
+  //
+  // The renderFooter callback inside `<Text fixed render>` reads the
+  // pageNumber so each continuation page renders the right label, not
+  // a stale "Page 2 of 5" that was computed at the parent level.
   return (
     <Page size="LETTER" style={styles.page}>
-      <View style={styles.pageHeader}>
+      <View fixed style={styles.pageHeader}>
         <Text>{property}</Text>
         <Text>AI-Assisted Disclosure Analysis | Confidential</Text>
       </View>
-      <View style={styles.pageHeaderSeparator} />
+      <View fixed style={styles.pageHeaderSeparator} />
 
       {children}
 
-      <View style={styles.pageFooterWrap}>
+      <View fixed style={styles.pageFooterWrap}>
         <View style={styles.pageFooterSeparator} />
         {/* Extras stack above the agentLine + page-number row. Office
             address may be multi-line; split on \n so each line gets
@@ -794,7 +830,15 @@ function BodyPage({
         ) : null}
         <View style={styles.pageFooter}>
           <Text>{agentLine || "Veroax disclosure analysis"}</Text>
-          <Text>{pageLabel}</Text>
+          {/* render() receives the current pageNumber for the rendered
+              page, including continuation pages from auto-pagination.
+              Using the parent-computed `pageLabel` would freeze the
+              wrong number when a section overflows onto a new page. */}
+          <Text
+            render={({ pageNumber, totalPages }) =>
+              `Page ${pageNumber} of ${totalPages}`
+            }
+          />
         </View>
       </View>
     </Page>
@@ -1092,7 +1136,28 @@ function SeverityBadge({ severity }: { severity: Severity }) {
 
 function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
   const accentColor = severityHexColor(finding.severity);
+  // Hide the Est. Cost row when the cost is zero OR when the cost
+  // doesn't actually land on the buyer (HOA-paid). For legacy reports
+  // without cost_responsibility we fall back to a textual heuristic so
+  // an existing report's HOA-sourced findings stop showing dollar
+  // amounts the buyer won't pay. New analyses (post the schema change)
+  // set cost_responsibility explicitly.
+  const hasZeroCost =
+    (finding.cost_estimate?.high ?? 0) === 0 &&
+    (finding.cost_estimate?.low ?? 0) === 0;
+  const hoaPaid =
+    finding.cost_responsibility === "hoa" ||
+    (finding.cost_responsibility == null && looksHoaPaid(finding));
+  const showCostRow = !hasZeroCost && !hoaPaid;
+
   return (
+    // wrap={false} would normally pin the card to one page so it never
+    // splits mid-finding, but it's on the CLAUDE.md don't-list because
+    // a tall finding wider than a page caused infinite-loop layouts.
+    // Letting React-PDF auto-wrap means a finding may split across two
+    // pages occasionally — the fixed header/footer added to BodyPage
+    // ensures the continuation page is still recognizable as part of
+    // the report.
     <View style={styles.findingCard}>
       <View style={[styles.findingAccent, { backgroundColor: accentColor }]} />
       <View style={styles.findingBody}>
@@ -1111,21 +1176,87 @@ function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
             {withSoftBreaks(finding.description)}
           </Text>
         ) : null}
-        <KvTable
-          rows={[
-            ["Source", finding.source],
-            ["Est. Cost", formatCostRange(finding.cost_estimate)],
-            ["Risk if Ignored", finding.risk_if_ignored],
-            ["Recommended Action", finding.recommended_action],
-            [
-              "Confidence",
-              finding.confidence.charAt(0).toUpperCase() +
-                finding.confidence.slice(1),
-            ],
-          ]}
+        {/* Per-finding detail rows are stacked (label on its own line,
+            value below it) instead of a two-column KvTable because the
+            Risk-if-Ignored and Recommended-Action values are usually
+            sentence-length. Two-column layout had the right column
+            running off the page on every issue. Stacked layout uses
+            the full row width for the value, so long text wraps
+            naturally without column constraints. */}
+        {showCostRow ? (
+          <FindingDetailRow
+            label="Est. Cost"
+            value={formatCostRange(finding.cost_estimate)}
+          />
+        ) : null}
+        {hoaPaid ? (
+          <FindingDetailRow
+            label="Cost Responsibility"
+            value="HOA / association (paid from reserves or assessments — the buyer does not write this check directly)."
+          />
+        ) : null}
+        {finding.risk_if_ignored ? (
+          <FindingDetailRow
+            label="Risk if Ignored"
+            value={finding.risk_if_ignored}
+          />
+        ) : null}
+        {finding.recommended_action ? (
+          <FindingDetailRow
+            label="Recommended Action"
+            value={finding.recommended_action}
+          />
+        ) : null}
+        <FindingDetailRow
+          label="Confidence"
+          value={
+            finding.confidence.charAt(0).toUpperCase() +
+            finding.confidence.slice(1)
+          }
         />
       </View>
     </View>
+  );
+}
+
+// Stacked label/value pair used inside FindingBlock. Label sits on its
+// own line in small bold caps; value occupies the full row width below.
+// No flex columns — full-width Text wraps naturally inside the card.
+function FindingDetailRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.findingDetailRow}>
+      <Text style={styles.findingDetailLabel}>{label}</Text>
+      <Text style={styles.findingDetailValue}>{withSoftBreaks(value)}</Text>
+    </View>
+  );
+}
+
+// Heuristic for legacy reports without cost_responsibility: examines
+// the source citation and finding title/description for HOA-pay
+// signals. New analyses populate cost_responsibility explicitly and
+// skip this path.
+function looksHoaPaid(finding: Finding): boolean {
+  const blob = [
+    finding.source ?? "",
+    finding.title ?? "",
+    finding.description ?? "",
+    finding.recommended_action ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+  // Signals that the work is the HOA's responsibility / paid from
+  // reserves / a common element. Tuned for condo / townhome / PUD
+  // sources: reserve studies, association budgets, board minutes.
+  return (
+    /\b(reserve study|reserve fund|hoa reserve|association reserve|board minutes|hoa budget|association budget|special assessment|common area|common element|building exterior|exterior of (the )?building|building envelope|common roof|common[\s-]?area roof|elevator|lobby|common[\s-]?area plumbing|common boiler|common parking)\b/.test(
+      blob,
+    )
   );
 }
 
@@ -1414,15 +1545,88 @@ function SectionCosmetic({ report }: { report: ReportData }) {
 
 function SectionCostSummary({ report }: { report: ReportData }) {
   const cs = report.cost_summary;
+  // Split categories into buyer-pays vs HOA-paid based on the category
+  // name. The synthesizer now puts HOA-paid line items under a labeled
+  // "HOA-paid capital projects (informational)" category; everything
+  // else is buyer-pays. Legacy reports without that category simply
+  // render as one section.
+  const isHoaCategory = (label: string) =>
+    /hoa[-\s]?paid|hoa\s+capital|association[-\s]?paid|informational/i.test(
+      label,
+    );
+  const allCats = cs?.line_items ?? [];
+  const buyerCats = allCats.filter(
+    (cat) => !isHoaCategory(cat.category) && cat.items?.length,
+  );
+  const hoaCats = allCats.filter(
+    (cat) => isHoaCategory(cat.category) && cat.items?.length,
+  );
+
+  const buyerSubtotal = sumLineCosts(buyerCats.flatMap((c) => c.items));
+  const hoaSubtotal = sumLineCosts(hoaCats.flatMap((c) => c.items));
+
   return (
     <View>
       <SectionBanner number={7} title="Repair Cost Summary" />
-      {cs?.line_items?.length
-        ? cs.line_items.map((cat, ci) => (
-            <View key={ci}>
+      <Text style={styles.body}>
+        {`These numbers reflect what the BUYER of this specific unit is exposed to. HOA-paid capital projects are itemized separately below for context — they don't roll into the buyer total because the association pays them from reserves and assessments, not the buyer directly.`}
+      </Text>
+
+      {/* Buyer-pays categories */}
+      {buyerCats.map((cat, ci) => (
+        <View key={`buyer-${ci}`}>
+          <View style={styles.costSectionHeader}>
+            <Text style={styles.costSectionHeaderLabel}>{cat.category}</Text>
+            <Text style={styles.costSectionHeaderCost}>Est. Cost Range</Text>
+          </View>
+          {cat.items.map((item, ii) => (
+            <View
+              key={ii}
+              style={ii % 2 === 1 ? styles.costRowAlt : styles.costRow}
+            >
+              <Text style={styles.costRowLabel}>{item.label}</Text>
+              <Text style={styles.costRowValue}>
+                {formatCostRange(item.cost)}
+              </Text>
+            </View>
+          ))}
+          <View style={styles.costSubtotalRow}>
+            <Text style={styles.costSubtotalLabel}>Subtotal</Text>
+            <Text style={styles.costSubtotalValue}>
+              {formatCostRange(sumLineCosts(cat.items))}
+            </Text>
+          </View>
+        </View>
+      ))}
+
+      {/* Buyer grand total — headline number. */}
+      <View style={styles.costGrandTotalRow}>
+        <Text style={styles.costGrandTotalLabel}>
+          TOTAL BUYER OUT-OF-POCKET EXPOSURE
+        </Text>
+        <Text style={styles.costGrandTotalValue}>
+          {buyerCats.length === 0 && hoaCats.length > 0
+            ? "—"
+            : formatCostRange(buyerSubtotal)}
+        </Text>
+      </View>
+
+      {/* HOA-paid section, rendered AFTER the buyer total so the layout
+          reads as "what you owe" first and "what to be aware of"
+          second. Visually de-emphasized via the subHead caption. */}
+      {hoaCats.length > 0 ? (
+        <View>
+          <Text style={styles.subHead}>
+            HOA-paid capital projects (informational only)
+          </Text>
+          <Text style={styles.body}>
+            {`The figures below are the FULL project cost paid by the HOA from reserves or assessments. The buyer's exposure to these items is indirect — through dues increases or pro-rata share of a special assessment — and is covered in the HOA Financial & Governance Review section.`}
+          </Text>
+          {hoaCats.map((cat, ci) => (
+            <View key={`hoa-${ci}`}>
               <View style={styles.costSectionHeader}>
                 <Text style={styles.costSectionHeaderLabel}>{cat.category}</Text>
-                <Text style={styles.costSectionHeaderCost}>Est. Cost Range</Text>
+                <Text style={styles.costSectionHeaderCost}>Project Cost</Text>
               </View>
               {cat.items.map((item, ii) => (
                 <View
@@ -1435,23 +1639,24 @@ function SectionCostSummary({ report }: { report: ReportData }) {
                   </Text>
                 </View>
               ))}
-              <View style={styles.costSubtotalRow}>
-                <Text style={styles.costSubtotalLabel}>Subtotal</Text>
-                <Text style={styles.costSubtotalValue}>
-                  {formatCostRange(sumLineCosts(cat.items))}
-                </Text>
-              </View>
             </View>
-          ))
-        : null}
-      <View style={styles.costGrandTotalRow}>
-        <Text style={styles.costGrandTotalLabel}>
-          TOTAL ESTIMATED REPAIR EXPOSURE
+          ))}
+          <View style={styles.costSubtotalRow}>
+            <Text style={styles.costSubtotalLabel}>
+              Total HOA-paid project cost
+            </Text>
+            <Text style={styles.costSubtotalValue}>
+              {formatCostRange(hoaSubtotal)}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {buyerCats.length === 0 && hoaCats.length === 0 ? (
+        <Text style={styles.emptyState}>
+          No repair cost estimates available for this report.
         </Text>
-        <Text style={styles.costGrandTotalValue}>
-          {formatCostRange(cs?.grand_total)}
-        </Text>
-      </View>
+      ) : null}
     </View>
   );
 }
@@ -1579,20 +1784,44 @@ function SectionEnvironmental({ report }: { report: ReportData }) {
 }
 
 function SectionOutstanding({ report }: { report: ReportData }) {
+  // Agent feedback was that this section felt overwhelming when it ran
+  // to 15+ questions — the buyer would skim or skip. Render-side cap of
+  // 6 (matches the synthesizer's cap for new reports; protects against
+  // legacy report_data that still has 20+) plus a framing sentence that
+  // explains these are the questions WORTH asking, not an exhaustive
+  // checklist. The goal: surface facts, let the buyer + agent draw the
+  // conclusion. Questions exist only to fill specific gaps in the docs.
+  const allQuestions = report.outstanding_questions ?? [];
+  const capped = allQuestions.slice(0, 6);
+  const truncated = allQuestions.length > 6;
+
   return (
     <View>
-      <SectionBanner number={13} title="Outstanding Questions" />
-      {report.outstanding_questions?.length ? (
-        report.outstanding_questions.map((q, i) => (
-          <View key={i} style={styles.bullet}>
-            <Text style={styles.bulletDot}>{i + 1}.</Text>
-            <Text style={styles.bulletText}>{q}</Text>
-          </View>
-        ))
-      ) : (
+      <SectionBanner number={13} title="Questions Worth Asking" />
+      {capped.length === 0 ? (
         <Text style={styles.emptyState}>
-          No outstanding questions identified.
+          The documents in this package answered the buyer questions a
+          California disclosure analysis typically raises. Pair this report
+          with a walk-through and a buyer-side inspection contingency and
+          you have what you need to proceed.
         </Text>
+      ) : (
+        <View>
+          <Text style={styles.body}>
+            {`The findings above are the facts. These questions exist only where the documents leave a specific gap that affects the buyer's decision — bring them to the seller, listing agent, or HOA management as appropriate.`}
+          </Text>
+          {capped.map((q, i) => (
+            <View key={i} style={styles.bullet}>
+              <Text style={styles.bulletDot}>{i + 1}.</Text>
+              <Text style={styles.bulletText}>{q}</Text>
+            </View>
+          ))}
+          {truncated ? (
+            <Text style={styles.disclaimer}>
+              {`(${allQuestions.length - 6} additional minor follow-up questions were noted during analysis but trimmed here to keep this list focused. Ask Veroax for the full questions list if you need it.)`}
+            </Text>
+          ) : null}
+        </View>
       )}
     </View>
   );
