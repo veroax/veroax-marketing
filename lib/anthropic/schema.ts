@@ -48,6 +48,26 @@ export type ReportData = {
     list_price: number | null;
     days_on_market: number | null;
     market_region: string | null;
+    // -- Optional extensions populated by the analyzer when the
+    // source documents carry the data. Older reports rendered before
+    // these fields existed simply have null and the PDF cover skips
+    // their rows.
+    // ----------------------------------------------------------------
+    apn?: string | null;
+    mls_number?: string | null;
+    list_date?: string | null;
+    list_status?: "active" | "pending" | "sold" | "withdrawn" | "unknown" | null;
+    zestimate?: number | null;
+    parking?: string | null;
+    hoa_dues_monthly?: number | null;
+    hoa_last_increase_date?: string | null;
+    hoa_last_increase_amount?: number | null;
+    // Regional pricing reference used for cost estimates throughout
+    // the report. Default to "California Bay Area / Silicon Valley"
+    // when the analyzer can't infer a better signal. Surfaced on the
+    // PDF cover so the agent / client know which market drove the
+    // numbers.
+    cost_reference_market?: string | null;
   };
   document_inventory: {
     documents_provided: Array<{ name: string; type: string; pages?: number }>;
@@ -165,6 +185,47 @@ export const FOCUSED_TOOL_SCHEMA = {
           list_price: { type: ["integer", "null"] },
           days_on_market: { type: ["integer", "null"] },
           market_region: { type: ["string", "null"] },
+          apn: {
+            type: ["string", "null"],
+            description: "Assessor's Parcel Number from the prelim title report or county tax bill.",
+          },
+          mls_number: {
+            type: ["string", "null"],
+            description: "MLS listing number from the listing sheet or MLS printout.",
+          },
+          list_date: {
+            type: ["string", "null"],
+            description: "ISO date (YYYY-MM-DD) the listing went active, from the MLS printout.",
+          },
+          list_status: {
+            type: ["string", "null"],
+            enum: ["active", "pending", "sold", "withdrawn", "unknown", null],
+            description: "Listing status from the MLS printout.",
+          },
+          zestimate: {
+            type: ["integer", "null"],
+            description: "Zillow Zestimate if explicitly noted in the listing materials.",
+          },
+          parking: {
+            type: ["string", "null"],
+            description: "e.g., '2-car attached garage', '1-car carport plus driveway'.",
+          },
+          hoa_dues_monthly: {
+            type: ["integer", "null"],
+            description: "Current monthly HOA dues in USD.",
+          },
+          hoa_last_increase_date: {
+            type: ["string", "null"],
+            description: "ISO date the HOA most recently raised dues, from HOA financial docs.",
+          },
+          hoa_last_increase_amount: {
+            type: ["integer", "null"],
+            description: "Dollar amount of the most recent HOA dues increase.",
+          },
+          cost_reference_market: {
+            type: ["string", "null"],
+            description: "Regional pricing reference assumed for repair-cost estimates. Default 'California Bay Area / Silicon Valley' if unclear.",
+          },
         },
       },
       document_inventory: {
@@ -337,6 +398,19 @@ export const REPORT_TOOL_SCHEMA = {
             description:
               "e.g., 'South Bay / Silicon Valley', 'East Bay', 'LA Westside'",
           },
+          apn: { type: ["string", "null"] },
+          mls_number: { type: ["string", "null"] },
+          list_date: { type: ["string", "null"] },
+          list_status: {
+            type: ["string", "null"],
+            enum: ["active", "pending", "sold", "withdrawn", "unknown", null],
+          },
+          zestimate: { type: ["integer", "null"] },
+          parking: { type: ["string", "null"] },
+          hoa_dues_monthly: { type: ["integer", "null"] },
+          hoa_last_increase_date: { type: ["string", "null"] },
+          hoa_last_increase_amount: { type: ["integer", "null"] },
+          cost_reference_market: { type: ["string", "null"] },
         },
         required: [
           "address",

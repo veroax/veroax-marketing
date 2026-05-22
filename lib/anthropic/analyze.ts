@@ -261,9 +261,20 @@ CRITICAL RULES:
    - MEDIUM: the document implies the issue but doesn't state it directly.
    - LOW: inferred from indirect evidence (age, regional norms, missing information).
 
-5. COST ESTIMATES should reflect California regional pricing. Default to Bay Area / Silicon Valley when location is unclear (most expensive labor market in the state, so a safer over-estimate).
+5. COST ESTIMATES should reflect California regional pricing. Default to Bay Area / Silicon Valley when location is unclear (most expensive labor market in the state, so a safer over-estimate). ALWAYS populate property_facts.cost_reference_market with the regional reference you assumed for your numbers — e.g., "California Bay Area / Silicon Valley", "California Greater Los Angeles", "California Sacramento Valley". Agents need to see which market drove the cost estimates so they can sanity-check them against local labor.
 
-6. CALL THE submit_focused_analysis TOOL EXACTLY ONCE with your structured analysis. Do not produce any other text output.`;
+6. PROPERTY SNAPSHOT FIELDS — populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
+   - apn (Assessor's Parcel Number): typically in the prelim title report, escrow instructions, or county tax bill (usually formatted like "123-45-678" in California).
+   - mls_number: from any MLS printout, listing sheet, or BAREIS/CRMLS export.
+   - list_date (ISO YYYY-MM-DD): the original listing date from the MLS printout.
+   - list_status: from the MLS printout. One of "active", "pending", "sold", "withdrawn", "unknown".
+   - zestimate: only if explicitly shown in the listing materials (don't invent).
+   - parking: from the MLS printout or seller disclosures — describe naturally (e.g., "2-car attached garage", "1-car carport plus driveway", "street parking only").
+   - hoa_dues_monthly: from HOA financial docs or the listing — the CURRENT monthly dues.
+   - hoa_last_increase_date / hoa_last_increase_amount: from HOA budgets or meeting minutes — when did the dues last go up and by how much.
+   Leave any of these null when the documents in your group don't contain the information.
+
+7. CALL THE submit_focused_analysis TOOL EXACTLY ONCE with your structured analysis. Do not produce any other text output.`;
 
 const FOCUSED_GROUP_INSTRUCTIONS: Record<PassGroup, string> = {
   seller_disclosures: `You are analyzing the SELLER DISCLOSURES group: typically the TDS (Transfer Disclosure Statement), SPQ (Seller Property Questionnaire), AVID (Agent Visual Inspection Disclosure), and any combined disclosure exports.
@@ -714,6 +725,19 @@ function mergeProperty(
     list_price: null,
     days_on_market: null,
     market_region: null,
+    // Optional extensions — populated by whichever focused pass found
+    // the source document (APN/title → seller_disclosures, MLS/list →
+    // seller_disclosures or whatever pass got the MLS printout, etc.).
+    apn: null,
+    mls_number: null,
+    list_date: null,
+    list_status: null,
+    zestimate: null,
+    parking: null,
+    hoa_dues_monthly: null,
+    hoa_last_increase_date: null,
+    hoa_last_increase_amount: null,
+    cost_reference_market: null,
   };
   // Walk passes in order (seller_disclosures first via splitDocumentsForBudget
   // ordering); fill in the first non-null value for each field.
@@ -733,6 +757,12 @@ function mergeProperty(
   }
   // If the agent supplied a hint, it wins over what passes extracted.
   if (hint && hint.trim()) merged.address = hint.trim();
+  // Cost-reference market always gets a default so the PDF cover never
+  // shows an empty value here — agents should always see which market
+  // drove the cost estimates.
+  if (!merged.cost_reference_market) {
+    merged.cost_reference_market = "California Bay Area / Silicon Valley";
+  }
   return merged;
 }
 
