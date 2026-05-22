@@ -709,6 +709,11 @@ export type OriginalFile = {
   name: string;
   pages: number;
   size_kb: number;
+  // ISO timestamp when this file was uploaded. Drives the per-row
+  // "Uploaded" column in the Document Inventory section. Optional so
+  // legacy reports rendered without it still work — they render with
+  // a "—" placeholder.
+  uploaded_at?: string | null;
 };
 
 export function ReportPDF({
@@ -1542,6 +1547,9 @@ function SectionDocumentInventory({
               <Text style={{ fontFamily: "Helvetica-Bold" }}>{f.name}</Text>
               {f.pages ? ` — ${f.pages} pp` : ""}
               {f.size_kb ? ` (${formatSize(f.size_kb)})` : ""}
+              {f.uploaded_at
+                ? `  ·  Uploaded ${formatIsoDate(f.uploaded_at)}`
+                : ""}
             </Text>
           </View>
         ))

@@ -204,7 +204,12 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
             )
               ? ((report as { original_files: Array<unknown> }).original_files
                   .filter(
-                    (e): e is { name: string; pages: number; size_kb: number } =>
+                    (e): e is {
+                      name: string;
+                      pages: number;
+                      size_kb: number;
+                      uploaded_at?: string | null;
+                    } =>
                       typeof e === "object" &&
                       e !== null &&
                       typeof (e as { name?: unknown }).name === "string",
@@ -213,8 +218,20 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
                     name: e.name,
                     pages: Number(e.pages) || 0,
                     size_kb: Number(e.size_kb) || 0,
+                    // Legacy reports persisted without uploaded_at fall
+                    // back to the report's created_at on render so the
+                    // PDF inventory always shows a date column.
+                    uploaded_at:
+                      typeof e.uploaded_at === "string"
+                        ? e.uploaded_at
+                        : report.created_at,
                   })))
-              : []) as Array<{ name: string; pages: number; size_kb: number }>
+              : []) as Array<{
+              name: string;
+              pages: number;
+              size_kb: number;
+              uploaded_at?: string | null;
+            }>
           }
         />
       )}
@@ -409,7 +426,12 @@ function AgentSummary({
   lastUpdatedAt: string | null;
   versions: ReportVersionSnapshot[];
   archived: boolean;
-  originalFiles: Array<{ name: string; pages: number; size_kb: number }>;
+  originalFiles: Array<{
+    name: string;
+    pages: number;
+    size_kb: number;
+    uploaded_at?: string | null;
+  }>;
 }) {
   const ageDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
   // Same narrative the PDF cover renders — single source of truth.

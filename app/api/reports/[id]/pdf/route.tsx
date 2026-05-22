@@ -42,7 +42,7 @@ export async function GET(
 
     const { data: report, error } = await supabase
       .from("reports")
-      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions")
+      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at")
       .eq("id", reportId)
       .maybeSingle();
     if (error || !report) {
@@ -173,6 +173,14 @@ export async function GET(
     const originalFilesRaw = (
       snapshotInUse?.original_files ?? report.original_files
     ) as unknown;
+    // Legacy reports persisted original_files without uploaded_at.
+    // Fall back to the report's created_at so the new "Uploaded" line
+    // in the Document Inventory section always shows a date — original
+    // upload predates the per-file timestamp feature.
+    const fallbackUploadedAt =
+      typeof (report as { created_at?: unknown }).created_at === "string"
+        ? ((report as { created_at: string }).created_at)
+        : null;
     const originalFiles: OriginalFile[] | null = Array.isArray(originalFilesRaw)
       ? (originalFilesRaw as unknown[])
           .filter(
@@ -181,11 +189,18 @@ export async function GET(
               e !== null &&
               typeof (e as { name?: unknown }).name === "string",
           )
-          .map((e) => ({
-            name: (e as OriginalFile).name,
-            pages: Number((e as OriginalFile).pages) || 0,
-            size_kb: Number((e as OriginalFile).size_kb) || 0,
-          }))
+          .map((e) => {
+            const entry = e as OriginalFile & { uploaded_at?: unknown };
+            return {
+              name: entry.name,
+              pages: Number(entry.pages) || 0,
+              size_kb: Number(entry.size_kb) || 0,
+              uploaded_at:
+                typeof entry.uploaded_at === "string"
+                  ? entry.uploaded_at
+                  : fallbackUploadedAt,
+            };
+          })
       : null;
 
     const buffer = await renderToBuffer(

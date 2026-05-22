@@ -361,7 +361,24 @@ CRITICAL RULES:
    - HOA boilerplate that doesn't materially change anything ("HOA has CC&Rs", "common area exists")
    A finding earns a slot in the report ONLY when it surfaces a defect, a material risk, a financial concern, a regulatory issue, a non-obvious restriction, or an inconsistency between documents. Be ruthless: if the title would make the reader say "yeah, I knew that," cut it.
 
-7. PROPERTY SNAPSHOT FIELDS — populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
+7. PROPERTY-TYPE APPLICABILITY FILTER. Before surfacing any finding, check whether the underlying obligation or risk actually applies to THIS property type. Many California disclosure forms (TDS especially) ask questions that apply to single-family residences but NOT to condominiums or townhomes where the HOA owns the relevant element. Examples of findings that should be DROPPED for condo / townhome / PUD buyers because the responsibility lives with the HOA, not the unit owner:
+   - Street tree maintenance / city street-tree compliance (HOA / city maintains; not the owner's obligation)
+   - Sidewalk repair obligations (city or HOA)
+   - Exterior building siding, roof, gutters, exterior paint (HOA-maintained common area)
+   - Yard / landscape upkeep where common-area (HOA)
+   - Property line / fence disputes when the fence is on common-area (HOA)
+   - Roof drainage, roof warranties (when on common roof)
+   - Earthquake retrofit of the building shell (HOA-paid; covered by the HOA-paid findings rule above)
+   For SFR buyers, those items DO apply and SHOULD be surfaced when relevant. The decision pivot is property_facts.property_type: when it's condo/condominium/townhome/townhouse/PUD/co-op, drop findings whose subject is plainly common-area or city-curb obligations. When the boundary is ambiguous (balcony exclusive-use, in-unit assigned parking, in-unit window glass with HOA frame), surface the finding with cost_responsibility="shared" or "owner" and explain in the description what the CC&Rs say.
+
+8. HOA SCOPING. HOA documents often contain a lot of information ABOUT THE BUILDING and OTHER UNITS that does not affect THIS buyer's purchase. Filter aggressively:
+   - Architectural violations or fines against OTHER units: DROP unless they reveal a systemic issue with HOA enforcement or are part of pending litigation that affects reserves
+   - Disputes between OTHER owners and the HOA: DROP unless they reveal HOA-level dysfunction (e.g., recurring board turnover, lawsuits)
+   - Maintenance items in OTHER units' exclusive-use areas (a neighbor's balcony issue): DROP
+   - Generic CC&R restrictions that exist in every CA HOA (no commercial vehicles in driveways, quiet hours, pet weight limits): DROP unless materially unusual
+   The reader is buying ONE unit. Surface HOA findings only when they impact (a) THIS unit's owner obligations, (b) the reserves/dues that the buyer will pay into, (c) special-assessment risk that would hit the buyer, or (d) restrictions that materially affect how the buyer can use THIS unit. If the finding describes someone else's problem, it doesn't belong in this report.
+
+9. PROPERTY SNAPSHOT FIELDS — populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
    - apn (Assessor's Parcel Number): typically in the prelim title report, escrow instructions, or county tax bill (usually formatted like "123-45-678" in California).
    - mls_number: from any MLS printout, listing sheet, or BAREIS/CRMLS export.
    - list_date (ISO YYYY-MM-DD): the original listing date from the MLS printout.
@@ -372,20 +389,30 @@ CRITICAL RULES:
    - hoa_last_increase_date / hoa_last_increase_amount: from HOA budgets or meeting minutes — when did the dues last go up and by how much.
    Leave any of these null when the documents in your group don't contain the information.
 
-8. CALL THE submit_focused_analysis TOOL EXACTLY ONCE with your structured analysis. Do not produce any other text output.`;
+10. CALL THE submit_focused_analysis TOOL EXACTLY ONCE with your structured analysis. Do not produce any other text output.`;
 
 const FOCUSED_GROUP_INSTRUCTIONS: Record<PassGroup, string> = {
   seller_disclosures: `You are analyzing the SELLER DISCLOSURES group: typically the TDS (Transfer Disclosure Statement), SPQ (Seller Property Questionnaire), AVID (Agent Visual Inspection Disclosure), and any combined disclosure exports.
 
 Focus on:
 - Defects, repairs, leaks, or issues the seller affirmatively disclosed
-- Items the seller marked "Yes" or "Unknown" or refused to answer on the questionnaire
+- Items the seller marked "Yes" or "Unknown" or refused to answer on the questionnaire — but only when the question applies to THIS property type
 - Permit issues, room additions, conversions disclosed by the seller
 - Neighborhood/nuisance disclosures (flooding, drainage, prior fires, neighbor disputes)
 - Items the agent flagged in the AVID visual inspection
 - The property snapshot facts (address, year built, sq ft, etc.) usually appear here — populate property_facts
 
-If a key disclosure section is blank or evasive, surface it in completeness_issues and add an outstanding_question for the agent to follow up on.`,
+CRITICAL — TDS questions are generic and many DO NOT APPLY to condos / townhomes / PUDs. Identify the property type FIRST (from the form, the listing, or the AVID) and then ignore TDS questions that ask about obligations the HOA owns:
+- Street tree compliance / city street tree obligations: DROP for condos / townhomes. The HOA or city handles street trees; the unit owner has no obligation. Marking the seller "unaware of street tree compliance" is not a buyer concern when there are no street trees to maintain.
+- Sidewalk repair obligations: DROP for condos / townhomes.
+- Roof, gutters, exterior siding, exterior paint, exterior of building: DROP for condos / townhomes (HOA-maintained). If the seller disclosed something about THE UNIT (in-unit ceiling leak from roof above), that's still relevant — but as an in-unit issue, not a roof-repair finding.
+- Property line, fence, retaining wall: DROP for condos when the boundary is HOA common area.
+- Septic, well, propane tank: DROP for condos.
+- Yard, landscaping: DROP unless it's exclusive-use yard assigned to this unit per the CC&Rs.
+
+For SFR buyers, those items DO apply and SHOULD be surfaced when the seller disclosed anything noteworthy. The litmus test: would a reasonable buyer of THIS specific property actually be responsible for the underlying obligation post-close? If no → drop the finding (it's noise).
+
+If a key disclosure section is blank or evasive AND the section applies to this property type, surface it in completeness_issues and add an outstanding_question for the agent to follow up on. Don't flag blank sections for inapplicable questions — a condo's TDS legitimately doesn't fill in the "septic system" subsection.`,
 
   inspections: `You are analyzing the INSPECTION REPORTS group: home/property inspections, termite/pest reports, mold inspections, sewer-lateral inspections, roof inspections.
 

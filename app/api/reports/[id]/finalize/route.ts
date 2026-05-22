@@ -121,7 +121,17 @@ export async function POST(
   // inventory — independent of whatever Claude's analysis reports later.
   // The user sees exactly what they uploaded, not the internal _part_N
   // chunks our splitter created.
-  const originalFiles: Array<{ name: string; pages: number; size_kb: number }> = [];
+  // Per-file upload timestamp surfaces in the PDF Document Inventory
+  // (and the dashboard's Uploaded Documents card). Optional so we can
+  // back-populate legacy rows by leaving uploaded_at undefined and
+  // letting the render fall back to the report created_at.
+  const originalFiles: Array<{
+    name: string;
+    pages: number;
+    size_kb: number;
+    uploaded_at?: string | null;
+  }> = [];
+  const finalizeAt = new Date().toISOString();
 
   // Split any PDF that exceeds Claude's 100-page-per-document limit into
   // 90-page chunks. This makes HOA CC&Rs, Bylaws, and other long documents
@@ -165,10 +175,17 @@ export async function POST(
       }
 
       // Record the original (pre-split) file metadata for the inventory.
+      // uploaded_at captures when this file landed in storage during
+      // the finalize step. Supabase storage metadata exposes created_at;
+      // we fall back to the finalize time when it's missing so we always
+      // have a usable date.
+      const storageCreatedAt =
+        typeof file.created_at === "string" ? file.created_at : null;
       originalFiles.push({
         name: file.name,
         pages: pageCount,
         size_kb: Math.round((file.metadata?.size ?? buffer.length) / 1024),
+        uploaded_at: storageCreatedAt ?? finalizeAt,
       });
 
       // Audit per-file page count for debugging future issues.
