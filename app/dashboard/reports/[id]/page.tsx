@@ -22,7 +22,7 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
 
   const { data: report } = await supabase
     .from("reports")
-    .select("id, status, property_address, source_file_path, report_data, created_at, analysis_completed_at, failure_reason, report_name, client_name, last_updated_at, update_count, versions, original_files")
+    .select("id, status, property_address, source_file_path, report_data, created_at, analysis_completed_at, failure_reason, report_name, client_name, last_updated_at, update_count, versions, original_files, archived")
     .eq("id", id)
     .maybeSingle();
   if (!report) notFound();
@@ -196,6 +196,9 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
               | null
               | undefined) ?? []
           }
+          archived={Boolean(
+            (report as { archived?: boolean | null } | null)?.archived,
+          )}
         />
       )}
 
@@ -490,6 +493,7 @@ function AgentSummary({
   analysisCompletedAt,
   lastUpdatedAt,
   versions,
+  archived,
 }: {
   reportId: string;
   userId: string;
@@ -500,6 +504,7 @@ function AgentSummary({
   analysisCompletedAt: string | null;
   lastUpdatedAt: string | null;
   versions: ReportVersionSnapshot[];
+  archived: boolean;
 }) {
   const ageDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
   // Same narrative the PDF cover renders — single source of truth.
@@ -651,7 +656,12 @@ function AgentSummary({
       </div>
 
       {/* ----- Action row (client component for modal state) ---- */}
-      <AgentActions reportId={reportId} userId={userId} ageDays={ageDays} />
+      <AgentActions
+        reportId={reportId}
+        userId={userId}
+        ageDays={ageDays}
+        archived={archived}
+      />
 
 
       {/* ----- Version history (collapsed by default) ----------- */}

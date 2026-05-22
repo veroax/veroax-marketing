@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AddDocumentsModal } from "./AddDocumentsModal";
 import { EmailDraftModal } from "./EmailDraftModal";
+import { ArchiveButton } from "./ArchiveButton";
 
 // The action row that sits under the strengths/concerns/missing panels
 // on the report page. Houses the modal state for "Add documents" and
@@ -14,9 +15,16 @@ type Props = {
   // Days since the original analysis — passed through to the
   // AddDocumentsModal so it can show the free-window notice.
   ageDays: number;
+  // Current archive state — drives the Archive ↔ Restore button label.
+  archived: boolean;
 };
 
-export function AgentActions({ reportId, userId, ageDays }: Props) {
+export function AgentActions({
+  reportId,
+  userId,
+  ageDays,
+  archived,
+}: Props) {
   const [showAddDocs, setShowAddDocs] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
 
@@ -48,6 +56,7 @@ export function AgentActions({ reportId, userId, ageDays }: Props) {
           <span className="text-base leading-none">+</span>
           Add documents to this report
         </button>
+        <ArchiveButton reportId={reportId} archived={archived} />
       </div>
 
       <AddDocumentsModal
