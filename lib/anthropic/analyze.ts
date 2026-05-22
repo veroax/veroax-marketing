@@ -34,45 +34,91 @@ import { type PassGroup } from "@/lib/pdf/classify";
 // group level before synthesis.
 //
 // ----------------------------------------------------------------------------
-// ACCURACY TRADE-OFF: text extraction vs. native PDF attachment
+// HYBRID DOCUMENT MODE: native PDF attachments for high-signal groups,
+// text extraction for the rest
 // ----------------------------------------------------------------------------
 //
-// Veroax extracts PDF text upfront (via lib/pdf/extract.ts → unpdf) and
-// sends the extracted strings to Claude. This is the right call for the
-// economics — extracted text averages ~300 tokens/page vs. ~1500
-// tokens/page for native PDF attachments (Anthropic's `document` content
-// blocks). For a typical 700-page CA disclosure package, that's the
-// difference between ~210K tokens and ~1.05M tokens of input — i.e., a
-// single Claude call vs. a multi-pass call AND a 5× cost difference.
+// Per-group transport mode (see GROUP_MODE constant below):
 //
-// The trade-off we accept: text extraction LOSES layout fidelity. Claude
-// can't "see" check-boxes, signatures, side-by-side disclosure tables,
-// or strikethroughs in the original document — it only sees the
-// linearized text. For boilerplate-heavy documents (HOA CC&Rs, Bylaws,
-// budgets, reserve studies) this is fine. For documents where layout
-// carries meaning (TDS check-boxes, SPQ side-by-side seller-vs-agent
-// responses, inspection report severity icons), some signal is lost.
+//   seller_disclosures: PDF  — TDS check-boxes, SPQ side-by-side
+//                              seller-vs-agent responses, AVID notes,
+//                              and prelim title layout all carry
+//                              meaning that linearized text loses.
+//                              Claude sees the documents as a human
+//                              would.
+//   inspections:        PDF  — Inspection-report severity icons,
+//                              annotated photos, and side-by-side
+//                              checklists. Same reasoning.
+//   hoa:                TEXT — CC&Rs, Bylaws, budgets, reserve
+//                              studies, meeting minutes. Long and
+//                              dry; the text alone is sufficient
+//                              and the per-page cost matters here
+//                              because HOA packages routinely run
+//                              500+ pages.
+//   hazards:            TEXT — NHD forms and earthquake-fault zone
+//                              maps; the text fields carry the
+//                              information and the visuals don't
+//                              add much.
 //
-// This is why Veroax results may differ from the original Cowork
-// disclosure-analyzer skill, which uses native PDF attachments and sees
-// the documents as a human would.
+// PDF mode trade-offs:
+//   - Cost: ~1500 input tokens per page vs. ~300 for extracted text
+//     (5× per affected group). For a typical CA package this means
+//     seller_disclosures + inspections triple in cost, while hoa +
+//     hazards stay flat. Net ~2-3× total Claude spend per analysis.
+//   - Accuracy: significant. The Cowork disclosure-analyzer skill
+//     uses native PDF attachments throughout and produces noticeably
+//     better signal on TDS / SPQ / AVID interpretation. Veroax
+//     hybrid matches Cowork on those high-signal groups while
+//     staying economical on the long HOA packages where Cowork's
+//     advantage doesn't translate.
+//   - Per-call context: PDF mode sub-batches by PAGES (100/call,
+//     ≈150K tokens) instead of by extracted-text tokens. Each
+//     finalize-time chunk is already capped at 90 pages by
+//     lib/pdf/split.ts, so a single Document never exceeds budget.
 //
-// Future improvement (not implemented here): HYBRID mode — send the
-// seller_disclosures and inspections groups as PDF attachments (layout
-// matters), send hoa and hazards groups as text (token economics win).
-// Estimated cost: ~3× current token spend for the affected groups, but
-// significant accuracy improvement on the disclosure interpretation that
-// drives most findings. Defer until economics + scale justify.
+// REGIONAL PRICING REFERENCE:
+//   The focused-pass system prompt is augmented with a region-
+//   specific snapshot of California labor and common-repair
+//   baselines (see lib/cost-reference/california-markets.ts). The
+//   selectMarketReference(propertyAddressHint) helper picks the
+//   best-match region for the report; the reference is injected
+//   into each focused-pass call so cost estimates land in a
+//   defensible range for the property's actual market. Defaults
+//   to Bay Area / Silicon Valley when no hint resolves cleanly.
 // ============================================================================
 
-// Per-pass document-token budget. Stays well below Sonnet's 200K
-// context, leaving room for system prompt, tool schema, and reasoning.
+// Per-pass document-token budget for TEXT-mode groups (hoa, hazards).
+// Stays well below Sonnet's 200K context, leaving room for system
+// prompt, tool schema, and reasoning.
 const PASS_TOKEN_BUDGET = 175_000;
+
+// Per-pass document-page budget for PDF-mode groups (seller_disclosures,
+// inspections). Each PDF page ≈ 1500 input tokens when sent as a native
+// document attachment, so 100 pages ≈ 150K tokens — comfortable below
+// the 200K context window after system prompt + tool schema overhead.
+const PDF_PASS_PAGE_BUDGET = 100;
+
+// Per-group mode. PDF mode sends native PDF attachments to Claude
+// (preserves check-boxes, signatures, side-by-side seller/agent
+// disclosure tables, severity icons in inspection reports — the
+// stuff that drives the most consequential findings). Text mode
+// sends extracted strings (cheaper, fine for layout-irrelevant
+// long-form documents like HOA CC&Rs and reserve studies).
+const GROUP_MODE: Record<PassGroup, "pdf" | "text"> = {
+  seller_disclosures: "pdf",
+  inspections: "pdf",
+  hoa: "text",
+  hazards: "text",
+};
+
 const MAX_RETRY_WAIT_SECONDS = 150;
 const MAX_ATTEMPTS = 3;
 
 export type Document = {
   filename: string;
+  // Extracted text. Populated for text-mode groups (hoa, hazards).
+  // Empty string for PDF-mode groups where we send the file as a
+  // native document attachment instead.
   text: string;
   pages: number;
   tokens: number;
@@ -82,6 +128,11 @@ export type Document = {
   // document is newer, and synthesis tags any sourced finding with
   // from_doc_added_at.
   addedAt?: string | null;
+  // Base64-encoded PDF bytes. Populated for PDF-mode groups
+  // (seller_disclosures, inspections). The analyzer attaches these
+  // as Anthropic document blocks instead of inlining the text. Null
+  // for text-mode groups.
+  pdfBase64?: string | null;
 };
 
 // Provided by /api/reports/[id]/update when re-analyzing after the
@@ -155,7 +206,15 @@ export async function analyzeDisclosurePackage(
     .filter((g) => (input.groups[g] ?? []).length > 0)
     .map(async (group) => {
       const docs = input.groups[group];
-      const subBatches = splitDocumentsForBudget(docs, PASS_TOKEN_BUDGET);
+      const mode = GROUP_MODE[group];
+      // Sub-split docs to fit per-call budgets. PDF-mode groups
+      // budget by page count (each page ≈ 1500 input tokens of
+      // attached PDF); text-mode groups budget by extracted-text
+      // tokens.
+      const subBatches =
+        mode === "pdf"
+          ? splitDocumentsByPages(docs, PDF_PASS_PAGE_BUDGET)
+          : splitDocumentsForBudget(docs, PASS_TOKEN_BUDGET);
 
       const subResults = await Promise.all(
         subBatches.map(async (batch, i) => {
@@ -163,6 +222,7 @@ export async function analyzeDisclosurePackage(
           const r = await analyzeFocusedPass(
             batch,
             group,
+            mode,
             input.propertyAddressHint,
             input.updateContext ?? null,
           );
@@ -328,6 +388,7 @@ Insurance/lender-blocking zones (high fire-hazard severity zone, FEMA flood AE) 
 async function analyzeFocusedPass(
   documents: Document[],
   group: PassGroup,
+  mode: "pdf" | "text",
   propertyAddressHint?: string | null,
   updateContext?: UpdateContext | null,
 ): Promise<{
@@ -346,26 +407,57 @@ async function analyzeFocusedPass(
       doc.addedAt &&
       doc.addedAt > updateContext.originalAnalysisDate;
     const noticeLine = isNewer
-      ? `Added on: ${doc.addedAt} ` +
-        `(NEWER than the original analysis on ${updateContext!.originalAnalysisDate})\n`
+      ? ` (Added on ${doc.addedAt} — NEWER than the original analysis on ${updateContext!.originalAnalysisDate})`
       : "";
 
-    const body = doc.text
-      ? doc.text
-      : `[No text could be extracted from this PDF (likely a scan without OCR). ` +
-        `Use other documents in this group when forming findings; cite this file only ` +
-        `when its presence in the package is itself informative.]`;
-    content.push({
-      type: "text",
-      text:
-        `===== BEGIN DOCUMENT =====\n` +
-        `Filename: ${doc.filename}\n` +
-        `Pages: ${doc.pages}\n` +
-        noticeLine +
-        `\n` +
-        `${body}\n\n` +
-        `===== END DOCUMENT (${doc.filename}) =====`,
-    });
+    if (mode === "pdf" && doc.pdfBase64) {
+      // Native PDF attachment — Claude sees the document as a human
+      // would: check-boxes, signatures, layout, severity icons. The
+      // text header before the attachment carries the filename so
+      // citations like "TDS p.4" still resolve.
+      content.push({
+        type: "text",
+        text:
+          `===== BEGIN DOCUMENT: ${doc.filename} (${doc.pages} pages)${noticeLine} =====`,
+      });
+      content.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: doc.pdfBase64,
+        },
+        // The title metadata helps Claude refer to the document
+        // unambiguously even when it has near-identical content to
+        // a sibling (TDS vs. SPQ from the same combined export, for
+        // example).
+        title: doc.filename,
+      });
+      content.push({
+        type: "text",
+        text: `===== END DOCUMENT (${doc.filename}) =====`,
+      });
+    } else {
+      // Text-mode (or PDF-mode fallback when base64 is missing for
+      // whatever reason — the analyzer can still ground in extracted
+      // text, just with reduced layout fidelity).
+      const body = doc.text
+        ? doc.text
+        : `[No text could be extracted from this PDF (likely a scan without OCR). ` +
+          `Use other documents in this group when forming findings; cite this file only ` +
+          `when its presence in the package is itself informative.]`;
+      content.push({
+        type: "text",
+        text:
+          `===== BEGIN DOCUMENT =====\n` +
+          `Filename: ${doc.filename}\n` +
+          `Pages: ${doc.pages}\n` +
+          (noticeLine ? `${noticeLine.trimStart()}\n` : "") +
+          `\n` +
+          `${body}\n\n` +
+          `===== END DOCUMENT (${doc.filename}) =====`,
+      });
+    }
   }
 
   const updateNotice = updateContext
@@ -975,6 +1067,39 @@ function splitDocumentsForBudget(
   // Defensive: if any single document exceeds budget on its own, we
   // still keep it as its own batch — it will likely get truncated by
   // Anthropic with a clear error rather than silently fail.
+  return batches.map((b) => b.docs);
+}
+
+// Page-budget splitter for PDF-mode groups. PDF attachments cost
+// ~1500 tokens per page sent to Claude, so we sub-batch by page
+// count rather than by extracted-text tokens. Same bin-packing
+// strategy as splitDocumentsForBudget: largest-first placement,
+// open a new batch when nothing fits. PDFs that exceed budget on
+// their own (>100 pages) have ALREADY been split into _part_N
+// chunks at finalize-time via lib/pdf/split.ts (MAX_PAGES_PER_CHUNK
+// = 90), so a single Document here should never exceed budget.
+function splitDocumentsByPages(
+  documents: Document[],
+  pageBudget: number,
+): Document[][] {
+  const sorted = [...documents].sort((a, b) => b.pages - a.pages);
+  const batches: Array<{ docs: Document[]; pages: number }> = [];
+
+  for (const doc of sorted) {
+    let placed = false;
+    for (const batch of batches) {
+      if (batch.pages + doc.pages <= pageBudget) {
+        batch.docs.push(doc);
+        batch.pages += doc.pages;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      batches.push({ docs: [doc], pages: doc.pages });
+    }
+  }
+
   return batches.map((b) => b.docs);
 }
 

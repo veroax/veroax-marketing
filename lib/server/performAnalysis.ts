@@ -12,12 +12,25 @@ import {
   type UpdateContext,
 } from "@/lib/anthropic/analyze";
 import { extractText, estimateTokens } from "@/lib/pdf/extract";
+import { countPages } from "@/lib/pdf/split";
 import {
   classifyDocument,
   passGroupFor,
   DOCUMENT_TYPE_LABEL,
   type PassGroup,
 } from "@/lib/pdf/classify";
+
+// Which groups send native PDF attachments to Claude vs. extracted
+// text. Must stay in sync with GROUP_MODE in lib/anthropic/analyze.ts.
+// Duplicated here (not imported) because performAnalysis processes
+// files BEFORE the analyzer sees them — it has to know which storage
+// pull-path to take per file.
+const GROUP_TRANSPORT: Record<PassGroup, "pdf" | "text"> = {
+  seller_disclosures: "pdf",
+  inspections: "pdf",
+  hoa: "text",
+  hazards: "text",
+};
 import type { ReportData } from "@/lib/anthropic/schema";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
@@ -100,6 +113,105 @@ export async function performAnalysis(
     }
     const buffer = Buffer.from(await blob.arrayBuffer());
 
+    // Classify by filename FIRST so we know whether this file goes
+    // to Claude as a native PDF attachment or as extracted text. The
+    // two paths have different storage shapes on the Document, so we
+    // can't unify them earlier.
+    const docType = classifyDocument(f.name);
+    const group = passGroupFor(docType);
+    const transport = GROUP_TRANSPORT[group];
+    const addedAt = addedSet.has(f.name.toLowerCase())
+      ? updateContext?.updateDate
+      : null;
+
+    if (transport === "pdf") {
+      // PDF-mode: skip text extraction entirely. Just count pages
+      // (for the sub-batch budget) and base64-encode the buffer.
+      let pages = 0;
+      try {
+        pages = await countPages(buffer);
+      } catch {
+        // If pdf-lib can't read the file, fall back to text mode for
+        // this single document so the run isn't blocked.
+        let extracted;
+        try {
+          extracted = await extractText(buffer);
+        } catch (err) {
+          const reason =
+            err instanceof Error ? err.message : "PDF unreadable";
+          failedExtractions.push({ filename: f.name, reason });
+          documents.push({
+            filename: f.name,
+            text: "",
+            pages: 0,
+            tokens: 0,
+            addedAt,
+          });
+          await admin.from("audit_log").insert({
+            user_id: userId,
+            report_id: reportId,
+            event_type: "analysis.file_uploaded",
+            metadata: {
+              filename: f.name,
+              extract_error: reason,
+              transport: "pdf_fallback_text",
+              uploaded_index: documents.length,
+              total_files: pdfs.length,
+            },
+          });
+          continue;
+        }
+        documents.push({
+          filename: f.name,
+          text: extracted.text,
+          pages: extracted.pages,
+          tokens: estimateTokens(extracted.text),
+          addedAt,
+        });
+        await admin.from("audit_log").insert({
+          user_id: userId,
+          report_id: reportId,
+          event_type: "analysis.file_uploaded",
+          metadata: {
+            filename: f.name,
+            pages: extracted.pages,
+            tokens: estimateTokens(extracted.text),
+            transport: "pdf_fallback_text",
+            uploaded_index: documents.length,
+            total_files: pdfs.length,
+          },
+        });
+        continue;
+      }
+
+      documents.push({
+        filename: f.name,
+        text: "",
+        pages,
+        // tokens estimate just for visibility/audit; real PDF token
+        // cost is computed by Claude. ~1500/page is the rule of
+        // thumb for native PDF attachment input cost.
+        tokens: pages * 1500,
+        addedAt,
+        pdfBase64: buffer.toString("base64"),
+      });
+      await admin.from("audit_log").insert({
+        user_id: userId,
+        report_id: reportId,
+        event_type: "analysis.file_uploaded",
+        metadata: {
+          filename: f.name,
+          pages,
+          tokens: pages * 1500,
+          transport: "pdf",
+          uploaded_index: documents.length,
+          total_files: pdfs.length,
+        },
+      });
+      continue;
+    }
+
+    // Text-mode path (hoa, hazards) — unchanged from prior behavior.
     let extracted;
     try {
       extracted = await extractText(buffer);
@@ -112,9 +224,7 @@ export async function performAnalysis(
         text: "",
         pages: 0,
         tokens: 0,
-        addedAt: addedSet.has(f.name.toLowerCase())
-          ? updateContext?.updateDate
-          : null,
+        addedAt,
       });
       await admin.from("audit_log").insert({
         user_id: userId,
@@ -123,6 +233,7 @@ export async function performAnalysis(
         metadata: {
           filename: f.name,
           extract_error: reason,
+          transport: "text",
           uploaded_index: documents.length,
           total_files: pdfs.length,
         },
@@ -135,11 +246,8 @@ export async function performAnalysis(
       text: extracted.text,
       pages: extracted.pages,
       tokens: estimateTokens(extracted.text),
-      addedAt: addedSet.has(f.name.toLowerCase())
-        ? updateContext?.updateDate
-        : null,
+      addedAt,
     });
-
     await admin.from("audit_log").insert({
       user_id: userId,
       report_id: reportId,
@@ -148,6 +256,7 @@ export async function performAnalysis(
         filename: f.name,
         pages: extracted.pages,
         tokens: estimateTokens(extracted.text),
+        transport: "text",
         uploaded_index: documents.length,
         total_files: pdfs.length,
       },
