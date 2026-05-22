@@ -92,6 +92,39 @@ export default async function AdminHome() {
   const archivedAll = asCount(reportsArchived);
   const admins = asCount(profilesAdmin);
 
+  // Resolve owners for the recent-audit + recent-report sections in
+  // one query so each row can show "by {name}" without N round trips.
+  const visibleUserIds = Array.from(
+    new Set(
+      [
+        ...((recentAudit.data ?? []).map(
+          (e) => (e as { user_id: string | null }).user_id,
+        )),
+        ...((recentReports.data ?? []).map(
+          (r) => (r as { user_id: string }).user_id,
+        )),
+      ].filter(Boolean) as string[],
+    ),
+  );
+  const { data: ownerProfiles } =
+    visibleUserIds.length > 0
+      ? await admin
+          .from("profiles")
+          .select("id, email, full_name")
+          .in("id", visibleUserIds)
+      : { data: [] as Array<{ id: string; email: string; full_name: string | null }> };
+  const profileMap = new Map<
+    string,
+    { id: string; email: string; full_name: string | null }
+  >();
+  for (const p of (ownerProfiles ?? []) as Array<{
+    id: string;
+    email: string;
+    full_name: string | null;
+  }>) {
+    profileMap.set(p.id, p);
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -155,29 +188,38 @@ export default async function AdminHome() {
           </div>
           {recentReports.data && recentReports.data.length > 0 ? (
             <ul className="divide-y divide-slate-100 text-sm">
-              {recentReports.data.map((r) => (
-                <li key={r.id} className="py-2.5 flex items-start gap-3">
-                  <StatusBadge status={r.status} />
-                  <div className="flex-1 min-w-0">
-                    <Link
-                      href={`/admin/reports?q=${encodeURIComponent(r.id)}`}
-                      className="font-medium text-slate-900 hover:text-indigo-700 truncate block"
-                    >
-                      {r.property_address?.trim() ||
-                        r.report_name?.trim() ||
-                        "Untitled report"}
-                    </Link>
-                    {r.client_name ? (
-                      <p className="text-xs text-slate-500 truncate">
-                        Client: {r.client_name}
+              {recentReports.data.map((r) => {
+                const owner = profileMap.get(r.user_id);
+                return (
+                  <li key={r.id} className="py-2.5 flex items-start gap-3">
+                    <StatusBadge status={r.status} />
+                    <div className="flex-1 min-w-0">
+                      <Link
+                        href={`/dashboard/reports/${r.id}`}
+                        className="font-medium text-slate-900 hover:text-indigo-700 truncate block"
+                      >
+                        {r.property_address?.trim() ||
+                          r.report_name?.trim() ||
+                          "Untitled report"}
+                      </Link>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {owner ? (
+                          <Link
+                            href={`/admin/users/${owner.id}`}
+                            className="hover:text-indigo-700"
+                          >
+                            {owner.full_name?.trim() || owner.email}
+                          </Link>
+                        ) : (
+                          <span className="italic">unknown owner</span>
+                        )}
+                        {" · "}
+                        {timeAgo(r.created_at)}
                       </p>
-                    ) : null}
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      {timeAgo(r.created_at)}
-                    </p>
-                  </div>
-                </li>
-              ))}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="text-sm text-slate-500 italic">No reports yet.</p>
@@ -199,18 +241,40 @@ export default async function AdminHome() {
           </div>
           {recentAudit.data && recentAudit.data.length > 0 ? (
             <ul className="divide-y divide-slate-100 text-sm">
-              {recentAudit.data.map((e, i) => (
-                <li key={i} className="py-2.5 flex items-start gap-3">
-                  <span className="text-[10px] font-mono uppercase tracking-wider bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded shrink-0 mt-0.5">
-                    {e.event_type}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] text-slate-400">
-                      {timeAgo(e.created_at)}
-                    </p>
-                  </div>
-                </li>
-              ))}
+              {recentAudit.data.map((e, i) => {
+                const owner = e.user_id ? profileMap.get(e.user_id) : null;
+                return (
+                  <li key={i} className="py-2.5">
+                    <div className="flex items-start gap-2 flex-wrap">
+                      <Link
+                        href={`/admin/audit?event=${encodeURIComponent(e.event_type)}`}
+                        className="text-[10px] font-mono uppercase tracking-wider bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded shrink-0 hover:bg-slate-200"
+                      >
+                        {e.event_type}
+                      </Link>
+                      <span className="text-[11px] text-slate-400 shrink-0">
+                        {timeAgo(e.created_at)}
+                      </span>
+                      {owner ? (
+                        <Link
+                          href={`/admin/users/${owner.id}`}
+                          className="text-[11px] text-indigo-700 hover:underline underline-offset-2"
+                        >
+                          {owner.full_name?.trim() || owner.email}
+                        </Link>
+                      ) : null}
+                      {e.report_id ? (
+                        <Link
+                          href={`/dashboard/reports/${e.report_id}`}
+                          className="text-[11px] text-indigo-700 hover:underline underline-offset-2 font-mono"
+                        >
+                          {(e.report_id as string).slice(0, 8)}
+                        </Link>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="text-sm text-slate-500 italic">No activity yet.</p>

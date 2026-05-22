@@ -122,6 +122,12 @@ export default async function AdminUserDetail({
               currentIsAdmin={Boolean(profile.is_admin)}
               userLabel={profile.full_name?.trim() || profile.email}
             />
+            <Link
+              href={`/admin/audit?user=${profile.id}`}
+              className="text-xs text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
+            >
+              View this user&apos;s audit trail →
+            </Link>
           </div>
         </div>
       </div>
