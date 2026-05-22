@@ -24,6 +24,11 @@ type StatusResponse = {
 
 type Props = {
   reportId: string;
+  // ISO timestamp of when this analysis started, from the DB. Lets the
+  // elapsed-time display + stuck detection survive page navigations —
+  // without it, every visit resets the timer to 0 and a 30-minute-stuck
+  // run looks like it just started.
+  analysisStartedAt?: string | null;
 };
 
 const POLL_INTERVAL_MS = 4000;
@@ -37,17 +42,34 @@ const COMPLETION_DISPLAY_MS = 2000; // dwell time on "Complete!" before page ref
 const STUCK_ELAPSED_THRESHOLD_SEC = 15 * 60; // 15 minutes total elapsed
 const STUCK_NO_EVENT_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes since last event
 
-export function AnalysisRunner({ reportId }: Props) {
+export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
   const router = useRouter();
   const triggered = useRef(false);
   const [phase, setPhase] = useState<"running" | "completing" | "error">("running");
   const [error, setError] = useState<string | null>(null);
-  const [elapsedSec, setElapsedSec] = useState(0);
+  // Seed elapsed from the server-side analysis_started_at so navigating
+  // back to this page mid-run resumes the real elapsed time instead of
+  // restarting at 0. Falls back to 0 when the field is null (the route
+  // hasn't actually been kicked off yet — runAnalysis below will start it).
+  const initialElapsedSec = (() => {
+    if (!analysisStartedAt) return 0;
+    const startedMs = new Date(analysisStartedAt).getTime();
+    if (!Number.isFinite(startedMs)) return 0;
+    return Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+  })();
+  const [elapsedSec, setElapsedSec] = useState(initialElapsedSec);
   const [progress, setProgress] = useState<{
     label: string;
     detail?: string;
   }>({ label: "Starting analysis…" });
-  const [lastEventAt, setLastEventAt] = useState<number>(Date.now());
+  // lastEventAt also seeds from analysis_started_at so the stuck-detection
+  // window measures "no events since the run actually began" instead of
+  // "no events since this page rendered."
+  const [lastEventAt, setLastEventAt] = useState<number>(() => {
+    if (!analysisStartedAt) return Date.now();
+    const t = new Date(analysisStartedAt).getTime();
+    return Number.isFinite(t) ? t : Date.now();
+  });
   const [restarting, setRestarting] = useState(false);
 
   // Tick the elapsed timer while still running.

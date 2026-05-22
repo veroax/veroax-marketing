@@ -23,7 +23,7 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
 
   const { data: report } = await supabase
     .from("reports")
-    .select("id, status, property_address, source_file_path, report_data, created_at, analysis_completed_at, failure_reason, report_name, client_name, last_updated_at, update_count, versions, original_files, archived")
+    .select("id, status, property_address, source_file_path, report_data, created_at, analysis_started_at, analysis_completed_at, failure_reason, report_name, client_name, last_updated_at, update_count, versions, original_files, archived")
     .eq("id", id)
     .maybeSingle();
   if (!report) notFound();
@@ -99,8 +99,9 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
             ← All reports
           </Link>
           <h1 className="text-2xl font-bold text-slate-900">
-            {report.property_address ??
-              reportData?.property_snapshot?.address ??
+            {report.property_address?.trim() ||
+              reportData?.property_snapshot?.address?.trim() ||
+              (report as { report_name?: string | null }).report_name?.trim() ||
               "Untitled report"}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -129,8 +130,20 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
         </div>
       </div>
 
-      {/* Analyzing state — render the client runner that triggers + polls */}
-      {report.status === "analyzing" && <AnalysisRunner reportId={report.id} />}
+      {/* Analyzing state — render the client runner that triggers + polls.
+          analysisStartedAt seeds the elapsed-time display so navigating
+          back to this page mid-run shows REAL elapsed instead of resetting
+          to 0 — which also keeps the stuck-detection threshold working
+          correctly after a navigation. */}
+      {report.status === "analyzing" && (
+        <AnalysisRunner
+          reportId={report.id}
+          analysisStartedAt={
+            (report as { analysis_started_at?: string | null })
+              .analysis_started_at ?? null
+          }
+        />
+      )}
 
       {/* Failed state */}
       {report.status === "failed" && (
