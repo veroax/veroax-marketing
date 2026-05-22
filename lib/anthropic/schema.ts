@@ -21,6 +21,23 @@ export type Finding = {
   cost_estimate: CostRange;
   risk_if_ignored: string;
   recommended_action: string;
+  // Who pays this bill if the repair gets done?
+  //   - "owner": the buyer-occupant of this specific unit/property
+  //   - "hoa": the HOA / condo association from reserves or assessments
+  //   - "shared": cost falls on both (e.g., common-area work with a
+  //     supplemental in-unit component)
+  // Drives two important behaviors:
+  //   (1) The grand-total / critical-high-total in cost_summary count
+  //       ONLY owner + shared findings. HOA-paid items are reported
+  //       separately so the buyer's effective out-of-pocket isn't
+  //       inflated by association capital projects.
+  //   (2) HOA-paid findings can't be auto-Critical solely from cost.
+  //       They may still be Critical from active hazard or lender/
+  //       insurance blockability, but the dollar threshold doesn't
+  //       apply because the buyer never writes that check.
+  // Null/absent on older reports — render code treats "missing" as
+  // "owner" so the legacy behavior stays put for existing report_data.
+  cost_responsibility?: "owner" | "hoa" | "shared" | null;
   // When the finding's source document was added to the report AFTER
   // the original analysis (via /api/reports/[id]/update), this is the
   // ISO date that document was added. NULL or absent for findings
@@ -328,6 +345,12 @@ export const FOCUSED_TOOL_SCHEMA = {
             description:
               "OPTIONAL — when this finding's severity was upgraded to Critical because it matches an always-CRITICAL rule (FPE_panel, aluminum_wiring, polybutylene, knob_and_tube, active_mold, lead_paint_pre1978_w_children, ABS_recall_era, kitec_plumbing, asbestos_friable, underground_oil_tank, unpermitted_living_area, active_water_intrusion, structural_crack_load_bearing), set this to the short rule identifier. Leave null otherwise. Used for transparency so agents can see which rule fired.",
           },
+          cost_responsibility: {
+            type: ["string", "null"],
+            enum: ["owner", "hoa", "shared", null],
+            description:
+              "Who actually pays this bill if the repair gets done. 'owner' = the buyer of this specific unit/property pays out of pocket; 'hoa' = the HOA/condo association covers it from reserves or assessments (the buyer never writes a check); 'shared' = both contribute. Default to 'owner' unless the source documents indicate the work is in a common area, on the building exterior, in shared mechanical systems, or otherwise the HOA's responsibility per the CC&Rs / governing docs. CRITICAL: if cost_responsibility = 'hoa' you must NOT mark the finding Critical based on the cost threshold alone — the dollar amount doesn't hit the buyer's pocket. The finding can still be Critical for an active hazard or insurance/lender blockability.",
+          },
         },
         required: [
           "title",
@@ -605,6 +628,12 @@ export const REPORT_TOOL_SCHEMA = {
             type: ["string", "null"],
             description:
               "OPTIONAL — when this finding's severity was upgraded to Critical because it matches an always-CRITICAL rule (FPE_panel, aluminum_wiring, polybutylene, knob_and_tube, active_mold, lead_paint_pre1978_w_children, ABS_recall_era, kitec_plumbing, asbestos_friable, underground_oil_tank, unpermitted_living_area, active_water_intrusion, structural_crack_load_bearing), set this to the short rule identifier. Leave null otherwise. Used for transparency so agents can see which rule fired.",
+          },
+          cost_responsibility: {
+            type: ["string", "null"],
+            enum: ["owner", "hoa", "shared", null],
+            description:
+              "Who actually pays this bill if the repair gets done. 'owner' = the buyer of this specific unit/property pays out of pocket; 'hoa' = the HOA/condo association covers it from reserves or assessments (the buyer never writes a check); 'shared' = both contribute. Default to 'owner' unless the source documents indicate the work is in a common area, on the building exterior, in shared mechanical systems, or otherwise the HOA's responsibility per the CC&Rs / governing docs. CRITICAL: if cost_responsibility = 'hoa' you must NOT mark the finding Critical based on the cost threshold alone — the dollar amount doesn't hit the buyer's pocket. The finding can still be Critical for an active hazard or insurance/lender blockability.",
           },
         },
         required: [

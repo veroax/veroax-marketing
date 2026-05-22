@@ -8,6 +8,7 @@ import {
   type FocusedAnalysis,
   type Finding,
   type CostRange,
+  type Severity,
 } from "./schema";
 import { type PassGroup } from "@/lib/pdf/classify";
 import {
@@ -344,7 +345,19 @@ CRITICAL RULES:
 
 5. COST ESTIMATES should reflect California regional pricing. Default to Bay Area / Silicon Valley when location is unclear (most expensive labor market in the state, so a safer over-estimate). ALWAYS populate property_facts.cost_reference_market with the regional reference you assumed for your numbers — e.g., "California Bay Area / Silicon Valley", "California Greater Los Angeles", "California Sacramento Valley". Agents need to see which market drove the cost estimates so they can sanity-check them against local labor.
 
-6. PROPERTY SNAPSHOT FIELDS — populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
+   SCOPE THE COST ESTIMATE TO THE BUYER'S UNIT. The buyer is purchasing ONE specific address — not an interest in the building, the HOA, or the neighborhood. Cost estimates must reflect what THAT BUYER will pay (or in the case of HOA-paid items, what the buyer is exposed to). For condos, townhomes, and PUDs:
+   - In-unit repairs (interior plumbing, interior electrical past the meter, in-unit HVAC, in-unit appliances, in-unit fixtures, balcony exclusive-use where the CC&Rs assign maintenance to the owner): cost_responsibility = "owner". Full cost goes in cost_estimate; counts toward the buyer's repair exposure.
+   - Common-area / building-envelope repairs paid from HOA reserves or assessments (full-building roof replacement, exterior building paint, common-area plumbing risers, common boiler, elevator, lobby, common parking lot, exterior of building, structural / load-bearing common elements, common-area landscaping): cost_responsibility = "hoa". cost_estimate may show the FULL project cost (so the buyer understands the scope), but DO NOT include this dollar amount when computing the buyer's repair exposure narrative — the buyer doesn't write that check. The buyer's exposure to HOA-paid work is via reserve health, dues increases, and special-assessment risk, which belongs in the HOA section, NOT in the per-unit cost summary.
+   - When CC&Rs are ambiguous about responsibility, use cost_responsibility = "shared" and explain in the description.
+
+6. OBVIOUS-FACT FILTER. Do NOT surface a finding whose content the buyer already knew from the listing or a 30-second walkthrough. Findings must reveal something the buyer would NOT have learned from the MLS sheet or a tour. Skip:
+   - Unit configuration descriptions ("1 bedroom 1 bath condominium", "2-story SFR", "single-family residence on a corner lot") — these are the listing
+   - Bare property facts ("home has a kitchen", "property is in California", "the unit has a balcony") — the buyer can see the home
+   - Generic disclaimer recitations ("this property is sold as-is per the contract", "buyer to verify all dimensions") — boilerplate
+   - HOA boilerplate that doesn't materially change anything ("HOA has CC&Rs", "common area exists")
+   A finding earns a slot in the report ONLY when it surfaces a defect, a material risk, a financial concern, a regulatory issue, a non-obvious restriction, or an inconsistency between documents. Be ruthless: if the title would make the reader say "yeah, I knew that," cut it.
+
+7. PROPERTY SNAPSHOT FIELDS — populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
    - apn (Assessor's Parcel Number): typically in the prelim title report, escrow instructions, or county tax bill (usually formatted like "123-45-678" in California).
    - mls_number: from any MLS printout, listing sheet, or BAREIS/CRMLS export.
    - list_date (ISO YYYY-MM-DD): the original listing date from the MLS printout.
@@ -355,7 +368,7 @@ CRITICAL RULES:
    - hoa_last_increase_date / hoa_last_increase_amount: from HOA budgets or meeting minutes — when did the dues last go up and by how much.
    Leave any of these null when the documents in your group don't contain the information.
 
-7. CALL THE submit_focused_analysis TOOL EXACTLY ONCE with your structured analysis. Do not produce any other text output.`;
+8. CALL THE submit_focused_analysis TOOL EXACTLY ONCE with your structured analysis. Do not produce any other text output.`;
 
 const FOCUSED_GROUP_INSTRUCTIONS: Record<PassGroup, string> = {
   seller_disclosures: `You are analyzing the SELLER DISCLOSURES group: typically the TDS (Transfer Disclosure Statement), SPQ (Seller Property Questionnaire), AVID (Agent Visual Inspection Disclosure), and any combined disclosure exports.
@@ -393,7 +406,17 @@ Focus on:
 - Insurance coverage gaps (e.g., earthquake not covered)
 - Set hoa_facts.applicable=true and provide a summary
 
-Treat CC&Rs/Bylaws boilerplate as low-priority — only flag genuinely consequential restrictions. Findings should be about the HOA's financial/operational health and rules that affect occupancy.`,
+Treat CC&Rs/Bylaws boilerplate as low-priority — only flag genuinely consequential restrictions. Findings should be about the HOA's financial/operational health and rules that affect occupancy.
+
+CRITICAL — COST RESPONSIBILITY FOR HOA FINDINGS:
+Almost every cost-bearing finding sourced from HOA documents is HOA-paid, not owner-paid:
+- Deferred building roof replacement → cost_responsibility = "hoa"
+- Common-area plumbing or elevator capital project → cost_responsibility = "hoa"
+- Exterior building paint cycle → cost_responsibility = "hoa"
+- Reserve shortfall or planned special assessment → cost_responsibility = "hoa" on the project finding; the buyer's exposure (a future dues increase or pro-rata special assessment) belongs in hoa_facts.concerns
+DO NOT mark a finding Critical because the HOA project costs $500K. The dollar figure shows the scope, but cost_responsibility="hoa" means it never lands on the buyer's repair-cost line. Severity for the BUYER reflects probability of a special assessment hitting them, the size of likely dues increases, and whether reserves are healthy enough to absorb the project — those are typically Moderate or High concerns, not Critical, unless reserves are dangerously underfunded relative to the imminent project (active hazard equivalent).
+
+Items that ARE owner-paid even when sourced from HOA docs: balcony exclusive-use maintenance assigned to the unit owner per CC&Rs, in-unit fixtures the HOA explicitly disclaims, the buyer's pro-rata share of a special assessment ALREADY LEVIED. Tag those cost_responsibility = "owner" (or "shared" with explanation).`,
 
   hazards: `You are analyzing the NATURAL HAZARDS group: NHD reports, environmental disclosures, supplemental hazard documents.
 
@@ -596,33 +619,141 @@ function synthesizeReportInCode(
     }
   }
 
-  const criticalFindings = allFindings.filter(
-    (f) => f.severity === "critical" || f.severity === "high",
-  );
-  const moderateFindings = allFindings.filter((f) => f.severity === "moderate");
-  const cosmeticFindings = allFindings.filter((f) => f.severity === "cosmetic");
+  // -------- POST-PROCESSING: HOA cost-driven severity downgrade --------
+  // The prompt asks Claude to honor cost_responsibility, but we belt-
+  // and-suspenders it here. Any finding tagged cost_responsibility="hoa"
+  // that's Critical AND has no triggered_rule AND has no active-hazard
+  // language gets downgraded to High — the dollar amount drove its
+  // severity, but the dollars don't hit the buyer's pocket. We KEEP
+  // Critical when the finding's narrative implies an active hazard
+  // (water intrusion, mold, structural movement) or when a triggered_
+  // rule fired (those rules cover hazard/lender/insurance criteria
+  // explicitly).
+  for (const f of allFindings) {
+    if (
+      f.cost_responsibility === "hoa" &&
+      f.severity === "critical" &&
+      !f.triggered_rule &&
+      !mentionsActiveHazardOrInsuranceBlock(
+        `${f.title} ${f.description} ${f.risk_if_ignored}`,
+      )
+    ) {
+      f.severity = "high";
+    }
+  }
 
-  // Cost summary: aggregate cost ranges from finding estimates plus the
-  // explicit cost_estimates each pass produced.
-  const criticalHighCosts = criticalFindings.map((f) => f.cost_estimate).filter(Boolean);
-  const moderateCosts = moderateFindings.map((f) => f.cost_estimate).filter(Boolean);
-  const critHighTotal = sumCostRanges(criticalHighCosts);
-  const moderateTotal = sumCostRanges(moderateCosts);
+  // -------- POST-PROCESSING: drop obvious-fact findings ----------------
+  // Final defense against findings that just describe what the listing
+  // says. The prompt's OBVIOUS-FACT FILTER catches most; this catches
+  // the rest by pattern-matching titles/descriptions that read like
+  // listing copy with no defect, risk, or actionable content.
+  const filteredAllFindings = allFindings.filter((f) => !isObviousFactFinding(f));
+  const filteredPermitFindings = permitFindings.filter(
+    (f) => !isObviousFactFinding(f),
+  );
+
+  // -------- Bucket + SORT by severity, then by cost.high descending ---
+  // Within the critical-bucket we keep Critical above High by sorting on
+  // the severity rank first, then descending cost so the biggest-dollar
+  // items lead each tier. The dashboard + PDF show critical_findings as
+  // the headline list, so this ordering is what the user reads first.
+  const severityRank: Record<Severity, number> = {
+    critical: 0,
+    high: 1,
+    moderate: 2,
+    cosmetic: 3,
+  };
+  const sortFindings = (arr: Finding[]) =>
+    [...arr].sort((a, b) => {
+      const sevDelta = severityRank[a.severity] - severityRank[b.severity];
+      if (sevDelta !== 0) return sevDelta;
+      const aCost = a.cost_estimate?.high ?? 0;
+      const bCost = b.cost_estimate?.high ?? 0;
+      return bCost - aCost;
+    });
+
+  const criticalFindings = sortFindings(
+    filteredAllFindings.filter(
+      (f) => f.severity === "critical" || f.severity === "high",
+    ),
+  );
+  const moderateFindings = sortFindings(
+    filteredAllFindings.filter((f) => f.severity === "moderate"),
+  );
+  const cosmeticFindings = sortFindings(
+    filteredAllFindings.filter((f) => f.severity === "cosmetic"),
+  );
+
+  // -------- Cost summary: BUYER OUT-OF-POCKET vs HOA-PAID --------------
+  // The grand_total / critical_high_total / moderate_total numbers
+  // surface in the executive summary as "repair exposure" and need to
+  // reflect what the buyer actually pays. We split:
+  //   - buyer-pays subset: findings where cost_responsibility is null,
+  //     undefined, "owner", or "shared". These count toward the buyer's
+  //     repair exposure.
+  //   - hoa-paid subset: cost_responsibility === "hoa". Reported as a
+  //     separate informational line in the cost summary, NOT rolled
+  //     into the buyer's totals.
+  const isBuyerPays = (f: Finding) =>
+    f.cost_responsibility !== "hoa"; // null/undefined/owner/shared → buyer pays
+
+  const buyerCritHighCosts = criticalFindings
+    .filter(isBuyerPays)
+    .map((f) => f.cost_estimate)
+    .filter(Boolean);
+  const buyerModerateCosts = moderateFindings
+    .filter(isBuyerPays)
+    .map((f) => f.cost_estimate)
+    .filter(Boolean);
+  const critHighTotal = sumCostRanges(buyerCritHighCosts);
+  const moderateTotal = sumCostRanges(buyerModerateCosts);
   const grandTotal: CostRange = {
     low: critHighTotal.low + moderateTotal.low,
     high: critHighTotal.high + moderateTotal.high,
   };
 
-  // Line items grouped by category.
+  // Line items: buyer-pays go under severity-bucketed categories; HOA-
+  // paid findings get their own category so the agent + buyer can SEE
+  // the scope of HOA capital work without it inflating the buyer total.
   const lineItemsByCategory = new Map<string, Array<{ label: string; cost: CostRange }>>();
-  // Findings → line items
   for (const f of criticalFindings) {
-    addLine(lineItemsByCategory, "Critical & high-priority repairs", f.title, f.cost_estimate);
+    if (isBuyerPays(f)) {
+      addLine(
+        lineItemsByCategory,
+        "Critical & high-priority repairs (buyer)",
+        f.title,
+        f.cost_estimate,
+      );
+    } else {
+      addLine(
+        lineItemsByCategory,
+        "HOA-paid capital projects (informational)",
+        f.title,
+        f.cost_estimate,
+      );
+    }
   }
   for (const f of moderateFindings) {
-    addLine(lineItemsByCategory, "Moderate repairs (1-5 year horizon)", f.title, f.cost_estimate);
+    if (isBuyerPays(f)) {
+      addLine(
+        lineItemsByCategory,
+        "Moderate repairs (1-5 year horizon, buyer)",
+        f.title,
+        f.cost_estimate,
+      );
+    } else {
+      addLine(
+        lineItemsByCategory,
+        "HOA-paid capital projects (informational)",
+        f.title,
+        f.cost_estimate,
+      );
+    }
   }
-  // Cost estimates from focused passes → line items (use as-given category)
+  // Cost estimates from focused passes → line items (use as-given category).
+  // These come from Claude's cost_estimates array, separate from finding
+  // estimates. We don't have a cost_responsibility on these so we trust
+  // the category Claude picked.
   for (const pass of focused) {
     for (const e of pass.cost_estimates ?? []) {
       addLine(lineItemsByCategory, e.category || "Other", e.label, e.cost);
@@ -693,7 +824,7 @@ function synthesizeReportInCode(
       permitSummaries.length > 0
         ? permitSummaries.join(" ")
         : "No permit-related issues surfaced in the documents reviewed.",
-    findings: permitFindings,
+    findings: sortFindings(filteredPermitFindings),
   };
 
   // Insurance / lender risk — sort notes into the two buckets via
@@ -726,10 +857,54 @@ function synthesizeReportInCode(
     lender_concerns: dedupeStrings(lenderConcerns),
   };
 
-  // Outstanding questions — dedupe and combine.
-  const outstandingQuestions = dedupeStrings(
+  // Outstanding questions — dedupe, normalize, cap to a handful.
+  //
+  // We were generating 20+ questions per report and the agent feedback
+  // was clear: a wall of questions overwhelms the buyer and the goal is
+  // to surface FACTS, then let them and the agent reach a conclusion.
+  // The cap is a hard limit so the section reads like "here are the
+  // questions worth asking" instead of an exhaustive interrogation.
+  //
+  // Ranking heuristics (we don't have semantic understanding here):
+  //   1. Questions that mention a critical/high finding title get
+  //      priority — those questions are directly tied to closing-
+  //      blocking concerns.
+  //   2. Questions that contain "?" near the end and look like real
+  //      open-ended buyer questions go next.
+  //   3. Generic boilerplate-y questions ("Are there any other items
+  //      the seller is aware of?") get dropped.
+  const MAX_QUESTIONS = 6;
+  const allQuestions = dedupeStrings(
     focused.flatMap((p) => p.outstanding_questions ?? []),
   );
+  const criticalTitleWords = new Set(
+    criticalFindings
+      .flatMap((f) => f.title.toLowerCase().split(/\W+/))
+      .filter((w) => w.length > 4),
+  );
+  const rankedQuestions = allQuestions
+    .map((q) => {
+      const lower = q.toLowerCase();
+      const isGenericBoilerplate =
+        /^(are there any other|is there anything else|does the seller|do you have any additional)/i.test(
+          q.trim(),
+        );
+      const tiesToCritical = Array.from(criticalTitleWords).some((w) =>
+        lower.includes(w),
+      );
+      let score = 0;
+      if (tiesToCritical) score += 10;
+      if (q.trim().endsWith("?")) score += 3;
+      if (isGenericBoilerplate) score -= 20;
+      // Prefer specific (mid-length) over very short or very long
+      if (q.length > 40 && q.length < 200) score += 2;
+      return { q, score };
+    })
+    .filter((x) => x.score > -10) // drop the genuinely useless ones
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_QUESTIONS)
+    .map((x) => x.q);
+  const outstandingQuestions = rankedQuestions;
 
   // Negotiation leverage — high-confidence critical/high findings.
   const leveragePoints = criticalFindings
@@ -744,18 +919,24 @@ function synthesizeReportInCode(
     leverage_points: leveragePoints,
   };
 
-  // Overall rating — rule-based on finding counts and severity.
+  // Overall rating — rule-based on FILTERED finding counts so obvious-
+  // fact junk and HOA-downgraded items don't tilt the rating.
   const overallRating = determineOverallRating({
-    criticalCount: allFindings.filter((f) => f.severity === "critical").length,
-    highCount: allFindings.filter((f) => f.severity === "high").length,
+    criticalCount: filteredAllFindings.filter((f) => f.severity === "critical")
+      .length,
+    highCount: filteredAllFindings.filter((f) => f.severity === "high").length,
     moderateCount: moderateFindings.length,
     cosmeticCount: cosmeticFindings.length,
   });
 
-  // Human-readable update note. Counts findings whose source cited an
-  // added document — gives the agent (and the email/dashboard summary)
-  // a one-liner explaining what this re-analysis actually changed.
-  const updateNote = composeUpdateNote(updateContext, allFindings.concat(permitFindings));
+  // Human-readable update note. Counts filtered findings whose source
+  // cited an added document — gives the agent (and the email/dashboard
+  // summary) a one-liner explaining what this re-analysis actually
+  // changed.
+  const updateNote = composeUpdateNote(
+    updateContext,
+    filteredAllFindings.concat(filteredPermitFindings),
+  );
 
   return {
     property_snapshot: property,
@@ -842,6 +1023,71 @@ function dedupeStrings(arr: string[]): string[] {
     }
   }
   return result;
+}
+
+// Identify findings that just describe what the listing already says —
+// e.g. "1 Bedroom, 1 Bath Condominium". The prompt's OBVIOUS-FACT FILTER
+// asks Claude to skip these, but Claude is variable; this is the belt-
+// and-suspenders pattern match. We look for telltale shapes:
+//   - Title or description that's purely a unit configuration string
+//     ("X bedroom Y bath condominium / townhome / SFR")
+//   - Title is a property-type label with no defect language
+//   - Bare boilerplate ("sold as-is", "buyer to verify dimensions")
+// AND there's no cost > 0 AND no risk_if_ignored content of substance.
+// If a finding has a real cost or a real risk paragraph, we keep it
+// even if the title is generic.
+function isObviousFactFinding(f: Finding): boolean {
+  const titleLower = (f.title || "").toLowerCase().trim();
+  const descLower = (f.description || "").toLowerCase().trim();
+  const hasMaterialRisk =
+    (f.risk_if_ignored?.length ?? 0) > 60 &&
+    !/^(none|n\/a|no risk|not applicable|cosmetic)/i.test(f.risk_if_ignored);
+  const hasRealCost =
+    (f.cost_estimate?.high ?? 0) > 100 || (f.cost_estimate?.low ?? 0) > 100;
+  // If the finding has real teeth, keep it.
+  if (hasMaterialRisk || hasRealCost) return false;
+
+  // Unit-configuration patterns: "X bed Y bath condo", "single-family
+  // residence", "townhome / townhouse", "studio condo", etc.
+  const unitConfigPatterns = [
+    /^\d+\s*(bed(room)?s?|br)[\s,\-/]+\d+\.?\d*\s*(bath(room)?s?|ba)/i,
+    /^(single[-\s]?family|sfr|townho(use|me)|condominium|condo|studio|duplex|multi[-\s]?family)/i,
+    /^property is (a|an)\s/i,
+  ];
+  for (const re of unitConfigPatterns) {
+    if (re.test(titleLower) || re.test(descLower)) return true;
+  }
+
+  // Pure boilerplate phrases that don't tell the buyer anything new.
+  const boilerplatePatterns = [
+    /\bsold as[-\s]?is\b/i,
+    /\bbuyer to verify\b/i,
+    /\bsubject to verification\b/i,
+    /\binformation deemed reliable but not guaranteed\b/i,
+    /\bsquare footage approximate\b/i,
+  ];
+  // Boilerplate only counts as "obvious" when it's the ENTIRE substance
+  // of the finding — short titles that are basically just the cliché.
+  if (titleLower.length < 80) {
+    for (const re of boilerplatePatterns) {
+      if (re.test(titleLower)) return true;
+    }
+  }
+
+  return false;
+}
+
+// Decide whether finding language indicates an active hazard, water
+// intrusion, structural issue, or insurance/lender-blocking condition.
+// Used to PROTECT a Critical finding from the auto-downgrade we apply
+// when cost_responsibility="hoa" — if the HOA project addresses an
+// active hazard (active leaks, mold, structural movement) we keep
+// Critical because the issue, not the cost, is what makes it urgent.
+function mentionsActiveHazardOrInsuranceBlock(text: string): boolean {
+  const lower = text.toLowerCase();
+  return /\b(active leak|active water|water intrusion|ongoing leak|mold growth|moisture[-\s]saturated|structural (crack|settlement|movement)|foundation settlement|active hazard|imminent failure|lender (will not|won't|refus)|insurer (will not|won't|refus)|cannot bind|coverage refused|not insurable|uninsurable)\b/.test(
+    lower,
+  );
 }
 
 function mergeProperty(
