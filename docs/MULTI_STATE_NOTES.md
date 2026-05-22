@@ -185,6 +185,52 @@ National rollout to all 50 states is gated on (a) state-config
 infrastructure being clean and (b) finding state-specific reviewers
 who can validate the prompt outputs for accuracy.
 
+## Structural patterns from the Cowork disclosure-analyzer skill (review)
+
+A side-by-side comparison with the Cowork disclosure-analyzer skill
+surfaced three structural patterns where Veroax is behind. Not
+state-specific, but worth tracking here because they all benefit
+multi-state expansion:
+
+1. **Agent QA gate before PDF render.** The skill pauses Step 3 to
+   present critical/high findings to the agent for explicit sign-off
+   BEFORE generating the PDF. The agent must reply "approved" or the
+   PDF is blocked. Catches Claude errors (wrong severity, misread
+   source) before they're baked in. Veroax goes directly to
+   "qa_pending" status — that label was supposed to gate human QA
+   but no review step exists. To match the skill we'd need (a) a
+   dashboard intermediate state where the agent reviews + edits
+   findings, (b) only THEN flip to "Ready" + render PDF.
+
+2. **Per-run fresh regional cost reference via web search.** The
+   skill builds the cost-reference library at the START of every
+   analysis via live web search, scoped to the property's market.
+   Veroax bakes the cost reference into a static
+   `lib/cost-reference/california-markets.ts`. Pro of the skill
+   pattern: estimates are always current and defensible. Con:
+   adds latency + a web-search dependency. Path forward: add an
+   optional "web-search-grounded" mode behind a feature flag.
+
+3. **Audit log as compliance instrument, not analytics.** The
+   skill's audit log captures license-gate outcomes, retention-until
+   dates (7-year floor), tenant isolation, and uses immutable
+   backends (S3 Object Lock, Postgres with RLS). Veroax's
+   `audit_log` table is for operational tracking — token usage,
+   pass progress. For E&O / DRE inquiry survival we need a parallel
+   compliance log with the skill's shape.
+
+Already aligned with the skill:
+- Multi-pass focused analysis (seller_disclosures / inspections /
+  hoa / hazards)
+- Code-based synthesis (both projects discovered Claude-driven
+  synthesis hung in production and switched to deterministic code)
+- HOA scoping ("DROP findings about OTHER units") — the prompt rules
+  are nearly identical in both codebases as of this commit
+- Always-Critical rules (FPE, polybutylene, KW, asbestos, lead)
+- Severity ranking with cost + hazard + lender-blockability rubric
+- Property-type filter (street trees not applicable to condos)
+- Structured outputs via Claude tool-use
+
 ## Items already national-friendly (no change needed)
 
 - Always-Critical hazard rules (FPE panels, polybutylene, asbestos,

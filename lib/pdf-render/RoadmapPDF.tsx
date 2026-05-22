@@ -123,11 +123,15 @@ const SECTIONS: Section[] = [
       },
       {
         done: false,
-        text: "Build a real test corpus (10+ packages, ground-truth findings) to detect quality regressions on every prompt change",
+        text: "Live regional cost lookup per run (skill-style web search at analyze time so estimates are current, not static)",
       },
       {
         done: false,
-        text: "Per-region cost data refresh cadence (biweekly target; admin-editable in-app)",
+        text: "Agent QA gate: pause analysis to surface critical/high findings for sign-off BEFORE PDF render",
+      },
+      {
+        done: false,
+        text: "Test corpus (10+ packages, ground-truth findings) to catch prompt-change quality regressions",
       },
     ],
   },
@@ -240,7 +244,11 @@ const SECTIONS: Section[] = [
       },
       {
         done: false,
-        text: "Per-report audit-log retention + agent-visible activity timeline",
+        text: "Compliance-grade audit log: 7-year retention, license-gate outcome captured, immutable backend",
+      },
+      {
+        done: false,
+        text: "Agent-visible activity timeline (per report) — what ran when, who did what",
       },
       {
         done: false,
