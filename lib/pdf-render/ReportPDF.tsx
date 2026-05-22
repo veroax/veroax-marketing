@@ -70,15 +70,8 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica",
     color: C.text,
     lineHeight: 1.4,
-    // Padding gives the fixed header (anchored at top) and fixed footer
-    // (anchored at bottom) a safe area to render without overlapping
-    // the content flow. The header is ~28pt tall (one row of 7.5pt
-    // text + 1pt separator + small gap); the footer is ~50pt tall
-    // (1pt separator + 1-3 lines of 7.5pt extras + the main row +
-    // bottom anchor offset). Padding values below account for that
-    // plus a few points of breathing room.
-    paddingTop: 64,
-    paddingBottom: 64,
+    paddingTop: 56,
+    paddingBottom: 56,
     paddingHorizontal: 56,
   },
   coverPage: {
@@ -618,46 +611,36 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: C.subtext,
   },
-  // Page header (top of each body page) — anchored to the top edge
-  // of every page including auto-paginated continuation pages.
+  // Page header (top of each body page).
   //
-  // We use position:absolute so the fixed header sits at a known
-  // top-of-page coordinate rather than at the position the flow
-  // happens to leave it (which was causing text overlay on
-  // continuation pages — the unstyled fixed header on page 2 landed
-  // wherever the content had ended on page 1). The Page's paddingTop
-  // (set above) keeps content from flowing into this band. NOTE: the
-  // older CLAUDE.md note discouraged position:absolute on footer
-  // because of a past layout crash — that crash was tied to a
-  // different combination of properties (minHeight + flex column).
-  // Using only `position: absolute` plus left/right/top with no
-  // minHeight is safe and is the documented React-PDF pattern for
-  // page chrome.
+  // History note: I tried position:absolute + top/bottom to perfectly
+  // anchor the header/footer to page edges. That combined with `fixed`
+  // and content overflow produced a hard render crash from React-PDF:
+  //   "unsupported number: -1.7793471615011557e+21"
+  // — the layout engine emits an invalid coordinate during the
+  // pagination pass when an absolute-positioned fixed element has to
+  // be repeated on continuation pages whose content has flexed
+  // unexpectedly. Reverted to flow positioning + `fixed`. Trade-off:
+  // on auto-paginated continuation pages the footer may end up
+  // wherever the previous page's flow ended (which can overlap
+  // content). The cleaner fix is to split long sections into their
+  // own forced-page-break BodyPages so no page ever overflows; that
+  // restructuring is on the roadmap. In the meantime, "rendered with
+  // a quirk" beats "doesn't render".
   pageHeader: {
-    position: "absolute",
-    top: 32,
-    left: 56,
-    right: 56,
     flexDirection: "row",
     justifyContent: "space-between",
+    marginBottom: 4,
     fontSize: 7.5,
     color: C.subtext,
   },
   pageHeaderSeparator: {
-    position: "absolute",
-    top: 50,
-    left: 56,
-    right: 56,
     height: 1,
     backgroundColor: C.accent,
+    marginBottom: 12,
   },
-  // Page footer (bottom of each body page) — anchored to the bottom
-  // edge of every page so it never overlaps content above it.
   pageFooterWrap: {
-    position: "absolute",
-    bottom: 24,
-    left: 56,
-    right: 56,
+    marginTop: 18,
   },
   pageFooterSeparator: {
     height: 1,

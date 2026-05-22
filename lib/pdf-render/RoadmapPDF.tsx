@@ -152,6 +152,10 @@ const SECTIONS: Section[] = [
       },
       {
         done: false,
+        text: "Split each report section into its own forced-page-break BodyPage so no section can auto-overflow. Unlocks clean header/footer on every page without position:absolute (which crashes React-PDF on overflow pages — see 2026-05-22 incident)",
+      },
+      {
+        done: false,
         text: "Optional client-branded variant — coffee-stained logo / brokerage colors / agent headshot polish",
       },
     ],
