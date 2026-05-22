@@ -10,6 +10,10 @@ import {
   type CostRange,
 } from "./schema";
 import { type PassGroup } from "@/lib/pdf/classify";
+import {
+  selectMarketReference,
+  formatMarketReferenceForPrompt,
+} from "@/lib/cost-reference/california-markets";
 
 // ============================================================================
 // Multi-pass disclosure analysis
@@ -480,7 +484,16 @@ async function analyzeFocusedPass(
       updateNotice,
   });
 
-  const systemPrompt = `${FOCUSED_SYSTEM_BASE}\n\n${FOCUSED_GROUP_INSTRUCTIONS[group]}`;
+  // Regional cost reference: pick the best-match California market
+  // for this report's property and inject the baseline labor + repair
+  // ranges so Claude's cost estimates land in defensible territory
+  // for the actual region (not a generic Bay Area default applied to
+  // a Fresno listing). See lib/cost-reference/california-markets.ts
+  // for sources + refresh cadence (biweekly target).
+  const marketRef = selectMarketReference(propertyAddressHint ?? null);
+  const marketBlock = formatMarketReferenceForPrompt(marketRef);
+
+  const systemPrompt = `${FOCUSED_SYSTEM_BASE}\n\n${FOCUSED_GROUP_INSTRUCTIONS[group]}\n\n${marketBlock}`;
 
   const response = await callWithRateLimitRetry(() =>
     client.messages.create({
