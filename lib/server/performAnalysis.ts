@@ -12,7 +12,15 @@ import {
   type UpdateContext,
 } from "@/lib/anthropic/analyze";
 import { extractText, estimateTokens } from "@/lib/pdf/extract";
-import { countPages } from "@/lib/pdf/split";
+import { countPages, splitPdfIfNeeded } from "@/lib/pdf/split";
+
+// Must match PDF_PASS_PAGE_BUDGET in lib/anthropic/analyze.ts. Duplicated
+// here (not imported) because the in-memory re-split runs BEFORE the
+// analyzer sees the files — and the analyzer's per-call bin-packer
+// assumes every Document already fits comfortably. Lifted here so a
+// 90-page chunk uploaded under an older MAX_PAGES_PER_CHUNK gets
+// re-split into ≤60-page sub-documents before reaching Claude.
+const PDF_PER_CALL_PAGE_BUDGET = 60;
 import {
   classifyDocument,
   passGroupFor,
@@ -184,30 +192,59 @@ export async function performAnalysis(
         continue;
       }
 
-      documents.push({
-        filename: f.name,
-        text: "",
-        pages,
-        // tokens estimate just for visibility/audit; real PDF token
-        // cost is computed by Claude. ~1500/page is the rule of
-        // thumb for native PDF attachment input cost.
-        tokens: pages * 1500,
-        addedAt,
-        pdfBase64: buffer.toString("base64"),
-      });
-      await admin.from("audit_log").insert({
-        user_id: userId,
-        report_id: reportId,
-        event_type: "analysis.file_uploaded",
-        metadata: {
-          filename: f.name,
-          pages,
-          tokens: pages * 1500,
-          transport: "pdf",
-          uploaded_index: documents.length,
-          total_files: pdfs.length,
-        },
-      });
+      // Defensive in-memory re-split. Legacy reports were uploaded
+      // under MAX_PAGES_PER_CHUNK = 90, but a 90-page native PDF
+      // attachment at ~2000 tokens/page is 180K + system-prompt
+      // overhead → over the 200K context. We re-split anything
+      // larger than PDF_PER_CALL_PAGE_BUDGET into in-memory sub-
+      // chunks here so the analyzer's bin-packer doesn't blow the
+      // window. New uploads (MAX_PAGES_PER_CHUNK = 60) skip this
+      // path entirely; this is a no-op for them.
+      const subChunks =
+        pages > PDF_PER_CALL_PAGE_BUDGET
+          ? await splitPdfIfNeeded(buffer, f.name, PDF_PER_CALL_PAGE_BUDGET)
+          : [{ name: f.name, buffer }];
+
+      for (const chunk of subChunks) {
+        const chunkPages =
+          subChunks.length === 1
+            ? pages
+            : await countPages(chunk.buffer).catch(() => 0);
+        documents.push({
+          filename: chunk.name,
+          text: "",
+          pages: chunkPages,
+          // Per-page input-token estimate updated to 2000 to match
+          // observed PDF token cost (scanned/image-heavy pages run
+          // 1700-2000+; clean text PDFs run lower). This estimate is
+          // used by the analyzer's bin-packer only as a budget hint;
+          // actual cost is what Claude reports.
+          tokens: chunkPages * 2000,
+          addedAt,
+          pdfBase64: chunk.buffer.toString("base64"),
+        });
+        await admin.from("audit_log").insert({
+          user_id: userId,
+          report_id: reportId,
+          event_type: "analysis.file_uploaded",
+          metadata: {
+            filename: chunk.name,
+            pages: chunkPages,
+            tokens: chunkPages * 2000,
+            transport: "pdf",
+            uploaded_index: documents.length,
+            total_files: pdfs.length,
+            // Surface in-memory re-splits to the audit log so the
+            // agent (and future me) can tell which Documents came
+            // from a legacy oversized storage object vs. a clean
+            // one-to-one mapping.
+            in_memory_subchunk:
+              subChunks.length > 1
+                ? { source_filename: f.name, total_sub_chunks: subChunks.length }
+                : undefined,
+          },
+        });
+      }
       continue;
     }
 

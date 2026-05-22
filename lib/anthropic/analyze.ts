@@ -97,10 +97,27 @@ import {
 const PASS_TOKEN_BUDGET = 175_000;
 
 // Per-pass document-page budget for PDF-mode groups (seller_disclosures,
-// inspections). Each PDF page ≈ 1500 input tokens when sent as a native
-// document attachment, so 100 pages ≈ 150K tokens — comfortable below
-// the 200K context window after system prompt + tool schema overhead.
-const PDF_PASS_PAGE_BUDGET = 100;
+// inspections). We sized this empirically after a 100-page run blew the
+// 200K context window with 209K tokens in production:
+//
+//   - Per-page cost: 1500-2000+ tokens depending on content. Scanned
+//     inspection reports with photos / annotations land near the high end;
+//     digitally-exported text PDFs near the low end. Plan for 2000.
+//   - Per-call overhead: ~50K tokens (system prompt with the always-
+//     Critical rules + the 14-section tool schema + per-group instructions
+//     + regional pricing reference + update-context note + tool-use
+//     reasoning budget). The earlier 5K estimate was off by an order
+//     of magnitude.
+//   - Safety target: 180K to leave room for Anthropic's measurement
+//     variance and for the output tokens to stream in cleanly.
+//
+//   60 pages × 2000 tokens = 120K + 50K overhead = 170K → 10K headroom.
+//
+// MAX_PAGES_PER_CHUNK in lib/pdf/split.ts stays at 90 — that's the
+// per-document Claude limit (model-level PDF rendering cap), which is
+// separate from how many docs we PACK into a single call. The packer
+// below (splitDocumentsByPages) caps total packed pages per call here.
+const PDF_PASS_PAGE_BUDGET = 60;
 
 // Per-group mode. PDF mode sends native PDF attachments to Claude
 // (preserves check-boxes, signatures, side-by-side seller/agent
@@ -1084,13 +1101,17 @@ function splitDocumentsForBudget(
 }
 
 // Page-budget splitter for PDF-mode groups. PDF attachments cost
-// ~1500 tokens per page sent to Claude, so we sub-batch by page
-// count rather than by extracted-text tokens. Same bin-packing
-// strategy as splitDocumentsForBudget: largest-first placement,
-// open a new batch when nothing fits. PDFs that exceed budget on
-// their own (>100 pages) have ALREADY been split into _part_N
-// chunks at finalize-time via lib/pdf/split.ts (MAX_PAGES_PER_CHUNK
-// = 90), so a single Document here should never exceed budget.
+// 1500-2000+ tokens per page sent to Claude (scanned + image-heavy
+// pages land at the high end), so we sub-batch by page count rather
+// than by extracted-text tokens. Same bin-packing strategy as
+// splitDocumentsForBudget: largest-first placement, open a new batch
+// when nothing fits. PDFs that exceed PDF_PASS_PAGE_BUDGET on their
+// own (e.g. an unsplit 90-page inspection report) get their own
+// dedicated batch and that batch only — the bin-packer can't shrink
+// a single document. lib/pdf/split.ts caps individual PDFs at 90
+// pages (Claude's per-document limit); the per-CALL budget here is
+// what protects against multiple smaller PDFs packing into a single
+// call that exceeds the 200K context window.
 function splitDocumentsByPages(
   documents: Document[],
   pageBudget: number,

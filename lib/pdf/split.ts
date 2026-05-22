@@ -1,15 +1,19 @@
 import { PDFDocument } from "pdf-lib";
 
-// Claude's per-PDF limit is ~100 pages (model-level constraint on PDF
-// rendering, independent of how the PDF reaches Anthropic). With the
-// Files API now handling the per-request total cap, the per-document
-// limit is our only remaining concern. 90 leaves a small safety margin
-// without over-fragmenting citations.
+// Upload-time chunk ceiling. We split files larger than this into
+// {basename}_part_{n}.pdf parts before writing to storage so no single
+// stored object exceeds Claude's per-PDF rendering limit.
 //
-// We previously dropped this to 60 chasing what turned out to be a
-// per-request total cap, not a per-document one. Now that the Files
-// API path handles the per-request side, we can return to 90 here.
-export const MAX_PAGES_PER_CHUNK = 90;
+// History: 60 → 90 → 60. We bumped to 90 after concluding the earlier
+// 60-page cap was chasing a per-request total cap (now handled at the
+// per-call packing layer). But the per-call analysis budget itself
+// caps at 60 pages now (see PDF_PASS_PAGE_BUDGET in lib/anthropic/
+// analyze.ts) because real-world per-page token cost lands closer to
+// 2000 than the 1500 we'd estimated. Matching the storage chunk size
+// to the per-call budget avoids the in-memory re-split path firing
+// on every new upload — it stays as a safety net for legacy 90-page
+// chunks already in storage.
+export const MAX_PAGES_PER_CHUNK = 60;
 
 export type PdfChunk = {
   name: string;
@@ -20,16 +24,23 @@ export type PdfChunk = {
 
 /**
  * Inspects a PDF buffer and returns either:
- *   - One chunk (the original) if it's at or below MAX_PAGES_PER_CHUNK
- *   - Multiple chunks (each ≤ MAX_PAGES_PER_CHUNK) named
+ *   - One chunk (the original) if it's at or below maxPagesPerChunk
+ *   - Multiple chunks (each ≤ maxPagesPerChunk) named
  *     `{basename}_part_{n}.pdf`
  *
- * The page ordering is preserved; the first chunk has pages 1..90, the
- * second has 91..180, etc.
+ * The page ordering is preserved; the first chunk has pages 1..N, the
+ * second N+1..2N, etc.
+ *
+ * maxPagesPerChunk defaults to the module's MAX_PAGES_PER_CHUNK (60).
+ * Pass a smaller value at analyze-time to defensively re-split legacy
+ * storage objects that were uploaded under the previous 90-page cap;
+ * the names will reuse the `_part_n` convention so citations stay
+ * readable.
  */
 export async function splitPdfIfNeeded(
   pdfBuffer: Buffer,
   baseName: string,
+  maxPagesPerChunk: number = MAX_PAGES_PER_CHUNK,
 ): Promise<PdfChunk[]> {
   const srcDoc = await PDFDocument.load(pdfBuffer, {
     ignoreEncryption: true,
@@ -37,17 +48,17 @@ export async function splitPdfIfNeeded(
   });
   const totalPages = srcDoc.getPageCount();
 
-  if (totalPages <= MAX_PAGES_PER_CHUNK) {
+  if (totalPages <= maxPagesPerChunk) {
     return [{ name: baseName, buffer: pdfBuffer }];
   }
 
   const chunks: PdfChunk[] = [];
   const baseWithoutExt = baseName.replace(/\.pdf$/i, "");
-  const totalParts = Math.ceil(totalPages / MAX_PAGES_PER_CHUNK);
+  const totalParts = Math.ceil(totalPages / maxPagesPerChunk);
 
-  for (let start = 0; start < totalPages; start += MAX_PAGES_PER_CHUNK) {
-    const end = Math.min(start + MAX_PAGES_PER_CHUNK, totalPages);
-    const partNumber = Math.floor(start / MAX_PAGES_PER_CHUNK) + 1;
+  for (let start = 0; start < totalPages; start += maxPagesPerChunk) {
+    const end = Math.min(start + maxPagesPerChunk, totalPages);
+    const partNumber = Math.floor(start / maxPagesPerChunk) + 1;
 
     const newDoc = await PDFDocument.create();
     const indices = Array.from({ length: end - start }, (_, i) => start + i);
