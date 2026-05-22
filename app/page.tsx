@@ -1047,41 +1047,39 @@ export default function Home() {
                 </a>
               </p>
             </div>
-            <p className="text-slate-600 text-xs sm:text-right">
-              &copy; {new Date().getFullYear()} Veroax, Inc. All rights reserved.
-            </p>
-          </div>
-          {/* Resource menu — sits above the legal strip so it gets
-              its own visual breathing room. Stub pages stand in for
-              Blog / Demo / FAQ / Help while we build content; the
-              Feedback link goes to a real form that emails support. */}
-          <div className="pt-4 border-t border-white/5">
-            <p className="text-white font-semibold text-xs uppercase tracking-widest mb-3 text-center sm:text-left">
-              Resources
-            </p>
-            <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm justify-center sm:justify-start">
-              <a href="/blog" className="hover:text-white transition-colors">
-                Blog
-              </a>
-              <a href="/demo" className="hover:text-white transition-colors">
-                Watch a Demo
-              </a>
-              <a href="/faq" className="hover:text-white transition-colors">
-                FAQ
-              </a>
-              <a href="/help" className="hover:text-white transition-colors">
-                Help Videos
-              </a>
-              <a
-                href="/feedback"
-                className="hover:text-white transition-colors text-amber-300 font-semibold"
-              >
-                Feedback
-              </a>
-            </nav>
+            {/* Resources column — right-aligned on desktop to
+                balance the address column on the left. Stub pages
+                stand in for Blog / Demo / FAQ / Help while we
+                build content; Feedback links to the real form
+                that emails support. */}
+            <div className="space-y-2 sm:text-right">
+              <p className="text-white font-semibold text-xs uppercase tracking-widest">
+                Resources
+              </p>
+              <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm justify-center sm:justify-end">
+                <a href="/blog" className="hover:text-white transition-colors">
+                  Blog
+                </a>
+                <a href="/demo" className="hover:text-white transition-colors">
+                  Watch a Demo
+                </a>
+                <a href="/faq" className="hover:text-white transition-colors">
+                  FAQ
+                </a>
+                <a href="/help" className="hover:text-white transition-colors">
+                  Help Videos
+                </a>
+                <a
+                  href="/feedback"
+                  className="hover:text-white transition-colors text-amber-300 font-semibold"
+                >
+                  Feedback
+                </a>
+              </nav>
+            </div>
           </div>
           <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-            <div className="flex items-center gap-5">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-5 gap-y-2">
               <a
                 href="/terms"
                 className="hover:text-white transition-colors underline underline-offset-2"
@@ -1094,6 +1092,9 @@ export default function Home() {
               >
                 Privacy Policy
               </a>
+              <span>
+                &copy; {new Date().getFullYear()} Veroax, Inc. All rights reserved.
+              </span>
             </div>
             <p>Built in California · Serving licensed real estate professionals</p>
           </div>
