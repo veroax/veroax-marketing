@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DateTimeCell } from "./DateTimeCell";
+import { RowActions } from "./RowActions";
 
 // Shared table used by both /dashboard (main list, archived=false)
 // and /dashboard/archive (archived=true). Same columns, same sort
@@ -15,12 +16,20 @@ export type ReportRow = {
   archived?: boolean;
 };
 
+// "qa_pending" is the DB status set by performAnalysis the moment Claude
+// finishes. It was originally placed there for a future human-QA gate
+// (someone reviews before the report is marked "delivered" to the agent),
+// but that workflow doesn't exist — nothing in the codebase ever moves
+// a report past qa_pending. So as far as the agent is concerned, qa_pending
+// means "ready to use." Label and tone reflect that. The legacy
+// qa_approved / delivered statuses still get green labels in case the
+// QA workflow gets built later; they just aren't reachable today.
 const STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   uploaded: { label: "Uploaded", tone: "bg-slate-100 text-slate-700" },
   analyzing: { label: "Analyzing", tone: "bg-indigo-100 text-indigo-700" },
-  qa_pending: { label: "QA pending", tone: "bg-amber-100 text-amber-700" },
+  qa_pending: { label: "Ready", tone: "bg-emerald-100 text-emerald-700" },
   qa_approved: {
-    label: "QA approved",
+    label: "Ready",
     tone: "bg-emerald-100 text-emerald-700",
   },
   delivered: { label: "Delivered", tone: "bg-emerald-100 text-emerald-700" },
@@ -39,6 +48,10 @@ type Props = {
   // toggle/replace the sort.
   basePath: string;
   searchQuery: string;
+  // "main" renders the Archive action; "archive" renders Restore. Both
+  // variants show Delete. Defaults to "main" so older call sites that
+  // don't pass the prop yet still compile.
+  variant?: "main" | "archive";
 };
 
 export function ReportListTable({
@@ -47,6 +60,7 @@ export function ReportListTable({
   sortDir,
   basePath,
   searchQuery,
+  variant = "main",
 }: Props) {
   function sortHref(targetKey: SortKey): string {
     const params = new URLSearchParams();
@@ -89,6 +103,11 @@ export function ReportListTable({
               activeDir={sortDir}
               href={sortHref("created")}
             />
+            {/* Actions column has no sort header — just a quiet label.
+                Right-aligned so the buttons sit near the screen edge. */}
+            <th className="text-right font-semibold px-6 py-3 text-slate-600">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -125,6 +144,13 @@ export function ReportListTable({
                 </td>
                 <td className="px-6 py-4 text-slate-500">
                   <DateTimeCell iso={row.created_at} />
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <RowActions
+                    reportId={row.id}
+                    reportLabel={display}
+                    variant={variant}
+                  />
                 </td>
               </tr>
             );

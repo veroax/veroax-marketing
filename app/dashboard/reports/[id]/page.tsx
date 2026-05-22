@@ -467,11 +467,14 @@ function Stat({
 
 
 function StatusPill({ status }: { status: string }) {
+  // qa_pending → "Ready" because the human-QA workflow it was named for
+  // doesn't exist yet; nothing transitions past this state. See the
+  // STATUS_LABEL comment in dashboard/_components/ReportListTable.tsx.
   const map: Record<string, { label: string; tone: string }> = {
     uploaded: { label: "Uploaded", tone: "bg-slate-100 text-slate-700" },
     analyzing: { label: "Analyzing", tone: "bg-indigo-100 text-indigo-700" },
-    qa_pending: { label: "QA pending", tone: "bg-amber-100 text-amber-700" },
-    qa_approved: { label: "QA approved", tone: "bg-emerald-100 text-emerald-700" },
+    qa_pending: { label: "Ready", tone: "bg-emerald-100 text-emerald-700" },
+    qa_approved: { label: "Ready", tone: "bg-emerald-100 text-emerald-700" },
     delivered: { label: "Delivered", tone: "bg-emerald-100 text-emerald-700" },
     failed: { label: "Failed", tone: "bg-red-100 text-red-700" },
   };

@@ -108,6 +108,7 @@ export default async function DashboardPage({
           sortDir={sortDir}
           basePath="/dashboard"
           searchQuery={searchQuery}
+          variant="main"
         />
       )}
     </div>

@@ -127,6 +127,7 @@ export default async function ArchivePage({
           sortDir={sortDir}
           basePath="/dashboard/archive"
           searchQuery={searchQuery}
+          variant="archive"
         />
       )}
     </div>
