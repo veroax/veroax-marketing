@@ -10,7 +10,7 @@ const features = [
       </svg>
     ),
     title: "14-Section Report",
-    desc: "Covers every angle — from critical findings and permit history to HOA health, negotiation leverage, and an overall property rating.",
+    desc: "Covers every angle, from critical findings and permit history to HOA health, negotiation leverage, and an overall property rating.",
   },
   {
     icon: (
@@ -19,7 +19,7 @@ const features = [
       </svg>
     ),
     title: "Severity-Rated Findings",
-    desc: "Every issue is rated Critical, High, Moderate, or Cosmetic — weighted by cost and active hazard, not gut instinct.",
+    desc: "Every issue is rated Critical, High, Moderate, or Cosmetic, weighted by cost and active hazard, not gut instinct.",
   },
   {
     icon: (
@@ -29,7 +29,7 @@ const features = [
       </svg>
     ),
     title: "Regional Cost Estimates",
-    desc: "A fresh cost reference library is built for each property's market — South Bay, SF, East Bay, LA, San Diego, and more.",
+    desc: "A fresh cost reference library is built for each property's market, including South Bay, SF, East Bay, LA, San Diego, and more.",
   },
   {
     icon: (
@@ -56,7 +56,7 @@ const features = [
       </svg>
     ),
     title: "Privacy by Design",
-    desc: "Seller PII — names, mortgage balances, lender details — is purged from temp storage after every report is delivered.",
+    desc: "Seller PII (names, mortgage balances, lender details) is purged from temp storage after every report is delivered.",
   },
 ];
 
@@ -64,7 +64,7 @@ const steps = [
   {
     number: "01",
     title: "Upload the disclosure package",
-    desc: "Drop in the PDF from Disclosures.io or any other source. The tool reads the TDS, SPQ, AVID, NHD, HOA documents, inspection reports, and third-party disclosures — whatever is in the package.",
+    desc: "Drop in the PDF from Disclosures.io or any other source. The tool reads the TDS, SPQ, AVID, NHD, HOA documents, inspection reports, and third-party disclosures, whatever is in the package.",
   },
   {
     number: "02",
@@ -119,7 +119,7 @@ const plans: Plan[] = [
       "California disclosures (TDS, SPQ, AVID, NHD, HOA)",
       "Standard 24-hour turnaround",
       "Email support",
-      "Month-to-month — cancel anytime",
+      "Month-to-month, cancel anytime",
     ],
     cta: "Start with Solo",
     highlighted: false,
@@ -139,7 +139,7 @@ const plans: Plan[] = [
       "$29 per additional report",
       "All supported states as they launch (CA, TX, FL, WA)",
       "Priority 12-hour turnaround",
-      "Branded PDF — your logo, photo, and contact details",
+      "Branded PDF with your logo, photo, and contact details",
       "Buyer-ready summary email template included",
       "Phone and email support",
     ],
@@ -154,7 +154,7 @@ const plans: Plan[] = [
       annual: { price: "Custom", billed: null, savings: null },
     },
     period: "",
-    perReport: "Volume pricing — typically under $15 each",
+    perReport: "Volume pricing, typically under $15 each",
     description: "For brokerages and teams that want disclosure analysis as a built-in service.",
     features: [
       "Unlimited reports across the team",
@@ -270,10 +270,10 @@ export default function Home() {
             AI-Powered Real Estate Due Diligence
           </span>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight">
-            Veroax — AI-assisted disclosure analysis for residential real estate
+            Veroax. AI-assisted disclosure analysis for residential real estate
           </h1>
           <p className="text-lg sm:text-xl text-indigo-200 leading-relaxed max-w-2xl mx-auto">
-            Upload a disclosure package, get back a polished 14-section client ready buyer report — severity-rated
+            Upload a disclosure package, get back a polished 14-section client ready buyer report, severity-rated
             findings, regional cost estimates, negotiation guidance, and an overall property rating,
             all grounded in what the documents actually say.
           </p>
@@ -355,7 +355,7 @@ export default function Home() {
               See what your clients receive
             </h2>
             <p className="text-gray-500 max-w-xl mx-auto text-base leading-relaxed">
-              Every report follows the same 14-section structure. The example below is a fictional property used for illustration only — the format and finding types reflect what a real report contains, but the property, owners, and details do not exist.
+              Every report follows the same 14-section structure. The example below is a fictional property used for illustration only. The format and finding types reflect what a real report contains, but the property, owners, and details do not exist.
             </p>
           </div>
 
@@ -383,7 +383,7 @@ export default function Home() {
               <div>
                 <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-[#C9A84C] mb-0.5">Disclosure Analysis Report — Fictional Sample</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-[#C9A84C] mb-0.5">Disclosure Analysis Report: Fictional Sample</p>
                     <h3 className="text-xl font-bold text-[#191970]">123 Example Drive, Sample City, CA 95000</h3>
                     <p className="text-[#4A4A4A] text-xs mt-1">SFR · 1962 · 1,650 sq ft · 3 bed / 2 bath · Illustrative example only</p>
                   </div>
@@ -412,7 +412,7 @@ export default function Home() {
                       <span className="text-xs font-bold text-white bg-[#7A2E2E] px-3 py-1 rounded-sm uppercase tracking-wide">Critical</span>
                     </div>
                     <div className="px-4 py-3 text-[#1A1A2E] text-xs leading-relaxed italic border-b border-[#C8C8DC] bg-[#FAF8F2]">
-                      "Garage has been converted to living space. No permit is on file with the local jurisdiction. Conversion appears to predate current ownership and includes non-code electrical and drywall work." — AVID, p. 4; Permit History search.
+                      "Garage has been converted to living space. No permit is on file with the local jurisdiction. Conversion appears to predate current ownership and includes non-code electrical and drywall work." Source: AVID, p. 4; Permit History search.
                     </div>
                     <div className="divide-y divide-[#C8C8DC]">
                       {[
@@ -433,11 +433,11 @@ export default function Home() {
                   {/* Critical finding 2 */}
                   <div className="border border-[#C8C8DC] rounded bg-white overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#C8C8DC]">
-                      <span className="font-bold text-[#191970] text-sm">Issue 2: Active Roof Leak — Master Bedroom</span>
+                      <span className="font-bold text-[#191970] text-sm">Issue 2: Active Roof Leak in Master Bedroom</span>
                       <span className="text-xs font-bold text-white bg-[#7A2E2E] px-3 py-1 rounded-sm uppercase tracking-wide">Critical</span>
                     </div>
                     <div className="px-4 py-3 text-[#1A1A2E] text-xs leading-relaxed italic border-b border-[#C8C8DC] bg-[#FAF8F2]">
-                      "Active moisture intrusion at ridge line above master bedroom. Insulation saturated. Visible water staining on drywall, approximately 6 ft × 3 ft area. Immediate repair recommended." — General Home Inspection, p. 8.
+                      "Active moisture intrusion at ridge line above master bedroom. Insulation saturated. Visible water staining on drywall, approximately 6 ft × 3 ft area. Immediate repair recommended." Source: General Home Inspection, p. 8.
                     </div>
                     <div className="divide-y divide-[#C8C8DC]">
                       {[
@@ -493,7 +493,7 @@ export default function Home() {
                   {[
                     ["A. CRITICAL AND HIGH-PRIORITY REPAIRS", "", true],
                     ["Unpermitted garage conversion", "$18,000 to $45,000", false],
-                    ["Active roof leak — repair, insulation, drywall", "$8,500 to $14,000", false],
+                    ["Active roof leak (repair, insulation, drywall)", "$8,500 to $14,000", false],
                     ["Federal Pacific panel replacement", "$4,500 to $7,000", false],
                     ["Subtotal", "$31,000 to $66,000", "sub"],
                     ["B. MODERATE REPAIRS (1 to 5 year horizon)", "", true],
@@ -533,7 +533,7 @@ export default function Home() {
                     </div>
                   </div>
                   <p className="text-[#1A1A2E] text-xs leading-relaxed">
-                    Two Critical findings — an unpermitted conversion that carries appraisal and lending risk and an active roof leak — combined with a fire-risk electrical panel push this property into Significant Concerns territory. All three issues are negotiable, but the buyer should not remove contingencies until contractor bids are in hand and the lender has confirmed it will fund subject to the permit condition. The underlying bones of the property are sound; the exposure is concentrated and addressable.
+                    Two Critical findings (an unpermitted conversion that carries appraisal and lending risk, and an active roof leak), combined with a fire-risk electrical panel, push this property into Significant Concerns territory. All three issues are negotiable, but the buyer should not remove contingencies until contractor bids are in hand and the lender has confirmed it will fund subject to the permit condition. The underlying bones of the property are sound; the exposure is concentrated and addressable.
                     <span className="block mt-2 italic text-[#4A4A4A]">This rating reflects the disclosure documents only. It is contingent on inspections confirming the document review and is not a substitute for licensed professional inspection of the property's physical condition.</span>
                   </p>
                 </div>
@@ -602,7 +602,7 @@ export default function Home() {
               </thead>
               <tbody className="divide-y divide-indigo-50">
                 {[
-                  { state: "California", status: "live", note: "Live — accepting beta clients" },
+                  { state: "California", status: "live", note: "Live, accepting beta clients" },
                   { state: "Texas", status: "launching soon", note: "" },
                   { state: "Florida", status: "launching soon", note: "" },
                   { state: "Washington", status: "launching soon", note: "" },
@@ -642,7 +642,7 @@ export default function Home() {
             </h2>
             <p className="text-gray-500 max-w-2xl mx-auto text-base leading-relaxed">
               A Veroax report replaces 3 to 5 hours of agent or paralegal disclosure review per
-              deal — at a defensible quality level the buyer can hold in their hands. Start with
+              deal, at a defensible quality level the buyer can hold in their hands. Start with
               one free report, then pick the plan that fits your volume.
             </p>
           </div>
@@ -670,7 +670,7 @@ export default function Home() {
                 <p className="text-indigo-200 text-sm sm:text-base leading-relaxed max-w-xl">
                   Upload a real disclosure package and see the full 14-section analysis before
                   you pay anything. Verified by your California DRE license number. One trial
-                  per agent — no credit card required.
+                  per agent. No credit card required.
                 </p>
                 <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1 text-xs text-indigo-300">
                   <span className="flex items-center gap-1.5">
@@ -850,7 +850,7 @@ export default function Home() {
               >
                 Talk to us about a team plan
               </a>{" "}
-              — per-report pricing drops meaningfully at higher volume.
+              Per-report pricing drops meaningfully at higher volume.
             </p>
           </div>
 
@@ -865,7 +865,7 @@ export default function Home() {
               <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              <span>PII purged after every report — privacy by design</span>
+              <span>PII purged after every report. Privacy by design.</span>
             </div>
             <div className="flex items-center justify-center gap-2">
               <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -894,7 +894,7 @@ export default function Home() {
           </p>
 
           <p className="text-center text-xs text-gray-400 mt-3 max-w-2xl mx-auto">
-            Pricing in USD. Free trial is one report per California DRE license number — no credit card required. Annual prepay saves two months on Solo and Professional. Brokerage pricing scales with team size and integrations — contact sales for a tailored quote.
+            Pricing in USD. Free trial is one report per California DRE license number. No credit card required. Annual prepay saves two months on Solo and Professional. Brokerage pricing scales with team size and integrations. Contact sales for a tailored quote.
           </p>
         </div>
       </section>
@@ -946,7 +946,7 @@ export default function Home() {
 
           {status === "success" ? (
             <p className="text-center text-amber-400 font-medium text-lg">
-              Message sent — we will be in touch shortly.
+              Message sent. We will be in touch shortly.
             </p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -1047,7 +1047,7 @@ export default function Home() {
                 </a>
               </p>
             </div>
-            {/* Resources column — right-aligned on desktop to
+            {/* Resources column, right-aligned on desktop to
                 balance the address column on the left. Stub pages
                 stand in for Blog / Demo / FAQ / Help while we
                 build content; Feedback links to the real form
