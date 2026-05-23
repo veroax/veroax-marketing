@@ -65,10 +65,16 @@ export default function LoginPage() {
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 px-6 py-16">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="text-white font-bold text-2xl tracking-tight">
-            Veroax
+          <Link href="/" aria-label="Veroax">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/final/veroax-lockup-dark.svg"
+              alt="Veroax"
+              style={{ height: 32 }}
+              className="inline-block"
+            />
           </Link>
-          <p className="text-indigo-300 text-sm mt-2">Sign in to your account</p>
+          <p className="text-indigo-200 text-sm mt-2">Sign in to your account</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">

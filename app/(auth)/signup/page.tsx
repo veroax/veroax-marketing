@@ -1,22 +1,70 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { signupAction } from "../actions";
 
 const initialState: { error?: string | null; message?: string } = {};
 
+// Password strength meter. Returns a tier 0 (too weak) through 4
+// (strong) based on: minimum length, character-class diversity, and
+// not-obviously-common patterns. The bar fills proportionally; the
+// label describes the tier so screen-reader users get feedback too.
+function scorePassword(password: string): { tier: 0 | 1 | 2 | 3 | 4; label: string; color: string } {
+  if (password.length === 0) return { tier: 0, label: "Empty", color: "bg-gray-200" };
+  if (password.length < 8) return { tier: 0, label: "Too short", color: "bg-red-400" };
+
+  let score = 0;
+  if (password.length >= 8) score += 1;
+  if (password.length >= 12) score += 1;
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
+  if (/\d/.test(password)) score += 1;
+  if (/[^A-Za-z0-9]/.test(password)) score += 1;
+
+  // Common-pattern penalty.
+  const lower = password.toLowerCase();
+  if (/(password|qwerty|12345|abcdef|veroax)/.test(lower)) score = Math.min(score, 1);
+  if (/^(.)\1+$/.test(password)) score = 0;
+
+  const tier = Math.min(4, score) as 0 | 1 | 2 | 3 | 4;
+  const labels: Record<number, string> = {
+    0: "Very weak",
+    1: "Weak",
+    2: "Fair",
+    3: "Good",
+    4: "Strong",
+  };
+  const colors: Record<number, string> = {
+    0: "bg-red-400",
+    1: "bg-orange-400",
+    2: "bg-yellow-400",
+    3: "bg-emerald-400",
+    4: "bg-emerald-600",
+  };
+  return { tier, label: labels[tier], color: colors[tier] };
+}
+
 export default function SignupPage() {
   const [state, formAction, pending] = useActionState(signupAction, initialState);
+  const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState("");
+
+  const strength = scorePassword(password);
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 px-6 py-16">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link href="/" className="text-white font-bold text-2xl tracking-tight">
-            Veroax
+          <Link href="/" aria-label="Veroax">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/final/veroax-lockup-dark.svg"
+              alt="Veroax"
+              style={{ height: 32 }}
+              className="inline-block"
+            />
           </Link>
-          <p className="text-indigo-300 text-sm mt-2">Create your account</p>
+          <p className="text-indigo-200 text-sm mt-2">Create your account</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
@@ -69,16 +117,59 @@ export default function SignupPage() {
                 <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
                   Password
                 </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">At least 8 characters.</p>
+                <div className="relative">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    aria-describedby="password-strength password-hint"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 pr-11 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    className="absolute inset-y-0 right-0 px-3 text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+                {/* Strength meter. Four equal-width bars fill from
+                    left to right as the password gets stronger. The
+                    label below is what screen readers announce. */}
+                <div className="mt-2">
+                  <div className="flex gap-1" aria-hidden="true">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div
+                        key={i}
+                        className={`h-1 flex-1 rounded-full transition-colors ${
+                          password.length === 0
+                            ? "bg-gray-200"
+                            : i <= strength.tier
+                              ? strength.color
+                              : "bg-gray-200"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p
+                    id="password-strength"
+                    role="status"
+                    aria-live="polite"
+                    className="text-[11px] text-gray-600 mt-1"
+                  >
+                    {password.length === 0 ? "" : `Strength: ${strength.label}`}
+                  </p>
+                </div>
+                <p id="password-hint" className="text-xs text-gray-500 mt-1">
+                  At least 8 characters. Mix in upper / lower case, a number, and a symbol for a stronger score.
+                </p>
               </div>
 
               {state.error && (
@@ -92,7 +183,7 @@ export default function SignupPage() {
                 disabled={pending}
                 className="w-full bg-indigo-950 text-white font-semibold py-3 rounded-lg hover:bg-indigo-900 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {pending ? "Creating account…" : "Create account"}
+                {pending ? "Creating account..." : "Create account"}
               </button>
 
               <p className="text-xs text-gray-500 text-center pt-2">
@@ -110,7 +201,7 @@ export default function SignupPage() {
           )}
         </div>
 
-        <p className="text-center text-sm text-indigo-300 mt-6">
+        <p className="text-center text-sm text-indigo-200 mt-6">
           Already have an account?{" "}
           <Link href="/login" className="text-white underline underline-offset-2 hover:text-amber-300">
             Sign in

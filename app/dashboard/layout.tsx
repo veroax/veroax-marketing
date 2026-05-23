@@ -92,7 +92,7 @@ export default async function DashboardLayout({
             opens the OS dialer / FaceTime / etc. via tel:, email
             opens the default mail client via mailto:. */}
         <div className="px-6 py-4 border-t border-white/5 text-xs">
-          <p className="text-indigo-300 font-semibold tracking-widest uppercase text-[10px] mb-2">
+          <p className="text-indigo-200 font-semibold tracking-widest uppercase text-[10px] mb-2">
             Need help?
           </p>
           <a
@@ -115,13 +115,13 @@ export default async function DashboardLayout({
           </a>
         </div>
         <div className="px-6 py-4 border-t border-white/5">
-          <p className="text-xs text-indigo-300 mb-1">Signed in as</p>
+          <p className="text-xs text-indigo-200 mb-1">Signed in as</p>
           <p className="text-sm text-white truncate">{displayName}</p>
           <p className="text-xs text-indigo-400 truncate">{user.email}</p>
           <form action={logoutAction} className="mt-3">
             <button
               type="submit"
-              className="text-xs text-indigo-300 hover:text-white transition-colors underline underline-offset-2"
+              className="text-xs text-indigo-200 hover:text-white transition-colors underline underline-offset-2"
             >
               Sign out
             </button>
