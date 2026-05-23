@@ -284,6 +284,37 @@ export type FocusedAnalysis = {
   };
   insurance_lender_notes?: string[];
   outstanding_questions: string[];
+  // Optional rich sections — any pass can contribute these, but the
+  // expected source is the seller_disclosures pass (which sees the MLS
+  // printout, the TDS, and the prelim title report). The synthesizer
+  // takes the first populated value across all passes.
+  hoa_financial_facts?: Array<{ label: string; value: string }>;
+  hoa_reserve_health_read?: string;
+  hoa_watch_items?: string;
+  inspection_follow_ups?: Array<{
+    specialist: string;
+    reason: string;
+    approx_cost: string;
+  }>;
+  market_context?: {
+    summary: string;
+    monthly_carrying_cost?: string | null;
+    mortgage_rate_range?: string | null;
+    median_price?: string | null;
+    median_dom?: number | null;
+    comparable_units?: Array<{
+      label: string;
+      status: string;
+      note?: string | null;
+    }> | null;
+  };
+  title_vesting?: {
+    vesting_summary: string;
+    liens_summary?: string | null;
+    recorded_matters?: string | null;
+  };
+  overall_rating_why?: string;
+  overall_rating_conditions?: string;
 };
 
 export const FOCUSED_TOOL_SCHEMA = {
@@ -448,6 +479,80 @@ export const FOCUSED_TOOL_SCHEMA = {
         type: "array",
         description: "Questions for the seller or listing agent raised by these documents.",
         items: { type: "string" },
+      },
+      hoa_financial_facts: {
+        type: "array",
+        description: "Populate when this pass is analyzing HOA financial data — see the analyzer rule on HOA fact extraction for the canonical label set.",
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string" },
+            value: { type: "string" },
+          },
+          required: ["label", "value"],
+        },
+      },
+      hoa_reserve_health_read: {
+        type: "string",
+        description: "2-3 sentence 'our read' of reserve adequacy in plain language.",
+      },
+      hoa_watch_items: {
+        type: "string",
+        description: "1-2 sentence flag for HOA items the buyer should monitor through close.",
+      },
+      inspection_follow_ups: {
+        type: "array",
+        description: "Numbered checklist of specialists the buyer should engage during contingency to close the largest unknowns. Each item: specialist + reason + approximate cost.",
+        items: {
+          type: "object",
+          properties: {
+            specialist: { type: "string" },
+            reason: { type: "string" },
+            approx_cost: { type: "string" },
+          },
+          required: ["specialist", "reason", "approx_cost"],
+        },
+      },
+      market_context: {
+        type: "object",
+        description: "Market context for the unit's sub-segment — median pricing, days on market, mortgage rate range, monthly carrying cost, and comparable units. Populate when the analyzer can ground these in the MLS printout, the listing materials, and current rate knowledge.",
+        properties: {
+          summary: { type: "string" },
+          monthly_carrying_cost: { type: ["string", "null"] },
+          mortgage_rate_range: { type: ["string", "null"] },
+          median_price: { type: ["string", "null"] },
+          median_dom: { type: ["integer", "null"] },
+          comparable_units: {
+            type: ["array", "null"],
+            items: {
+              type: "object",
+              properties: {
+                label: { type: "string" },
+                status: { type: "string" },
+                note: { type: ["string", "null"] },
+              },
+              required: ["label", "status"],
+            },
+          },
+        },
+      },
+      title_vesting: {
+        type: "object",
+        description: "Title & vesting summary from the preliminary title report. Populate when this pass has access to the prelim.",
+        properties: {
+          vesting_summary: { type: "string" },
+          liens_summary: { type: ["string", "null"] },
+          recorded_matters: { type: ["string", "null"] },
+        },
+        required: ["vesting_summary"],
+      },
+      overall_rating_why: {
+        type: "string",
+        description: "2-4 sentence narrative explaining the rating drivers — what's the major upside, what kept it from being a higher tier.",
+      },
+      overall_rating_conditions: {
+        type: "string",
+        description: "Short paragraph listing the conditions that must hold for the rating to remain valid.",
       },
     },
     $defs: {

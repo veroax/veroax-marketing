@@ -402,7 +402,16 @@ CRITICAL RULES:
    - hoa_last_increase_date / hoa_last_increase_amount: from HOA budgets or meeting minutes — when did the dues last go up and by how much.
    Leave any of these null when the documents in your group don't contain the information.
 
-10. CALL THE submit_focused_analysis TOOL EXACTLY ONCE with your structured analysis. Do not produce any other text output.`;
+10. RICH FINDING NARRATIVE — populate the per-finding narrative fields so the PDF can render the card layout that actually communicates with the buyer:
+   - source_quote: VERBATIM 1-3 sentence quote from the source document supporting the finding. Use ellipsis (…) to elide unimportant middle text but never paraphrase. The quote is what makes the finding auditable against the underlying disclosure. Example: '"Branch Wire Material: Copper, Aluminum ... Subpanels: PAINTED/CAULKED - The panel is painted/caulked and unable to be fully viewed."'
+   - what_it_is: Plain-language 2-4 sentence paragraph describing the THING in lay terms. Example: 'The home inspector recorded the panel's branch material as both copper and aluminum, and was unable to fully view the bedroom subpanel because it is painted and caulked over. Aluminum branch wiring is unusual for a 1988 build (the high-risk window is roughly 1965-1973), but recording it as a possibility means the buyer should not assume copper-only.'
+   - why_it_matters: 2-4 sentence paragraph on why the BUYER should care — safety, insurance/lender impact, financial exposure. Example: 'Aluminum branch wiring at 120V outlets and switches is associated with elevated risk of loose connections, overheating, and fire when not properly terminated. Insurance carriers may decline or surcharge a unit with unremediated aluminum branch wiring.'
+   - next_step: Concrete next action. Example: 'Have a licensed electrician open a representative number of outlets and switches to confirm whether aluminum is in branch circuits (concerning) or only in the service feeder (typical and benign). If branch is aluminum, get a written quote for COPALUM crimp or AlumiConn pigtail remediation.'
+   - immediate_out_of_pocket: cost to INVESTIGATE during the contingency window — separate from cost_estimate, which is the remediation cost if confirmed. Example: an electrician's evaluation runs $300-$600; the remediation if confirmed runs $500-$4,500 per circuit. Populate immediate_out_of_pocket = {low: 300, high: 600} and cost_estimate = {low: 500, high: 4500}.
+
+   These narrative fields turn a one-line finding ("Issue 1: Aluminum branch wiring may be present") into something the buyer can act on. ALWAYS populate them for critical/high findings; for moderate/cosmetic findings the existing description + risk_if_ignored + recommended_action are enough.
+
+11. CALL THE submit_focused_analysis TOOL EXACTLY ONCE with your structured analysis. Do not produce any other text output.`;
 
 const FOCUSED_GROUP_INSTRUCTIONS: Record<PassGroup, string> = {
   seller_disclosures: `You are analyzing the SELLER DISCLOSURES group: typically the TDS (Transfer Disclosure Statement), SPQ (Seller Property Questionnaire), AVID (Agent Visual Inspection Disclosure), and any combined disclosure exports.
@@ -451,6 +460,25 @@ Focus on:
 - Set hoa_facts.applicable=true and provide a summary
 
 Treat CC&Rs/Bylaws boilerplate as low-priority — only flag genuinely consequential restrictions. Findings should be about the HOA's financial/operational health and rules that affect occupancy.
+
+HOA FINANCIAL FACT TABLE — populate hoa_facts.facts (array of {label, value} pairs) with the compact KV data the PDF's HOA section renders as a table. Pull from the HOA package's financial statements, board minutes, insurance summary, and Section 4525 disclosure. Canonical labels to use when the data exists (don't invent values you can't source):
+- "Master policy" → carrier name + phone if available
+- "Master policy premium" → annual premium + renewal date
+- "Operating account (recent)" → recent balance range from monthly statements
+- "Reserves (recent)" → recent balance range from monthly statements
+- "Dues" → current monthly dues + recent increase context
+- "Special assessment now" → status from the Section 4525 disclosure ("None disclosed on the 4525 menu", "$3,200 levied 11/2025", etc.)
+- "Capital projects approved" → board-approved projects with $ amounts + contractor names if mentioned
+- "Litigation against the Association" → status as documented
+- "Collections" → non-judicial foreclosures or delinquencies disclosed at the building level (NEVER name individual units — the user's privacy notes forbid this; describe as "two non-judicial foreclosures approved against other delinquent owners at unrelated APNs")
+- "Rental restriction" → yes/no + brief reference to where the rule lives in the governing docs
+- "Age restriction" → 55+ community status
+- "Reserve study cadence" → required cadence from CC&Rs + most recent study date
+Add additional labels as the package supports them. Leave the array null if no HOA package was provided.
+
+EDITORIAL HOA PARAGRAPHS — populate two more fields on hoa_facts:
+- reserve_health_read: 2-3 sentence "our read" of reserve adequacy in plain language. Example: "The Association is carrying roughly $4 million in reserves against a 332-unit complex, which is a comfortable cash-flow basis for a 38-year-old wood-sided community. The $10/month dues increase is modest and is allocated explicitly to reserves and insurance."
+- watch_items: 1-2 sentence flag for items the buyer should monitor through close. Example: "The 9/16/25 minutes confirm that the original Giuliani Construction carport contract was abandoned after a $100K+ price jump and the project was reassigned to ReCon360. Mid-project contractor switches warrant attention because of schedule risk."
 
 CRITICAL — COST RESPONSIBILITY FOR HOA FINDINGS:
 Almost every cost-bearing finding sourced from HOA documents is HOA-paid, not owner-paid:
@@ -859,15 +887,35 @@ function synthesizeReportInCode(
       : `${completenessIssues.length} completeness issue${completenessIssues.length === 1 ? "" : "s"} identified across the disclosure package. Review each item before proceeding.`;
 
   // HOA — take the HOA pass's facts, fall back to "not applicable" if no
-  // HOA pass populated it.
+  // HOA pass populated it. Also merge in the enriched HOA narrative
+  // fields (financial fact table, reserve-health read, watch items)
+  // from whichever pass populated them — typically the same HOA pass
+  // but the schema allows any pass to contribute.
   const hoaSource = focused.find(
     (p) => p.hoa_facts && (p.hoa_facts.summary || p.hoa_facts.concerns?.length),
   );
-  const hoa = hoaSource?.hoa_facts ?? {
-    applicable: false,
-    summary: "HOA documents not present or not applicable to this property.",
-    concerns: [],
-  };
+  const hoaFinancialFacts =
+    focused.find((p) => p.hoa_financial_facts && p.hoa_financial_facts.length > 0)
+      ?.hoa_financial_facts ?? null;
+  const hoaReserveHealthRead =
+    focused.find((p) => p.hoa_reserve_health_read)?.hoa_reserve_health_read ?? null;
+  const hoaWatchItems =
+    focused.find((p) => p.hoa_watch_items)?.hoa_watch_items ?? null;
+  const hoa = hoaSource?.hoa_facts
+    ? {
+        ...hoaSource.hoa_facts,
+        facts: hoaFinancialFacts,
+        reserve_health_read: hoaReserveHealthRead,
+        watch_items: hoaWatchItems,
+      }
+    : {
+        applicable: false,
+        summary: "HOA documents not present or not applicable to this property.",
+        concerns: [],
+        facts: null,
+        reserve_health_read: null,
+        watch_items: null,
+      };
 
   // Environmental — take the hazards pass's content.
   const environmentalHazards = focused.flatMap(
@@ -986,14 +1034,40 @@ function synthesizeReportInCode(
   };
 
   // Overall rating — rule-based on FILTERED finding counts so obvious-
-  // fact junk and HOA-downgraded items don't tilt the rating.
-  const overallRating = determineOverallRating({
-    criticalCount: filteredAllFindings.filter((f) => f.severity === "critical")
-      .length,
-    highCount: filteredAllFindings.filter((f) => f.severity === "high").length,
-    moderateCount: moderateFindings.length,
-    cosmeticCount: cosmeticFindings.length,
-  });
+  // fact junk and HOA-downgraded items don't tilt the rating. Also
+  // pulls in the analyzer's editorial narrative when populated.
+  const ratingWhyText =
+    focused.find((p) => p.overall_rating_why)?.overall_rating_why ?? null;
+  const ratingConditionsText =
+    focused.find((p) => p.overall_rating_conditions)?.overall_rating_conditions ??
+    null;
+  const overallRating = {
+    ...determineOverallRating({
+      criticalCount: filteredAllFindings.filter(
+        (f) => f.severity === "critical",
+      ).length,
+      highCount: filteredAllFindings.filter((f) => f.severity === "high")
+        .length,
+      moderateCount: moderateFindings.length,
+      cosmeticCount: cosmeticFindings.length,
+    }),
+    why_this_rating: ratingWhyText,
+    conditions_on_which_this_depends: ratingConditionsText,
+  };
+
+  // Inspection follow-ups, market context, title & vesting — each
+  // analyzer pass may populate one or more of these. Take the first
+  // populated value across passes (typically seller_disclosures sees
+  // the prelim and the MLS, so it's the natural source).
+  const inspectionFollowUps =
+    focused.find(
+      (p) => p.inspection_follow_ups && p.inspection_follow_ups.length > 0,
+    )?.inspection_follow_ups ?? null;
+  const marketContext =
+    focused.find((p) => p.market_context?.summary)?.market_context ?? null;
+  const titleVesting =
+    focused.find((p) => p.title_vesting?.vesting_summary)?.title_vesting ??
+    null;
 
   // Human-readable update note. Counts filtered findings whose source
   // cited an added document — gives the agent (and the email/dashboard
@@ -1023,6 +1097,9 @@ function synthesizeReportInCode(
     negotiation,
     insurance_lender_risk: insuranceLenderRisk,
     outstanding_questions: outstandingQuestions,
+    inspection_follow_ups: inspectionFollowUps,
+    market_context: marketContext,
+    title_vesting: titleVesting,
     overall_rating: overallRating,
     update_note: updateNote,
   };
