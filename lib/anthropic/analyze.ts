@@ -768,11 +768,48 @@ function synthesizeReportInCode(
       return bCost - aCost;
     });
 
-  const criticalFindings = sortFindings(
-    filteredAllFindings.filter(
-      (f) => f.severity === "critical" || f.severity === "high",
-    ),
+  // HOA-paid findings get pulled OUT of the critical/high bucket and
+  // surfaced in the HOA section as concerns. Without this redirect,
+  // building-wide HOA capital projects (which the buyer doesn't pay
+  // directly) bloat the critical/high count and tilt the overall
+  // rating toward "Significant Concerns" even when the unit itself
+  // has no real owner-pays critical findings. The only HOA-paid items
+  // that STAY in critical/high are ones that hit an always-Critical
+  // rule (triggered_rule populated) or describe an active hazard /
+  // insurance-blocker — those impact the buyer's deal regardless of
+  // who writes the repair check.
+  const hoaDivertedConcerns: string[] = [];
+  const criticalHighRaw = filteredAllFindings.filter(
+    (f) => f.severity === "critical" || f.severity === "high",
   );
+  const criticalHighKept = criticalHighRaw.filter((f) => {
+    const isHoa =
+      f.cost_responsibility === "hoa" ||
+      (f.cost_responsibility == null &&
+        // For legacy findings without cost_responsibility we use a
+        // textual heuristic on the source citation — same approach
+        // as the PDF render's looksHoaPaid().
+        /\b(reserve study|reserve fund|hoa reserve|association reserve|board minutes|hoa budget|association budget|special assessment|common area|common element|building exterior|exterior of (the )?building|building envelope|common roof|elevator|lobby|common[\s-]?area plumbing|common boiler|common parking)\b/i.test(
+          `${f.source ?? ""} ${f.title ?? ""} ${f.description ?? ""}`,
+        ));
+    if (!isHoa) return true; // owner-pays — keep
+    // Active hazard or insurance/lender block? Keep — those affect
+    // closing regardless of who pays.
+    if (
+      f.triggered_rule ||
+      mentionsActiveHazardOrInsuranceBlock(
+        `${f.title} ${f.description ?? ""} ${f.risk_if_ignored ?? ""}`,
+      )
+    ) {
+      return true;
+    }
+    // HOA-paid + no hazard + no triggered rule → divert into HOA
+    // concerns list and drop from critical/high.
+    const concernLine = formatHoaDivertedConcern(f);
+    if (concernLine) hoaDivertedConcerns.push(concernLine);
+    return false;
+  });
+  const criticalFindings = sortFindings(criticalHighKept);
   const moderateFindings = sortFindings(
     filteredAllFindings.filter((f) => f.severity === "moderate"),
   );
@@ -901,7 +938,7 @@ function synthesizeReportInCode(
     focused.find((p) => p.hoa_reserve_health_read)?.hoa_reserve_health_read ?? null;
   const hoaWatchItems =
     focused.find((p) => p.hoa_watch_items)?.hoa_watch_items ?? null;
-  const hoa = hoaSource?.hoa_facts
+  const hoaBase = hoaSource?.hoa_facts
     ? {
         ...hoaSource.hoa_facts,
         facts: hoaFinancialFacts,
@@ -911,11 +948,29 @@ function synthesizeReportInCode(
     : {
         applicable: false,
         summary: "HOA documents not present or not applicable to this property.",
-        concerns: [],
+        concerns: [] as string[],
         facts: null,
         reserve_health_read: null,
         watch_items: null,
       };
+  // Merge in concerns diverted from the critical/high bucket. These
+  // are HOA-paid items that don't directly impact the buyer but are
+  // worth noting in the HOA section so the agent has a complete
+  // picture of association activity. Dedupe against any concerns
+  // the HOA pass already produced.
+  const mergedConcerns = [
+    ...(Array.isArray(hoaBase.concerns) ? hoaBase.concerns : []),
+    ...hoaDivertedConcerns,
+  ];
+  const hoa = {
+    ...hoaBase,
+    // If we have diverted concerns but the HOA pass didn't flag this
+    // property as applicable (no HOA pass populated), upgrade
+    // applicable to true so the section renders with the diverted
+    // concerns visible.
+    applicable: hoaBase.applicable || hoaDivertedConcerns.length > 0,
+    concerns: dedupeStrings(mergedConcerns),
+  };
 
   // Environmental — take the hazards pass's content.
   const environmentalHazards = focused.flatMap(
@@ -1278,6 +1333,22 @@ function mismatchesUnitFeatures(
     }
   }
   return false;
+}
+
+// One-line summary of an HOA-paid finding that's being diverted from
+// the critical/high bucket into the HOA section's concerns list.
+// Includes the finding's title + dollar context so the agent reading
+// the HOA section can tell what we redirected and why.
+function formatHoaDivertedConcern(f: Finding): string {
+  const cost = f.cost_estimate;
+  const hasCost =
+    cost && ((cost.low && cost.low > 0) || (cost.high && cost.high > 0));
+  const costSuffix = hasCost
+    ? cost!.low === cost!.high
+      ? ` (HOA project cost ≈ $${cost!.high.toLocaleString()})`
+      : ` (HOA project cost ≈ $${cost!.low.toLocaleString()}–$${cost!.high.toLocaleString()})`
+    : " (HOA-paid)";
+  return `${f.title}${costSuffix}`;
 }
 
 // Decide whether finding language indicates an active hazard, water
