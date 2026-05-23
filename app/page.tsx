@@ -270,7 +270,7 @@ export default function Home() {
             AI-Powered Real Estate Due Diligence
           </span>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight">
-            Veroax. AI-assisted disclosure analysis for residential real estate
+            Veroax - An AI-assisted disclosure analysis for residential real estate.
           </h1>
           <p className="text-lg sm:text-xl text-indigo-200 leading-relaxed max-w-2xl mx-auto">
             Upload a disclosure package, get back a polished 14-section client ready buyer report, severity-rated
