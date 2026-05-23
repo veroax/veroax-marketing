@@ -402,6 +402,18 @@ CRITICAL RULES:
    - hoa_last_increase_date / hoa_last_increase_amount: from HOA budgets or meeting minutes — when did the dues last go up and by how much.
    Leave any of these null when the documents in your group don't contain the information.
 
+9.5. RATING EDITORIAL — REQUIRED. The overall rating section of the PDF renders two paragraphs alongside the rating pill: "Why this rating" and "Conditions on which this rating depends." These are NOT optional. ALWAYS populate overall_rating_why and overall_rating_conditions in your tool output:
+   - overall_rating_why: 2-4 sentence explanation grounded in the findings. What's the upside (clean title, healthy reserves, no always-Critical rules fired)? What kept it from being a higher tier (the trio of unknowns the buyer needs to investigate, an aging system, a building project)?
+   - overall_rating_conditions: short paragraph listing the conditions that must hold for the rating to remain valid. Concrete examples: "No new evidence of widespread ABS pipe failure across the complex. No aluminum branch wiring confirmed in the unit. Carport project funded from reserves through completion. Section I termite clearance completed by seller."
+   These two fields synthesize information you already extracted into findings — they don't require external data. There is no excuse to leave them null.
+
+9.6. MARKET CONTEXT — populate what you can. The market_context section is a strong differentiator but can only be filled from the source documents. Populate the fields that are reachable:
+   - summary: required when ANY market data is available. 2-3 sentences placing the unit in its sub-segment (1-bedroom condos in a specific complex, 2-bed townhomes in a particular school district, etc.).
+   - median_price, median_dom: populate when the MLS printout, the prelim title page, or any listing comparable lookup are in the source documents. Leave null otherwise.
+   - mortgage_rate_range, monthly_carrying_cost: you DO NOT have live web access during analysis. Populate these only when the documents themselves reference rate data (rare). Otherwise leave null.
+   - comparable_units: populate when the MLS printout includes comparable sales, or when the source documents reference other unit sale prices in the same complex (HOA collections sometimes show recent sale amounts at other APNs in the building). Three to five entries max.
+   Better to leave market_context null than to invent numbers. If the documents support only a one-paragraph summary, populate just the summary and leave everything else null — the PDF renders gracefully.
+
 10. RICH FINDING NARRATIVE — populate the per-finding narrative fields so the PDF can render the card layout that actually communicates with the buyer:
    - source_quote: VERBATIM 1-3 sentence quote from the source document supporting the finding. Use ellipsis (…) to elide unimportant middle text but never paraphrase. The quote is what makes the finding auditable against the underlying disclosure. Example: '"Branch Wire Material: Copper, Aluminum ... Subpanels: PAINTED/CAULKED - The panel is painted/caulked and unable to be fully viewed."'
    - what_it_is: Plain-language 2-4 sentence paragraph describing the THING in lay terms. Example: 'The home inspector recorded the panel's branch material as both copper and aluminum, and was unable to fully view the bedroom subpanel because it is painted and caulked over. Aluminum branch wiring is unusual for a 1988 build (the high-risk window is roughly 1965-1973), but recording it as a possibility means the buyer should not assume copper-only.'
@@ -1091,23 +1103,42 @@ function synthesizeReportInCode(
   // Overall rating — rule-based on FILTERED finding counts so obvious-
   // fact junk and HOA-downgraded items don't tilt the rating. Also
   // pulls in the analyzer's editorial narrative when populated.
+  //
+  // IMPORTANT: critical/high counts used here come from the BUCKETED
+  // criticalFindings list (post-HOA-divert), not from filteredAll-
+  // Findings. This matches what the reader sees in the report: the
+  // rating reflects findings the BUYER faces, not building-wide HOA
+  // business we already redirected into the HOA section.
   const ratingWhyText =
     focused.find((p) => p.overall_rating_why)?.overall_rating_why ?? null;
   const ratingConditionsText =
     focused.find((p) => p.overall_rating_conditions)?.overall_rating_conditions ??
     null;
+  const baseRating = determineOverallRating({
+    criticalCount: criticalFindings.filter((f) => f.severity === "critical")
+      .length,
+    highCount: criticalFindings.filter((f) => f.severity === "high").length,
+    moderateCount: moderateFindings.length,
+    cosmeticCount: cosmeticFindings.length,
+  });
+  // Code-side fallback for the editorial fields. Claude is asked to
+  // populate these in the prompt but doesn't always — and they're
+  // synthesizable from data we already have, so the report shouldn't
+  // ship with them blank. Fallback is conservative and clearly
+  // generic when used; the real value still comes from the analyzer.
+  const fallbackWhy = composeFallbackRatingWhy(
+    baseRating.label,
+    criticalFindings,
+    moderateFindings,
+    cosmeticFindings,
+  );
+  const fallbackConditions = composeFallbackRatingConditions(
+    criticalFindings,
+  );
   const overallRating = {
-    ...determineOverallRating({
-      criticalCount: filteredAllFindings.filter(
-        (f) => f.severity === "critical",
-      ).length,
-      highCount: filteredAllFindings.filter((f) => f.severity === "high")
-        .length,
-      moderateCount: moderateFindings.length,
-      cosmeticCount: cosmeticFindings.length,
-    }),
-    why_this_rating: ratingWhyText,
-    conditions_on_which_this_depends: ratingConditionsText,
+    ...baseRating,
+    why_this_rating: ratingWhyText ?? fallbackWhy,
+    conditions_on_which_this_depends: ratingConditionsText ?? fallbackConditions,
   };
 
   // Inspection follow-ups, market context, title & vesting — each
@@ -1333,6 +1364,53 @@ function mismatchesUnitFeatures(
     }
   }
   return false;
+}
+
+// Compose a generic "Why this rating" paragraph when the analyzer
+// didn't supply one. The text is intentionally neutral — it describes
+// what's in the file without imagining details. The analyzer's
+// editorial is always preferable when populated.
+function composeFallbackRatingWhy(
+  label: string,
+  critical: Finding[],
+  moderate: Finding[],
+  cosmetic: Finding[],
+): string {
+  const critCount = critical.filter((f) => f.severity === "critical").length;
+  const highCount = critical.filter((f) => f.severity === "high").length;
+  const modCount = moderate.length;
+  const cosmCount = cosmetic.length;
+
+  if (label === "Excellent" || label === "Good") {
+    return `The disclosure package shows ${critCount === 0 ? "no critical findings affecting this unit" : `${critCount} critical finding${critCount === 1 ? "" : "s"} affecting this unit`}${highCount > 0 ? ` and ${highCount} high-priority item${highCount === 1 ? "" : "s"}` : ""}. Moderate items (${modCount}) and cosmetic items (${cosmCount}) are normal for the build year and condition, and the documents reviewed support a clean read of the property.`;
+  }
+  if (label === "Acceptable") {
+    return `${critCount > 0 ? `${critCount} critical / ` : ""}${highCount} high-priority item${highCount === 1 ? "" : "s"} surfaced on this analysis along with ${modCount} moderate item${modCount === 1 ? "" : "s"}. Each carries a specific next step in Section 4. The file is workable but the buyer should run the named follow-ups before contingency removal.`;
+  }
+  if (label === "Significant Concerns") {
+    return `${critCount} critical and ${highCount} high-priority finding${critCount + highCount === 1 ? "" : "s"} affect this unit directly. The buyer should consider whether the dollar exposure aligns with their offer and whether any of the named follow-ups are deal-changing for them before committing.`;
+  }
+  if (label === "Walk Away") {
+    return `The disclosure documents include items that materially threaten the buyer's ability to close (insurance, lender, or hazard blockers). Each is described in Section 4 with its source quote and next step. Confirm the items in person before continuing to spend on inspections.`;
+  }
+  return `Rating drivers are listed in Section 4 above. Pair this report with a walk-through and the named contingency inspections.`;
+}
+
+// Compose a "Conditions on which this rating depends" paragraph from
+// the live findings. Pulls the next_step (or recommended_action) from
+// each critical/high finding so the conditions list is concrete.
+function composeFallbackRatingConditions(critical: Finding[]): string {
+  if (critical.length === 0) {
+    return "This rating assumes the buyer's inspection contingency confirms the document review and that no new material defects surface during the contingency period.";
+  }
+  const lines = critical.slice(0, 5).map((f) => {
+    const action = f.next_step?.trim() || f.recommended_action?.trim() || "";
+    if (!action) return `${f.title} closes out cleanly.`;
+    // Keep the line short — first sentence of next_step.
+    const firstSentence = action.split(/\.\s+/)[0].trim().replace(/\.$/, "");
+    return `${firstSentence}.`;
+  });
+  return `This rating depends on: ${lines.join(" ")}`;
 }
 
 // One-line summary of an HOA-paid finding that's being diverted from
