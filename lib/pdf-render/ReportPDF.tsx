@@ -263,6 +263,140 @@ const styles = StyleSheet.create({
     color: C.positive,
     marginTop: 4,
   },
+  // Compact 5-column table for moderate/high findings + the new
+  // inspection-follow-ups numbered table. Cowork pattern: header row
+  // with navy background and white text, then alternating-stripe
+  // body rows. Column widths are fixed (not flex) because React-PDF
+  // is happier with explicit widths in repeating tables.
+  fTable: {
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  fTableHeaderRow: {
+    flexDirection: "row",
+    backgroundColor: C.navy,
+  },
+  fTableHeaderCell: {
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    fontSize: 8.5,
+    fontFamily: "Helvetica-Bold",
+    color: C.white,
+  },
+  fTableRow: {
+    flexDirection: "row",
+  },
+  fTableRowAlt: {
+    flexDirection: "row",
+    backgroundColor: C.rowAlt,
+  },
+  fTableCell: {
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    fontSize: 8.5,
+    color: C.text,
+    lineHeight: 1.4,
+  },
+  fTableCellMuted: {
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    fontSize: 7.5,
+    color: C.subtext,
+    lineHeight: 1.4,
+  },
+  // Environmental hazards 3-col table.
+  envTable: {
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  envColHazard: {
+    width: 190,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    fontSize: 9,
+    lineHeight: 1.4,
+  },
+  envColStatus: {
+    width: 90,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    lineHeight: 1.4,
+  },
+  envColTakeaway: {
+    flexGrow: 1,
+    flexShrink: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    fontSize: 9,
+    color: C.subtext,
+    lineHeight: 1.4,
+  },
+  // Cosmetic findings bullet list — replaces the old finding-card
+  // render for cosmetic items where the per-finding card was overkill.
+  cosmeticBullet: {
+    fontSize: 10,
+    marginBottom: 3,
+    paddingLeft: 12,
+    lineHeight: 1.45,
+  },
+  // Numbered list for follow-ups (used in Suggested Inspection
+  // Follow-Ups when we render as numbered prose instead of a table).
+  followUpRow: {
+    flexDirection: "row",
+    marginBottom: 5,
+  },
+  followUpNumber: {
+    width: 16,
+    fontSize: 9.5,
+    fontFamily: "Helvetica-Bold",
+    color: C.navy,
+  },
+  followUpText: {
+    flexGrow: 1,
+    flexShrink: 1,
+    fontSize: 9.5,
+    lineHeight: 1.45,
+  },
+  // Comparable-units list inside Market Context.
+  compRow: {
+    flexDirection: "row",
+    marginBottom: 3,
+    paddingLeft: 12,
+  },
+  compDot: {
+    width: 10,
+    fontSize: 9.5,
+    color: C.subtext,
+  },
+  compText: {
+    flexGrow: 1,
+    flexShrink: 1,
+    fontSize: 9.5,
+    lineHeight: 1.45,
+  },
+  // Overall rating pill — clean caps label inside a tinted box,
+  // with a one-line summary below. Replaces the previous large
+  // ratingBox that consumed too much vertical real estate.
+  ratingPillBox2: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: C.light,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  ratingPillLabel: {
+    fontSize: 12,
+    fontFamily: "Helvetica-Bold",
+    textTransform: "uppercase",
+    marginBottom: 3,
+  },
+  ratingPillSummary: {
+    fontSize: 10,
+    color: C.text,
+    lineHeight: 1.45,
+  },
   source: {
     fontSize: 8.5,
     color: C.subtext,
@@ -786,12 +920,28 @@ export function ReportPDF({
         />
       </Page>
 
-      {/* ============ BODY PAGES ============ */}
-      {/* Page 1: Property + Executive Summary + Document Inventory.
-          All three are bounded by data shape (snapshot is one inline
-          row, exec summary is 2-3 paragraphs, inventory is the
-          uploaded-files list capped at the user's actual upload
-          count). Comfortably fits one Letter page in practice. */}
+      {/* ============ BODY PAGES ============
+          Ordering mirrors the Cowork-skill reference report:
+            1. Property Snapshot
+            2. Document Inventory
+            3. Executive Summary
+            4. Critical Findings
+            5. High & Moderate Findings
+            6. Cosmetic Notes
+            7. Cost Summary           (Veroax-specific, kept by request)
+            8. Environmental & Hazard Disclosures
+            9. HOA Financial & Governance Review
+           10. Permits, Alterations & Compliance
+           11. Title & Vesting        (new)
+           12. Negotiation Leverage
+           13. Market Context         (new)
+           14. Suggested Inspection Follow-Ups (new)
+           15. Overall Rating
+          We drop the standalone Outstanding Questions and
+          Insurance & Lender Risk sections — the data they carried is
+          now woven into the per-finding "Next step" + "Why it matters"
+          fields and the Hazard table's "Buyer takeaway" column. */}
+
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
@@ -799,14 +949,18 @@ export function ReportPDF({
         officeAddress={agent.officeAddress}
       >
         <SectionPropertySnapshot report={report} analysisDate={analysisDate} />
-        <SectionExecutiveSummary report={report} />
         <SectionDocumentInventory report={report} originalFiles={originalFiles} />
       </BodyPage>
 
-      {/* Page 2: Critical/High findings alone. Heavy section. With
-          the unit-feature filter pruning inapplicable findings the
-          page is usually 3-8 entries; even a heavy run rarely needs
-          to overflow. */}
+      <BodyPage
+        property={property}
+        agentLine={agentFooterLine}
+        websiteUrl={agent.websiteUrl}
+        officeAddress={agent.officeAddress}
+      >
+        <SectionExecutiveSummary report={report} />
+      </BodyPage>
+
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
@@ -816,9 +970,6 @@ export function ReportPDF({
         <SectionCritical report={report} />
       </BodyPage>
 
-      {/* Page 3: Moderate + Cosmetic. Both are usually short post-
-          filter; grouping them keeps the doc from ballooning to
-          mostly-empty pages. */}
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
@@ -829,10 +980,6 @@ export function ReportPDF({
         <SectionCosmetic report={report} />
       </BodyPage>
 
-      {/* Page 4: Cost Summary alone. Two subsections (buyer-pays
-          and HOA-paid-informational) plus subtotals can run long if
-          there are many line items. Own page so subtotal rows
-          don't get orphaned. */}
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
@@ -842,9 +989,15 @@ export function ReportPDF({
         <SectionCostSummary report={report} />
       </BodyPage>
 
-      {/* Page 5: HOA + Permits + Insurance. Short narrative
-          sections; permits findings render as FindingBlocks but
-          usually 0-3 of them. */}
+      <BodyPage
+        property={property}
+        agentLine={agentFooterLine}
+        websiteUrl={agent.websiteUrl}
+        officeAddress={agent.officeAddress}
+      >
+        <SectionEnvironmental report={report} />
+      </BodyPage>
+
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
@@ -852,12 +1005,18 @@ export function ReportPDF({
         officeAddress={agent.officeAddress}
       >
         <SectionHoa report={report} />
-        <SectionPermits report={report} />
-        <SectionInsuranceLender report={report} />
       </BodyPage>
 
-      {/* Page 6: Negotiation + Environmental + Questions + Rating.
-          Closing pages — usually short. */}
+      <BodyPage
+        property={property}
+        agentLine={agentFooterLine}
+        websiteUrl={agent.websiteUrl}
+        officeAddress={agent.officeAddress}
+      >
+        <SectionPermits report={report} />
+        <SectionTitleVesting report={report} />
+      </BodyPage>
+
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
@@ -865,8 +1024,16 @@ export function ReportPDF({
         officeAddress={agent.officeAddress}
       >
         <SectionNegotiation report={report} />
-        <SectionEnvironmental report={report} />
-        <SectionOutstanding report={report} />
+        <SectionMarketContext report={report} />
+      </BodyPage>
+
+      <BodyPage
+        property={property}
+        agentLine={agentFooterLine}
+        websiteUrl={agent.websiteUrl}
+        officeAddress={agent.officeAddress}
+      >
+        <SectionInspectionFollowUps report={report} />
         <SectionOverallRating report={report} />
       </BodyPage>
     </Document>
@@ -1468,7 +1635,7 @@ function SectionExecutiveSummary({ report }: { report: ReportData }) {
 
   return (
     <View>
-      <SectionBanner number={2} title="Executive Summary" />
+      <SectionBanner number={3} title="Executive Summary" />
       {narrative.map((p, i) => (
         <Text key={i} style={styles.body}>
           {p}
@@ -1590,7 +1757,7 @@ function SectionDocumentInventory({
 
   return (
     <View>
-      <SectionBanner number={3} title="Document Inventory" />
+      <SectionBanner number={2} title="Document Inventory" />
       <Text style={styles.subHead}>Provided</Text>
       {haveOriginals ? (
         originalFiles!.map((f, i) => (
@@ -1664,35 +1831,144 @@ function SectionCritical({ report }: { report: ReportData }) {
 }
 
 function SectionModerate({ report }: { report: ReportData }) {
+  // High & Moderate findings render as a compact 5-column table —
+  // Cowork pattern. Per-finding card layout is reserved for critical
+  // findings; everything moderate gets a row in the table. This
+  // keeps the page short and scannable.
+  const items = report.moderate_findings ?? [];
   return (
     <View>
-      <SectionBanner number={5} title="Moderate Findings" />
-      {report.moderate_findings?.length ? (
-        report.moderate_findings.map((f, i) => (
-          <FindingBlock key={i} finding={f} index={i + 1} />
-        ))
-      ) : (
+      <SectionBanner number={5} title="High & Moderate Findings" />
+      <Text style={styles.body}>
+        Items below are real, but smaller-dollar or lower-complexity
+        than the Section 4 critical items. They are the natural list
+        to negotiate as credits or pre-close repairs.
+      </Text>
+      {items.length === 0 ? (
         <Text style={styles.emptyState}>
-          No moderate findings identified.
+          No high or moderate findings identified.
         </Text>
+      ) : (
+        <FindingsTable items={items} />
       )}
     </View>
   );
 }
 
 function SectionCosmetic({ report }: { report: ReportData }) {
+  // Cosmetic findings render as a simple bullet list — these are
+  // small enough that per-finding cards are visual overkill. Each
+  // line shows the finding title; if cost matters and isn't HOA-
+  // paid we append the dollar amount.
+  const items = report.cosmetic_findings ?? [];
   return (
     <View>
-      <SectionBanner number={6} title="Cosmetic Findings" />
-      {report.cosmetic_findings?.length ? (
-        report.cosmetic_findings.map((f, i) => (
-          <FindingBlock key={i} finding={f} index={i + 1} />
-        ))
-      ) : (
+      <SectionBanner number={6} title="Cosmetic Notes" />
+      {items.length === 0 ? (
         <Text style={styles.emptyState}>
           No cosmetic findings identified.
         </Text>
+      ) : (
+        <>
+          <Text style={styles.body}>
+            The items below describe the cosmetic baseline against
+            which the buyer should evaluate the unit at the final
+            walk-through. None of these rise to a credit-worthy
+            defect on their own.
+          </Text>
+          {items.map((f, i) => (
+            <Text key={i} style={styles.cosmeticBullet}>
+              · {withSoftBreaks(f.title)}
+              {f.cost_estimate?.high && f.cost_responsibility !== "hoa"
+                ? ` (${formatCostRange(f.cost_estimate)})`
+                : ""}
+            </Text>
+          ))}
+        </>
       )}
+    </View>
+  );
+}
+
+// Compact 5-column table used by both High/Moderate and (via prop
+// override) any other group of findings we want to render in
+// tabular form rather than as per-finding cards. The columns mirror
+// the Cowork sample: Item | What the document says | Cost range |
+// Timeline | Confidence.
+function FindingsTable({ items }: { items: Finding[] }) {
+  // Letter content area ≈ 500pt wide. Allocate:
+  //   Item:        150
+  //   What says:   180 (flex grow to fill)
+  //   Cost range:   80
+  //   Timeline:     60
+  //   Confidence:   30  (just "H"/"M"/"L")
+  return (
+    <View style={styles.fTable}>
+      <View style={styles.fTableHeaderRow}>
+        <Text style={[styles.fTableHeaderCell, { width: 150 }]}>Item</Text>
+        <Text
+          style={[
+            styles.fTableHeaderCell,
+            { flexGrow: 1, flexShrink: 1 },
+          ]}
+        >
+          What the document says
+        </Text>
+        <Text style={[styles.fTableHeaderCell, { width: 80 }]}>
+          Cost range
+        </Text>
+        <Text style={[styles.fTableHeaderCell, { width: 60 }]}>
+          Timeline
+        </Text>
+        <Text style={[styles.fTableHeaderCell, { width: 30 }]}>Cnf</Text>
+      </View>
+      {items.map((f, i) => (
+        <View
+          key={i}
+          style={i % 2 === 1 ? styles.fTableRowAlt : styles.fTableRow}
+        >
+          <View style={{ width: 150 }}>
+            <Text style={styles.fTableCell}>
+              {withSoftBreaks(f.title)}
+            </Text>
+            <Text style={styles.fTableCellMuted}>
+              {withSoftBreaks(f.source)}
+            </Text>
+          </View>
+          <Text
+            style={[
+              styles.fTableCell,
+              { flexGrow: 1, flexShrink: 1 },
+            ]}
+          >
+            {withSoftBreaks(
+              f.description || f.what_it_is || f.recommended_action || "",
+            )}
+          </Text>
+          <Text style={[styles.fTableCell, { width: 80 }]}>
+            {f.cost_responsibility === "hoa"
+              ? "HOA"
+              : formatCostRange(f.cost_estimate)}
+          </Text>
+          <Text style={[styles.fTableCell, { width: 60 }]}>
+            {/* No explicit timeline field yet — derive a coarse hint
+                from severity. When the synthesizer gets richer
+                timeline data this maps directly. */}
+            {f.severity === "moderate"
+              ? "1-5 yr"
+              : f.severity === "high"
+                ? "30-60 d"
+                : "—"}
+          </Text>
+          <Text style={[styles.fTableCell, { width: 30 }]}>
+            {f.confidence === "high"
+              ? "H"
+              : f.confidence === "medium"
+                ? "M"
+                : "L"}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -1816,31 +2092,62 @@ function SectionCostSummary({ report }: { report: ReportData }) {
 }
 
 function SectionHoa({ report }: { report: ReportData }) {
-  return (
-    <View>
-      <SectionBanner number={8} title="HOA Financial & Governance Review" />
-      {!report.hoa?.applicable ? (
+  const hoa = report.hoa;
+  if (!hoa?.applicable) {
+    return (
+      <View>
+        <SectionBanner number={9} title="HOA Financial & Governance Review" />
         <Text style={styles.emptyState}>
           HOA documents not present or not applicable to this property.
         </Text>
-      ) : (
-        <View>
+      </View>
+    );
+  }
+  const facts = hoa.facts ?? [];
+  return (
+    <View>
+      <SectionBanner number={9} title="HOA Financial & Governance Review" />
+      <Text style={styles.body}>{hoa.summary}</Text>
+
+      {/* Compact financial KV table — Master policy / Reserves /
+          Operating account / Dues / Special assessment / Capital
+          projects / etc. Renders only when the analyzer populated
+          hoa.facts; legacy reports just don't get this block. */}
+      {facts.length > 0 ? (
+        <KvTable rows={facts.map((f) => [f.label, f.value])} />
+      ) : null}
+
+      {/* "Reserve health, our read" — editorial paragraph. */}
+      {hoa.reserve_health_read ? (
+        <>
+          <Text style={styles.subHead}>Reserve health, our read.</Text>
           <Text style={styles.body}>
-            {report.hoa.summary}
+            {withSoftBreaks(hoa.reserve_health_read)}
           </Text>
-          {report.hoa.concerns?.length ? (
-            <View>
-              <Text style={styles.subHead}>Concerns</Text>
-              {report.hoa.concerns.map((c, i) => (
-                <View key={i} style={styles.bullet}>
-                  <Text style={styles.bulletDot}>·</Text>
-                  <Text style={styles.bulletText}>{c}</Text>
-                </View>
-              ))}
+        </>
+      ) : null}
+
+      {/* "Watch items" — diligence flag. */}
+      {hoa.watch_items ? (
+        <>
+          <Text style={styles.subHead}>Watch items.</Text>
+          <Text style={styles.body}>{withSoftBreaks(hoa.watch_items)}</Text>
+        </>
+      ) : null}
+
+      {/* Free-form concerns list — legacy fallback when the structured
+          facts/reserve_health_read aren't populated. */}
+      {hoa.concerns?.length ? (
+        <View>
+          <Text style={styles.subHead}>Concerns</Text>
+          {hoa.concerns.map((c, i) => (
+            <View key={i} style={styles.bullet}>
+              <Text style={styles.bulletDot}>·</Text>
+              <Text style={styles.bulletText}>{c}</Text>
             </View>
-          ) : null}
+          ))}
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -1848,7 +2155,7 @@ function SectionHoa({ report }: { report: ReportData }) {
 function SectionPermits({ report }: { report: ReportData }) {
   return (
     <View>
-      <SectionBanner number={9} title="Permits, Alterations & Code Compliance" />
+      <SectionBanner number={10} title="Permits, Alterations & Code Compliance" />
       <Text style={styles.body}>
         {report.permit_compliance?.summary ||
           "No permit-related issues surfaced in the documents reviewed."}
@@ -1897,7 +2204,7 @@ function SectionInsuranceLender({ report }: { report: ReportData }) {
 function SectionNegotiation({ report }: { report: ReportData }) {
   return (
     <View>
-      <SectionBanner number={11} title="Negotiation Leverage" />
+      <SectionBanner number={12} title="Negotiation Leverage" />
       <Text style={styles.body}>
         {report.negotiation?.summary}
       </Text>
@@ -1916,23 +2223,72 @@ function SectionNegotiation({ report }: { report: ReportData }) {
 }
 
 function SectionEnvironmental({ report }: { report: ReportData }) {
+  // 3-column table per the Cowork sample: Hazard / Status / Buyer
+  // takeaway. We derive the Status column from the existing severity
+  // enum — a "cosmetic" severity means the hazard is documented but
+  // the unit is NOT in the affected zone; "critical" / "high" /
+  // "moderate" all mean the unit IS in the affected zone. The notes
+  // field becomes the "buyer takeaway."
+  const hazards = report.environmental?.hazards ?? [];
   return (
     <View>
-      <SectionBanner number={12} title="Environmental & Natural Hazards" />
+      <SectionBanner number={8} title="Environmental & Hazard Disclosures" />
       <Text style={styles.body}>
         {report.environmental?.summary}
       </Text>
-      {report.environmental?.hazards?.length
-        ? report.environmental.hazards.map((h, i) => (
-            <View key={i} style={styles.bullet}>
-              <Text style={styles.bulletDot}>·</Text>
-              <Text style={styles.bulletText}>
-                <Text style={{ fontFamily: "Helvetica-Bold" }}>{h.name}</Text> (
-                {h.severity}): {h.notes}
-              </Text>
-            </View>
-          ))
-        : null}
+      {hazards.length === 0 ? (
+        <Text style={styles.emptyState}>
+          No environmental hazards identified.
+        </Text>
+      ) : (
+        <View style={styles.envTable}>
+          <View style={styles.fTableHeaderRow}>
+            <Text style={[styles.fTableHeaderCell, { width: 190 }]}>
+              Hazard / disclosure
+            </Text>
+            <Text style={[styles.fTableHeaderCell, { width: 90 }]}>
+              Status
+            </Text>
+            <Text
+              style={[
+                styles.fTableHeaderCell,
+                { flexGrow: 1, flexShrink: 1 },
+              ]}
+            >
+              Buyer takeaway
+            </Text>
+          </View>
+          {hazards.map((h, i) => {
+            // Status reads "IN" / "NOT IN" based on whether the unit
+            // sits inside the zone. severity="cosmetic" is our coding
+            // for "documented but unit is not in the zone."
+            const inZone = h.severity !== "cosmetic";
+            return (
+              <View
+                key={i}
+                style={i % 2 === 1 ? styles.fTableRowAlt : styles.fTableRow}
+              >
+                <Text style={styles.envColHazard}>
+                  {withSoftBreaks(h.name)}
+                </Text>
+                <Text
+                  style={[
+                    styles.envColStatus,
+                    {
+                      color: inZone ? C.critical : C.positive,
+                    },
+                  ]}
+                >
+                  {inZone ? "IN" : "NOT IN"}
+                </Text>
+                <Text style={styles.envColTakeaway}>
+                  {withSoftBreaks(h.notes)}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
@@ -1983,21 +2339,242 @@ function SectionOutstanding({ report }: { report: ReportData }) {
 
 function SectionOverallRating({ report }: { report: ReportData }) {
   const r = report.overall_rating;
-  const color = ratingColor(r?.label);
   return (
     <View>
-      <SectionBanner number={14} title="Overall Property Rating" />
-      <View style={styles.ratingBox}>
-        <View style={styles.ratingPillRow}>
-          <View style={[styles.ratingPillBox, { backgroundColor: color }]}>
-            <Text style={styles.ratingPillText}>{r?.label ?? "Unrated"}</Text>
-          </View>
-        </View>
-        <Text style={styles.ratingSummary}>{r?.summary}</Text>
-        {r?.contingency_advice ? (
-          <Text style={styles.ratingContingency}>{r.contingency_advice}</Text>
-        ) : null}
+      <SectionBanner number={15} title="Overall Rating" />
+      {/* Compact pill at the top with the rating label in caps and
+          a one-line summary inside it — matches the Cowork sample
+          exactly. The pill itself is tinted with a soft pastel
+          version of the rating color (light pink for Significant
+          Concerns / Walk Away, soft tan/beige for Acceptable, soft
+          green for Good/Excellent). */}
+      <View
+        style={[
+          styles.ratingPillBox2,
+          { backgroundColor: ratingPillTone(r?.label) },
+        ]}
+      >
+        <Text
+          style={[
+            styles.ratingPillLabel,
+            { color: ratingPillTextColor(r?.label) },
+          ]}
+        >
+          {(r?.label ?? "Unrated").toUpperCase()}
+        </Text>
+        <Text style={styles.ratingPillSummary}>{r?.summary ?? ""}</Text>
       </View>
+      {r?.contingency_advice ? (
+        <Text style={styles.body}>{withSoftBreaks(r.contingency_advice)}</Text>
+      ) : null}
+      {r?.why_this_rating ? (
+        <>
+          <Text style={styles.subHead}>Why this rating.</Text>
+          <Text style={styles.body}>
+            {withSoftBreaks(r.why_this_rating)}
+          </Text>
+        </>
+      ) : null}
+      {r?.conditions_on_which_this_depends ? (
+        <>
+          <Text style={styles.subHead}>
+            Conditions on which this rating depends.
+          </Text>
+          <Text style={styles.body}>
+            {withSoftBreaks(r.conditions_on_which_this_depends)}
+          </Text>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+// Soft pastel backgrounds for the rating pill — the Cowork pattern.
+// Returns a light tint of the rating color that reads as a badge
+// without dominating the page.
+function ratingPillTone(label: ReportData["overall_rating"]["label"] | undefined): string {
+  switch (label) {
+    case "Excellent":
+      return "#DFF5E8";
+    case "Good":
+      return "#E8F4D9";
+    case "Acceptable":
+      return "#F7EEDB"; // soft tan
+    case "Significant Concerns":
+      return "#FDECEA";
+    case "Walk Away":
+      return "#F8D7DA";
+    default:
+      return "#F1F5F9";
+  }
+}
+function ratingPillTextColor(
+  label: ReportData["overall_rating"]["label"] | undefined,
+): string {
+  switch (label) {
+    case "Excellent":
+    case "Good":
+      return "#1F6F3A";
+    case "Acceptable":
+      return "#8A6D1C";
+    case "Significant Concerns":
+    case "Walk Away":
+      return "#A02D1F";
+    default:
+      return "#1E2A5E";
+  }
+}
+
+// Title & Vesting — new section sourced from the prelim title report.
+function SectionTitleVesting({ report }: { report: ReportData }) {
+  const tv = report.title_vesting;
+  return (
+    <View>
+      <SectionBanner number={11} title="Title & Vesting" />
+      {tv ? (
+        <>
+          <Text style={styles.body}>{withSoftBreaks(tv.vesting_summary)}</Text>
+          {tv.liens_summary ? (
+            <>
+              <Text style={styles.subHead}>Liens of note.</Text>
+              <Text style={styles.body}>
+                {withSoftBreaks(tv.liens_summary)}
+              </Text>
+            </>
+          ) : null}
+          {tv.recorded_matters ? (
+            <>
+              <Text style={styles.subHead}>Recorded matters touching the project.</Text>
+              <Text style={styles.body}>
+                {withSoftBreaks(tv.recorded_matters)}
+              </Text>
+            </>
+          ) : null}
+        </>
+      ) : (
+        <Text style={styles.emptyState}>
+          Preliminary title report data not available for this analysis.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+// Market Context — sub-segment pricing + comps + mortgage rate.
+function SectionMarketContext({ report }: { report: ReportData }) {
+  const mc = report.market_context;
+  return (
+    <View>
+      <SectionBanner number={13} title="Market Context" />
+      {mc ? (
+        <>
+          <Text style={styles.body}>{withSoftBreaks(mc.summary)}</Text>
+          {mc.monthly_carrying_cost ? (
+            <Text style={styles.body}>
+              <Text style={styles.findingNarrativeLabel}>
+                Monthly carrying cost:{" "}
+              </Text>
+              {mc.monthly_carrying_cost}
+            </Text>
+          ) : null}
+          {mc.mortgage_rate_range ? (
+            <Text style={styles.body}>
+              <Text style={styles.findingNarrativeLabel}>
+                Mortgage rate range:{" "}
+              </Text>
+              {mc.mortgage_rate_range}
+            </Text>
+          ) : null}
+          {mc.comparable_units && mc.comparable_units.length > 0 ? (
+            <>
+              <Text style={styles.subHead}>Comparable units.</Text>
+              {mc.comparable_units.map((c, i) => (
+                <View key={i} style={styles.compRow}>
+                  <Text style={styles.compDot}>·</Text>
+                  <Text style={styles.compText}>
+                    <Text style={styles.findingNarrativeLabel}>
+                      {withSoftBreaks(c.label)}:{" "}
+                    </Text>
+                    {withSoftBreaks(c.status)}
+                    {c.note ? <> · {withSoftBreaks(c.note)}</> : null}
+                  </Text>
+                </View>
+              ))}
+            </>
+          ) : null}
+        </>
+      ) : (
+        <Text style={styles.emptyState}>
+          Market context not populated for this analysis.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+// Inspection Follow-Ups — numbered checklist of specialists.
+function SectionInspectionFollowUps({ report }: { report: ReportData }) {
+  const items = report.inspection_follow_ups ?? [];
+  return (
+    <View>
+      <SectionBanner number={14} title="Suggested Inspection Follow-Ups" />
+      {items.length === 0 ? (
+        <Text style={styles.emptyState}>
+          The findings above already point to specific specialists in
+          their &ldquo;Next step&rdquo; fields — no additional follow-up
+          list compiled for this analysis.
+        </Text>
+      ) : (
+        <>
+          <Text style={styles.body}>
+            The following follow-ups will substantially close the
+            largest unknowns in this file. None are expensive
+            individually; together they total roughly the sum of the
+            ranges below in evaluation fees.
+          </Text>
+          <View style={styles.fTable}>
+            <View style={styles.fTableHeaderRow}>
+              <Text style={[styles.fTableHeaderCell, { width: 22 }]}>#</Text>
+              <Text style={[styles.fTableHeaderCell, { width: 130 }]}>
+                Specialist
+              </Text>
+              <Text
+                style={[
+                  styles.fTableHeaderCell,
+                  { flexGrow: 1, flexShrink: 1 },
+                ]}
+              >
+                Reason
+              </Text>
+              <Text style={[styles.fTableHeaderCell, { width: 90 }]}>
+                Approx. cost
+              </Text>
+            </View>
+            {items.map((f, i) => (
+              <View
+                key={i}
+                style={i % 2 === 1 ? styles.fTableRowAlt : styles.fTableRow}
+              >
+                <Text style={[styles.fTableCell, { width: 22 }]}>{i + 1}</Text>
+                <Text style={[styles.fTableCell, { width: 130 }]}>
+                  {withSoftBreaks(f.specialist)}
+                </Text>
+                <Text
+                  style={[
+                    styles.fTableCell,
+                    { flexGrow: 1, flexShrink: 1 },
+                  ]}
+                >
+                  {withSoftBreaks(f.reason)}
+                </Text>
+                <Text style={[styles.fTableCell, { width: 90 }]}>
+                  {withSoftBreaks(f.approx_cost)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
     </View>
   );
 }
