@@ -49,25 +49,67 @@ export async function POST(
   const admin = createServiceRoleClient();
   const { data: report } = await admin
     .from("reports")
-    .select("id, status")
+    .select(
+      "id, status, report_data, original_files, source_file_path, versions, update_count, analysis_completed_at",
+    )
     .eq("id", reportId)
     .maybeSingle();
   if (!report) {
     return NextResponse.json({ error: "Report not found." }, { status: 404 });
   }
 
+  // Snapshot the existing report_data into versions[] BEFORE reset
+  // when there's a real prior analysis worth preserving. The share
+  // URL always shows the latest analysis (re-renders the current
+  // report_data), but the previous PDF + findings remain accessible
+  // via the dashboard's version-download path so the agent can pull
+  // up "what the analysis looked like before I reran it."
+  //
+  // Same shape as the /update endpoint's snapshot — agent-facing
+  // version history works the same way for force-rerun snapshots
+  // as for add-docs snapshots.
+  const hasPriorAnalysis =
+    Boolean(report.report_data) &&
+    ["qa_pending", "qa_approved", "delivered"].includes(report.status);
+  let nextVersions = report.versions;
+  let nextUpdateCount = (report.update_count as number | null) ?? 0;
+  if (hasPriorAnalysis) {
+    nextUpdateCount += 1;
+    const snapshot = {
+      version_number: nextUpdateCount,
+      snapshotted_at: new Date().toISOString(),
+      report_data: report.report_data,
+      original_files: report.original_files,
+      source_file_path: report.source_file_path,
+      status: report.status,
+      pdf_blob_path: null as string | null,
+      // Distinguishable in the version-list UI from /update snapshots
+      // (which have removed_filename or added context).
+      snapshot_reason: "admin_force_rerun",
+      analysis_completed_at: report.analysis_completed_at,
+    };
+    nextVersions = Array.isArray(report.versions)
+      ? [...(report.versions as unknown[]), snapshot]
+      : [snapshot];
+  }
+
   // Reset to a clean failed state. analyze accepts "failed" and will
   // kick off a fresh background run. We pick failure_reason wording
   // that's distinguishable from a real failure so anyone reading
   // audit_log knows this was intentional.
+  const updatePayload: Record<string, unknown> = {
+    status: "failed",
+    failure_reason:
+      "Admin force-rerun: prior analysis discarded for re-analysis.",
+    analysis_started_at: null,
+  };
+  if (hasPriorAnalysis) {
+    updatePayload.versions = nextVersions;
+    updatePayload.update_count = nextUpdateCount;
+  }
   const { error: updErr } = await admin
     .from("reports")
-    .update({
-      status: "failed",
-      failure_reason:
-        "Admin force-rerun: prior analysis discarded for re-analysis.",
-      analysis_started_at: null,
-    })
+    .update(updatePayload)
     .eq("id", reportId);
   if (updErr) {
     return NextResponse.json(
@@ -84,6 +126,8 @@ export async function POST(
         actor_user_id: user.id,
         actor_email: user.email,
         previous_status: report.status,
+        snapshotted: hasPriorAnalysis,
+        new_version_number: hasPriorAnalysis ? nextUpdateCount : null,
       },
     });
   } catch (err) {
