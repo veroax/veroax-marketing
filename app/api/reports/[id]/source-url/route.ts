@@ -70,26 +70,44 @@ export async function GET(
     );
   }
 
-  // The user-visible filename may map to multiple `_part_N` files in
-  // storage if the file was split at upload. The viewer side panel
-  // doesn't care — we resolve the FIRST part (or the unsplit file)
-  // since that's the start of the document. Page numbers in citations
-  // refer to the original document's page numbering, not the chunk's.
+  // Source citations from the analyzer are human-readable
+  // ("CalPro Home Inspection", "AVID", "Able Exterminators")
+  // and won't match storage filenames byte-for-byte. The matcher
+  // tokenizes both sides and picks the file with the best token
+  // overlap. Handles all the common citation styles we see:
+  // - "Property Inspection" → matches "5._Property_Inspection.pdf"
+  // - "CalPro Home Inspection" → matches "5._CalPro_Home_Inspection.pdf"
+  // - "AVID" → matches "3._AVID.pdf"
+  // - "AVID p.4" → page already stripped by caller, "AVID" remains
+  // For split docs we prefer the first part so the iframe lands on
+  // the original document's start.
   const admin = createServiceRoleClient();
   const { data: files } = await admin.storage
     .from("disclosures")
     .list(folder, { limit: 1000 });
-  const baseNoExt = filename.replace(/\.pdf$/i, "");
-  const candidate =
-    (files ?? []).find((f) => f.name === filename) ??
-    (files ?? []).find(
-      (f) =>
-        f.name.toLowerCase().startsWith(baseNoExt.toLowerCase() + "_part_") &&
-        f.name.toLowerCase().endsWith(".pdf"),
-    );
+  const allFiles = (files ?? []).filter((f) =>
+    f.name.toLowerCase().endsWith(".pdf"),
+  );
+
+  // Try exact match first (fast path for citations that happen to be
+  // verbatim filenames). Fall through to token-overlap scoring when
+  // the citation is human-readable. `candidate` is a minimal
+  // {name: string} shape — Supabase's FileObject and our matcher's
+  // return type share that subset.
+  let candidate: { name: string } | undefined =
+    allFiles.find((f) => f.name === filename) ??
+    allFiles.find((f) => f.name.toLowerCase() === filename.toLowerCase());
+
   if (!candidate) {
+    candidate = pickBestFileMatch(filename, allFiles) ?? undefined;
+  }
+
+  if (!candidate) {
+    const available = allFiles.map((f) => f.name).join(", ");
     return NextResponse.json(
-      { error: `Source file "${filename}" not found in report storage.` },
+      {
+        error: `Couldn't match "${filename}" to a file in this report. Files in storage: ${available || "(none)"}`,
+      },
       { status: 404 },
     );
   }
@@ -112,4 +130,86 @@ export async function GET(
     filename: candidate.name,
     base_filename: filename,
   });
+}
+
+// Token-overlap scorer for source-citation → storage-filename
+// matching. Citations are human-readable ("CalPro Home Inspection",
+// "AVID", "Property Inspection") and rarely match storage filenames
+// verbatim (which look like "5._Property_Inspection.pdf"). We
+// tokenize both sides, drop noise (numeric prefixes, _part_N
+// suffixes, short words, common stop words), and pick the file with
+// the most overlapping tokens. Ties prefer the unsplit file or the
+// first part.
+function pickBestFileMatch(
+  hint: string,
+  files: Array<{ name: string }>,
+): { name: string } | null {
+  const hintTokens = tokenize(hint);
+  if (hintTokens.size === 0) return null;
+
+  type Scored = { file: { name: string }; score: number; partNumber: number };
+  const scored: Scored[] = [];
+  for (const file of files) {
+    const fileTokens = tokenize(stripFilenameNoise(file.name));
+    let overlap = 0;
+    for (const t of hintTokens) if (fileTokens.has(t)) overlap += 1;
+    if (overlap === 0) continue;
+    // Extract _part_N number (0 if unsplit) so ties go to part 1
+    // first, then part 2, etc.
+    const partMatch = file.name.match(/_part_(\d+)\.pdf$/i);
+    const partNumber = partMatch ? parseInt(partMatch[1], 10) : 0;
+    scored.push({ file, score: overlap, partNumber });
+  }
+  if (scored.length === 0) return null;
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    // Same overlap: prefer unsplit (partNumber=0) or earlier parts.
+    return a.partNumber - b.partNumber;
+  });
+  return scored[0].file;
+}
+
+// Stop words common in disclosure filenames + citations that don't
+// help discriminate between docs.
+const STOP_TOKENS = new Set([
+  "the",
+  "and",
+  "for",
+  "report",
+  "reports",
+  "pdf",
+  "doc",
+  "docs",
+  "document",
+  "documents",
+  "page",
+  "pages",
+  "section",
+  "sec",
+]);
+
+function tokenize(s: string): Set<string> {
+  return new Set(
+    s
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((tok) => {
+        if (tok.length < 3) return false;
+        if (STOP_TOKENS.has(tok)) return false;
+        if (/^\d+$/.test(tok)) return false; // bare numbers
+        return true;
+      }),
+  );
+}
+
+// Strip noise from a storage filename so the token set reflects the
+// document name proper. Drops `.pdf`, `_part_N` suffix, leading
+// numeric prefixes ("5._", "10._"), and trailing version digits.
+function stripFilenameNoise(name: string): string {
+  return name
+    .replace(/\.pdf$/i, "")
+    .replace(/_part_\d+$/i, "")
+    .replace(/^\d+[._\-\s]+/, "")
+    .replace(/[_\-]+/g, " ")
+    .trim();
 }
