@@ -42,6 +42,7 @@ const GROUP_TRANSPORT: Record<PassGroup, "pdf" | "text"> = {
 import type { ReportData } from "@/lib/anthropic/schema";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
+import { generateShareCode } from "@/lib/share/code";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 
@@ -400,6 +401,24 @@ export async function performAnalysis(
   const extractedAddress =
     result.report.property_snapshot?.address?.trim() || null;
 
+  // Generate a public share code if the report doesn't already have
+  // one. Generated on first completion and preserved across reruns —
+  // the public link stays stable so the agent can hand it to the
+  // buyer once and not have to re-share when the analysis is
+  // refreshed (re-analysis updates the data the share link
+  // resolves to).
+  const { data: existing } = await admin
+    .from("reports")
+    .select("share_code")
+    .eq("id", reportId)
+    .maybeSingle();
+  const existingShareCode =
+    typeof (existing as { share_code?: unknown } | null)?.share_code ===
+    "string"
+      ? ((existing as { share_code: string }).share_code as string)
+      : null;
+  const shareCode = existingShareCode ?? generateShareCode();
+
   const { error: updateErr } = await admin
     .from("reports")
     .update({
@@ -407,6 +426,7 @@ export async function performAnalysis(
       report_data: result.report,
       property_address: report.property_address ?? extractedAddress,
       analysis_completed_at: new Date().toISOString(),
+      share_code: shareCode,
     })
     .eq("id", reportId);
   if (updateErr) {
