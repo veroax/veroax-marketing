@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { FeedbackForm } from "./_components/FeedbackForm";
 
-export const metadata = { title: "Feedback — Veroax" };
+export const metadata = {
+  title: "Feedback, Veroax",
+  robots: { index: false, follow: false },
+};
 
 export default function FeedbackPage() {
   return (

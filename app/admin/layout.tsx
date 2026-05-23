@@ -15,7 +15,10 @@ import { createClient } from "@/lib/supabase/server";
 import { logoutAction } from "../(auth)/actions";
 
 export const metadata = {
-  title: "Admin — Veroax",
+  title: "Admin, Veroax",
+  // Cascades to every page under /admin. Admin surfaces should
+  // never appear in any search index.
+  robots: { index: false, follow: false },
 };
 
 export default async function AdminLayout({

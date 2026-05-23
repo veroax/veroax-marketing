@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { PRICE_ID_ENV, ONEOFF_REPORT_PRICE_ENV } from "@/lib/billing/plans";
+import { priceIdFor, ONEOFF_REPORT_PRICE_ENV } from "@/lib/billing/plans";
 
 function getOrigin(request: Request): string {
   // Prefer the forwarded host (Vercel sets these) so success_url points at the
@@ -77,8 +77,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Invalid billing period." }, { status: 400 });
   }
 
-  const priceEnvName = PRICE_ID_ENV[`${plan}:${billing}`];
-  const priceId = priceEnvName ? process.env[priceEnvName] : undefined;
+  // Single source of truth for plan -> Stripe price id resolution.
+  // Lives in lib/billing/plans so the checkout route and any other
+  // call site (admin tools, scripts) can never drift.
+  const priceId = priceIdFor(plan as "solo" | "pro" | "brokerage", billing as "monthly" | "annual");
 
   // Graceful fallback: if either secret or Price ID is missing on this
   // environment, bounce the user to the pricing page (which renders

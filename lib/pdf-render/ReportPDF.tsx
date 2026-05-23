@@ -58,6 +58,13 @@ const C = {
   white: "#FFFFFF",
   strengthsBg: "#EAF7EF", // light green (matches C.positive)
   concernsBg: "#FDECEA", // light red (matches C.critical)
+  // Veroax brand accents, used ONLY for the "Powered by veroax"
+  // credit on the cover. The agent's brokerage colors drive the
+  // rest of the chrome via accentColor; these two stay reserved
+  // for the Veroax wordmark + dot so the brand reads consistently
+  // wherever it appears (site, PDF, OG, email).
+  brandCoral: "#E85D75",
+  brandTeal: "#3FB8AF",
 } as const;
 
 // ============================================================================
@@ -516,6 +523,32 @@ const styles = StyleSheet.create({
   preparedByMeta: {
     fontSize: 9,
     color: C.subtext,
+  },
+  // "Powered by veroax" credit at the very bottom of the cover.
+  // Kept small and unobtrusive so the agent's brokerage stays the
+  // primary brand on the cover (white-label posture). Wordmark gets
+  // the coral inline so it reads as the actual Veroax lockup, dot
+  // gets the teal accent for the same reason.
+  poweredByRow: {
+    flexDirection: "row",
+    marginTop: 18,
+    paddingTop: 8,
+  },
+  poweredByLabel: {
+    fontSize: 8,
+    color: C.subtext,
+  },
+  poweredByVeroax: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: C.brandCoral,
+    marginLeft: 4,
+  },
+  poweredByDot: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: C.brandTeal,
+    marginLeft: 2,
   },
   // Subtle "Internal reference: ..." line shown below the address when
   // the agent gave the report a memorable label. Italicized + muted so
@@ -1392,6 +1425,16 @@ function CoverPage({
               </Text>
             )}
           </View>
+        </View>
+
+        {/* Powered-by credit. Small, low-contrast, sits below the
+            Prepared By block so it never competes with the agent's
+            branding. The wordmark + dot use the canonical Veroax
+            colors (coral + teal). */}
+        <View style={styles.poweredByRow}>
+          <Text style={styles.poweredByLabel}>Powered by</Text>
+          <Text style={styles.poweredByVeroax}>veroax</Text>
+          <Text style={styles.poweredByDot}>•</Text>
         </View>
       </View>
     </View>

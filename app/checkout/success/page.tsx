@@ -2,6 +2,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "Welcome to Veroax",
+  robots: { index: false, follow: false },
 };
 
 export default function CheckoutSuccess() {

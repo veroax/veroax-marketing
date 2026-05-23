@@ -25,11 +25,11 @@ const FAQS: Array<{ q: string; a: string }> = [
   },
   {
     q: "What about pricing?",
-    a: "Solo plan: $49/mo for X reports + $59 per overage. Pro plan: $149/mo for higher capacity. Brokerage plans available. See the homepage pricing section for current details.",
+    a: "Solo plan: $49/mo for 1 report per month plus $59 per additional report. Pro plan: $149/mo for 8 reports plus $35 per additional. Brokerage plan: $449/mo for 30 reports plus $25 per additional, with team seats and white-label branding. Pay-as-you-go (no monthly): $69 per report. See the homepage pricing section for current details.",
   },
   {
     q: "Is this a substitute for an inspection?",
-    a: "No. Every Veroax report includes a clear disclaimer that it's a preliminary analytical aid. It does not replace licensed professional inspection, attorney review, or lender underwriting. The report helps you prioritize what to verify — it doesn't replace verification.",
+    a: "No. Every Veroax report includes a clear disclaimer that it's a preliminary analytical aid. It does not replace licensed professional inspection, attorney review, or lender underwriting. The report helps you prioritize what to verify. It does not replace verification.",
   },
 ];
 

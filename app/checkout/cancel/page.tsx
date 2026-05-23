@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Checkout canceled — Veroax",
+  title: "Checkout canceled, Veroax",
+  robots: { index: false, follow: false },
 };
 
 export default function CheckoutCancel() {

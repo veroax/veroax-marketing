@@ -78,8 +78,8 @@ export function ReportListTable({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+      <table className="w-full text-sm min-w-[640px]">
         <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
           <tr>
             <SortableHeader
