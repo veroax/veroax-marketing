@@ -1,8 +1,37 @@
-# Veroax worksheet, picked up after autonomous session
+# Veroax worksheet, picked up after second autonomous session
 
-Generated during the "I'm taking off for a few hours" run. This is the
-single document to read when you come back. It captures what I shipped,
-what is still open, and what I'd recommend doing next.
+Generated during two consecutive "I'm taking off for a few hours" runs.
+This is the single document to read when you come back. The "What
+shipped" section captures both runs; "Open items" is filtered to only
+the things that haven't been done yet.
+
+## Session 2 summary (most recent run)
+
+Items 4, 5, 9, 11, polish 17 to 22, and 10 blog drafts all shipped.
+Four commits:
+- `aa86503` security: email-match attack fix + filename PII scrub
+- `646a0a1` refactor: shared requireUser / requireAdmin helpers (20 routes)
+- `b83af04` landing page split + signup polish + 5 remaining blog drafts
+- (plus the first 5 blog drafts folded into the security commit above)
+
+Highlights:
+- Stripe checkout now passes user.id via client_reference_id +
+  metadata. Webhook resolves by signed user_id first, falls back to
+  email only for legacy sessions.
+- `lib/audit/safe.ts` strips filenames from audit_log rows (replaces
+  with SHA-256 hash + extension). Filenames often embed PII.
+- 20 route handlers use new requireUser / requireAdmin helpers from
+  lib/auth/require.ts. About 100 lines of duplicated boilerplate
+  deleted.
+- Landing page is now a server component. PricingAndContact client
+  island handles the toggle / cards / contact form. Hero links to
+  the trial banner directly (#free-trial).
+- Signup page got a show/hide password toggle and a four-tier
+  strength meter with screen-reader feedback.
+- 10 first-draft blog posts under `content/blog/` covering TDS, SPQ,
+  inspection reports, NHD, HOA docs, mold/asbestos/lead, solar,
+  severity rubric, re-analysis window, and post-disclosure
+  negotiation. None are rendered yet; you edit, we wire to /blog.
 
 ## What shipped while you were away
 
@@ -55,70 +84,59 @@ URLs to spot-check on the live deploy:
 ### Decisions needed from you (low effort, only you can make)
 1. **File a USPTO standard-character mark on VEROAX** (classes 9 + 42, about $350 each). This is the highest-leverage permanence move and does not block anything else. I cannot file this for you, but I can prep the application text if you want.
 2. **Stripe Test mode**: you were going to set this up manually. Confirm the test keys are loaded and the test webhook is firing before we promote to live mode.
-3. **Pick blog + help video topics**: `/blog` and `/help` are still placeholder pages. The audit flagged them as feeling broken to a first-time visitor. Even 2 to 3 evergreen posts and a "Launching Q3 2026" estimate on Help would make them feel real. Suggested topics:
-   - Blog: "How to read a TDS", "What a Critical finding means", "The 30-day re-analysis window explained"
-   - Help: short Loom videos of the upload + report + email flow once those are stable
+3. **Edit and ship the 10 blog drafts.** All 10 are in `content/blog/*.md` as Markdown with frontmatter. They're first drafts; once you've edited them, I'll wire a real `/blog` index page that lists them and per-post pages at `/blog/[slug]`. Right now the `/blog` route is still a coming-soon stub. The drafts touch: TDS, SPQ, inspections, NHD, HOA, mold/asbestos/lead, solar, severity rubric, 30-day window, and post-disclosure negotiation.
+4. **Help video plan**: `/help` is still a stub of "Coming" placeholders. Record short Loom or QuickTime walkthroughs of the upload + report + email flow once the dashboard UX is stable. Until then, either show a date estimate or remove the route.
 
-### Security items I deferred (need your sign-off on approach)
-4. **HIGH: Email-match attack in Stripe webhook**: `/api/webhook/route.ts:298-311` matches Stripe sessions to Veroax profiles via `customer_details.email`. An attacker can pay with the victim's email at Stripe checkout and grant credits to that victim's account. The fix: pass `metadata.user_id` from `/api/checkout/route.ts` into the Checkout Session, match on that first, fall back to email only when `user_id` is absent. I held off because it touches both checkout creation and webhook matching, and I wanted you to confirm the fallback behavior.
-5. **MEDIUM: Filenames in audit_log**: `/api/reports/[id]/update/route.ts:216` writes `added_filenames`, `/api/reports/[id]/remove-file/route.ts:230` writes `removed_filename`, and `lib/server/performAnalysis.ts` writes filenames in 5 places. Filenames often contain seller/client names (e.g. `Smith_TDS.pdf`). Per the PII rule, scrub or hash filenames before logging. The simplest fix: keep only file type + size + page count, store SHA-256 of the filename if you need de-dup in audit replay. Held off because a clean fix touches 7 files and you may want the original filenames preserved for support debugging.
-6. **MEDIUM: Unauthenticated stripe-health and roadmap endpoints**: `/api/stripe-health` reveals which env keys are configured (boolean only, but a backend fingerprint). `/api/roadmap` renders a PDF on every request with no rate limit. Both should be gated behind admin or rate-limited.
-7. **MEDIUM: `/api/contact` and `/api/report-errors/submit`**: both are anonymous POST endpoints with no rate limit or CAPTCHA. Free spam relay risk. Add per-IP rate limiting or a honeypot field.
-8. **LOW: `getOrigin()` trusts `x-forwarded-host`**: pin to `NEXT_PUBLIC_SITE_URL` in production to prevent redirect poisoning if ever deployed behind a non-Vercel proxy.
+### Security items still open
+5. **MEDIUM: Unauthenticated stripe-health and roadmap endpoints**: `/api/stripe-health` reveals which env keys are configured (boolean only, but a backend fingerprint). `/api/roadmap` renders a PDF on every request with no rate limit. Both should be gated behind admin or rate-limited.
+6. **MEDIUM: `/api/contact` and `/api/report-errors/submit`**: both are anonymous POST endpoints with no rate limit or CAPTCHA. Free spam relay risk. Add per-IP rate limiting or a honeypot field.
+7. **LOW: `getOrigin()` trusts `x-forwarded-host`**: pin to `NEXT_PUBLIC_SITE_URL` in production to prevent redirect poisoning if ever deployed behind a non-Vercel proxy.
 
-### Code quality refactors (medium effort, would benefit from your input)
-9. **Shared `requireUser()` and `requireAdmin()` helpers**: the audit found the 6-line auth-gate pattern duplicated across 21 route files. Extracting to `lib/supabase/server.ts` would shrink the codebase noticeably. The shape would be: `const auth = await requireUser(); if (auth instanceof NextResponse) return auth; const { supabase, user } = auth;`. Want me to do this?
-10. **Promote duplicated PDF/analyzer constants**: `PDF_PER_CALL_PAGE_BUDGET` and `GROUP_TRANSPORT` exist in both `lib/server/performAnalysis.ts` and `lib/anthropic/analyze.ts` with comments saying "must stay in sync." Move to `lib/pdf/limits.ts` (or similar shared module) and import.
-11. **Split `app/page.tsx` into server component + client islands**: the entire 1000+ line landing page is marked `"use client"` because two small bits of inline state (contact form, billing toggle) exist. Splitting saves a meaningful chunk of JS shipped to every visitor. Audit suggested moving `ContactForm` and `PricingToggle` into their own files under `_components/`.
-12. **Split `ReportPDF.tsx` (2731 lines) and `analyze.ts` (2058 lines)** into per-section subcomponents. No correctness issue, just maintenance pain at those sizes.
+### Code quality refactors still open
+8. **Promote duplicated PDF/analyzer constants**: `PDF_PER_CALL_PAGE_BUDGET` and `GROUP_TRANSPORT` exist in both `lib/server/performAnalysis.ts` and `lib/anthropic/analyze.ts` with comments saying "must stay in sync." Move to `lib/pdf/limits.ts` (or similar shared module) and import.
+9. **Split `ReportPDF.tsx` (2731 lines) and `analyze.ts` (2058 lines)** into per-section subcomponents. No correctness issue, just maintenance pain at those sizes.
 
-### Stub pages to fill
-13. **`/blog`**: needs at least 2 to 3 evergreen posts. List of suggested topics above. RSS feed and email signup form would be nice-to-haves.
-14. **`/demo`**: currently says "We're assembling a short walkthrough." Either record one or remove the route from the marketing footer until it exists.
-15. **`/help`**: placeholder list of 6 video titles all labeled "Coming". Same deal as `/demo`.
-16. **Privacy + Terms links from the dashboard footer**: currently only linked from the marketing footer. Logged-in users have no way to re-read either.
-
-### Smaller polish (LOW priority, fast wins)
-17. Color contrast: `text-indigo-300` on indigo-950 sits at about 4.0:1, below the WCAG AA 4.5:1 floor. Bump to `text-indigo-200` anywhere it appears below 18px bold. Spots: `app/page.tsx:294,933`, `app/dashboard/layout.tsx:84,107`.
-18. Hero stat bar units: `"14" / "4" / "12+" / "7 yr"` mixes plain numbers with units. Either drop "yr" from the last one or pluralize the rest ("14 sections", "4 levels", "12+ markets", "7-year retention").
-19. `(866) AISTUFF` vanity number: screen readers read "A-I-S-T-U-F-F". Add `aria-label="Call 866 247 8833"` on the `<a>` and visually hide the AISTUFF text or mark it `aria-hidden`.
-20. `(auth)/signup/page.tsx` password input: no show/hide toggle, no strength meter. Add an eye toggle and a 4-tier strength bar.
-21. Homepage contact form on success: the entire form is replaced by a centered confirmation line. No "send another" path. Keep the form, swap the submit button for a green confirmation, let the user reset.
-22. Hero `"Start your free report"` CTA anchors to `#pricing` (paid plans), not to the free trial banner. Either anchor it to `#contact` (the dark banner with the trial message) or rephrase to `"See pricing"`.
+### Stub pages to fill (your call on content)
+10. **`/blog`**: 10 drafts now exist under `content/blog/*.md`. Once you edit them, I'll wire the index + per-slug pages. RSS feed and email signup form are easy follow-ups.
+11. **`/demo`**: currently says "We're assembling a short walkthrough." Either record one or remove the route from the marketing footer until it exists.
+12. **`/help`**: placeholder list of 6 video titles all labeled "Coming". Same deal as `/demo`.
+13. **Privacy + Terms links from the dashboard footer**: currently only linked from the marketing footer. Logged-in users have no way to re-read either.
 
 ### Long-tail audit findings (cleanup pass)
-23. Em dashes in code comments: ~600+ remain. Not user-visible, so not in the sweep I did. A separate pass with `grep -rl "—" app/ lib/ components/` and a careful sed replacement could clear them.
-24. `DevRerunButton` and `/api/admin/force-rerun/[id]` carry "REMOVE BEFORE PRODUCTION LAUNCH" banners. Bundle their removal into a single pre-launch commit so nothing slips through.
-25. `lib/cost-reference/california-markets.ts:39` exports `COST_REFERENCE_LAST_REFRESHED` but nothing imports it. Either render it on the report (under the Cost Summary / Methodology footer) or drop the export.
-26. `lib/share/code.ts:8` comment says "27-char alphabet" but the constant has 31. Fix the math comment.
-27. `/blog`, `/demo`, `/help` brand-page logos under `app/brand/*` use `alt=""`. The pages are noindexed so empty alt is technically fine, but descriptive alt would help anyone using a screen reader on the brand picker.
-28. The brand picker pages (`/brand/round-2`, `/brand/round-3`, `/brand/comparison`, `/brand/variations`) are now noindex-disabled by default for the public site, but they remain accessible. Once you commit to the final logo, consider removing all five pages.
+14. Em dashes in code comments: ~600+ remain. Not user-visible, so not in the sweep I did. A careful pass would clean them.
+15. `DevRerunButton` and `/api/admin/force-rerun/[id]` carry "REMOVE BEFORE PRODUCTION LAUNCH" banners. Bundle their removal into a single pre-launch commit.
+16. `lib/cost-reference/california-markets.ts:39` exports `COST_REFERENCE_LAST_REFRESHED` but nothing imports it. Either render it on the report (under the Cost Summary / Methodology footer) or drop the export.
+17. `lib/share/code.ts:8` comment says "27-char alphabet" but the constant has 31. Fix the math comment.
+18. `/blog`, `/demo`, `/help` brand-page logos under `app/brand/*` use `alt=""`. The pages are noindexed so empty alt is technically fine, but descriptive alt would help anyone using a screen reader on the brand picker.
+19. The brand picker pages (`/brand/round-2`, `/brand/round-3`, `/brand/comparison`, `/brand/variations`) are noindex-disabled by default for the public site but remain accessible. Once you commit to the final logo, consider removing all five pages.
 
 ## How I'd recommend spending the next session
 
-1. **10 minutes**: respond to decisions in items 1 to 3 above. File the trademark, confirm Stripe test mode, and pick 2 blog topics.
-2. **30 minutes**: I do the email-match attack fix (item 4) and the filename PII fix (item 5) in one commit. These are real risks and the cleanups don't take long once you confirm the approach.
-3. **30 minutes**: I add `requireUser()` / `requireAdmin()` helpers and refactor the 21 routes (item 9). Significant code shrinkage, low risk.
-4. **15 minutes**: I split the landing page into server + client islands (item 11) for the JS bundle savings.
-5. **As time allows**: I write the first blog post draft for you to edit, fix the polish items in 17 to 22.
+1. **10 minutes**: respond to decisions 1 to 4 above. File the trademark, confirm Stripe test mode, start editing blog drafts.
+2. **15 minutes**: spot-check the new lockup on `/`, `/dashboard`, `/login`, `/signup`, and a freshly-rendered PDF cover. Confirm the mobile dashboard now shows phone + email under the header.
+3. **30 minutes**: edit 2 or 3 blog drafts at `content/blog/*.md`. When you're ready, I'll wire `/blog` and `/blog/[slug]` pages so they render.
+4. **As time allows**: knock out remaining security MEDIUMs (items 5 to 7) and the `/dashboard` footer Privacy+Terms link.
 
 ## How to verify the work shipped
 
 ```
-git log --oneline d4cfe42..HEAD   # last 4 commits
+git log --oneline e4eaee9..HEAD
 ```
 
-Latest commits:
+Latest commits across both sessions:
+- `b83af04` landing page split + signup polish + 5 remaining blog drafts
+- `646a0a1` refactor: shared requireUser / requireAdmin helpers (20 routes)
+- `aa86503` security: email-match attack fix + filename PII scrub
 - `660e069` chore: drop void ONEOFF_REPORT_PRICE_ENV hack in webhook
-- `d4cfe42` chore: sweep user-visible em dashes per founder rule
+- `d4cfe42` chore: sweep user-visible em dashes
 - `5b4f5c5` audit fixes: noindex, mobile dashboard, hero copy, pdf credit
 - `e4eaee9` brand + security: integrate veroax lockup, fix critical audit findings
 
 Spot-check URLs once Vercel deploys (within a minute or two):
-- `https://www.veroax.com/` (homepage logo lockup + footer)
-- `https://www.veroax.com/dashboard` (logged-in; check mobile view too)
-- A finished report PDF (the bottom of the cover should now say "Powered by veroax •")
-- View source on `/dashboard/*` and confirm `<meta name="robots" content="noindex, nofollow">` is present
-- Google "site:veroax.com/dashboard" in a week and confirm zero pages indexed
+- `https://www.veroax.com/` (homepage lockup; pricing + contact still feel snappy; hero CTA scrolls to the free-trial banner)
+- `https://www.veroax.com/login` and `/signup` (lockup, password show/hide + strength meter)
+- `https://www.veroax.com/dashboard` (logged-in, mobile view shows phone / email row)
+- A finished report PDF (bottom of cover says "Powered by veroax •")
+- View source on `/dashboard/*` and confirm `<meta name="robots" content="noindex, nofollow">`
 
-If anything looks wrong, the rollback is one commit back: `git revert e4eaee9..660e069`.
+If anything looks wrong, the rollback is one commit back: `git revert <commit>`.
