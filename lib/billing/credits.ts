@@ -27,6 +27,12 @@ import { reportsIncludedFor, type PlanId } from "./plans";
 const FREE_UPDATE_WINDOW_DAYS = 30;
 
 export type CreditBalance = {
+  // VIP users bypass the credit gate entirely — free access to all
+  // features, no watermark, no usage counter. Set by admins from
+  // /admin/users/[id]. When true, the other fields below are still
+  // populated for display purposes but canCreateReport is always
+  // true and willBeWatermarked is always false.
+  isVip: boolean;
   // The user's subscription tier and whether it's currently active.
   subscriptionPlan: PlanId | null;
   subscriptionActive: boolean;
@@ -41,11 +47,11 @@ export type CreditBalance = {
   // Trial credits left (produce a watermarked PDF when consumed).
   trialCredits: number;
   // Convenience: can this user create a new report right now without
-  // paying? True if any of the three pools has credit available.
+  // paying? True for VIPs always; otherwise true if any of the three
+  // pools has credit available.
   canCreateReport: boolean;
   // When canCreateReport is true via the trial pool, the resulting
-  // report is watermarked. Renderer side reads this to apply the
-  // SAMPLE overlay.
+  // report is watermarked. VIPs are NEVER watermarked.
   willBeWatermarked: boolean;
 };
 
@@ -56,7 +62,7 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
   const [profileRes, subRes] = await Promise.all([
     admin
       .from("profiles")
-      .select("trial_credits_remaining, report_credits_balance")
+      .select("trial_credits_remaining, report_credits_balance, is_vip")
       .eq("id", userId)
       .maybeSingle(),
     admin
@@ -73,7 +79,9 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
   const profile = (profileRes.data as {
     trial_credits_remaining?: number;
     report_credits_balance?: number;
+    is_vip?: boolean;
   } | null) ?? null;
+  const isVip = Boolean(profile?.is_vip);
   const sub = subRes.data as {
     id: string;
     plan: PlanId;
@@ -117,6 +125,26 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
     subscriptionReportsIncluded - subscriptionReportsUsed,
   );
 
+  // VIP bypass — always allowed, never watermarked. Credit pools
+  // are still computed and surfaced for visibility but they don't
+  // gate anything.
+  if (isVip) {
+    return {
+      isVip: true,
+      subscriptionPlan: sub?.plan ?? null,
+      subscriptionActive,
+      subscriptionPeriodStart: sub?.current_period_start ?? null,
+      subscriptionPeriodEnd: sub?.current_period_end ?? null,
+      subscriptionReportsRemaining,
+      subscriptionReportsIncluded,
+      subscriptionReportsUsed,
+      oneoffCredits,
+      trialCredits,
+      canCreateReport: true,
+      willBeWatermarked: false,
+    };
+  }
+
   // Order of consumption: subscription → one-off → trial. Trial
   // produces a watermarked PDF; the other two don't.
   const willBeWatermarked =
@@ -129,6 +157,7 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
     trialCredits > 0;
 
   return {
+    isVip: false,
     subscriptionPlan: sub?.plan ?? null,
     subscriptionActive,
     subscriptionPeriodStart: sub?.current_period_start ?? null,
@@ -156,6 +185,21 @@ export async function consumeReportCredit(
 ): Promise<{ watermarked: boolean; consumed_from: string }> {
   const admin = createServiceRoleClient();
   const balance = await balanceForUser(userId);
+
+  // VIP bypass — write a ledger entry for visibility (so admins can
+  // see the report count per VIP) but don't decrement any pool and
+  // don't mark the report billable/watermarked. The VIP gets a clean
+  // full-quality report every time.
+  if (balance.isVip) {
+    await admin.from("report_credit_ledger").insert({
+      user_id: userId,
+      amount: 0,
+      reason: "report_consumed",
+      report_id: reportId,
+      metadata: { from: "vip", watermarked: false },
+    });
+    return { watermarked: false, consumed_from: "vip" };
+  }
 
   // The order: subscription → one-off → trial. The report row
   // gets billable=true so the next balanceForUser counts it

@@ -1,0 +1,94 @@
+import { NextResponse } from "next/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+
+// POST /api/admin/toggle-vip
+// Body: { user_id: string, is_vip: boolean, notes?: string }
+//
+// Promotes or demotes a user's VIP status. Admin-only. VIP users
+// bypass the credit gate on report creation (free access), never
+// get a watermark, and see "VIP — free access" on /dashboard/billing
+// instead of credit pools.
+//
+// Audited as "vip.granted" or "vip.revoked" with the actor info
+// + the optional notes the admin wrote.
+
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+  const callerIsAdmin = Boolean(
+    (callerProfile as { is_admin?: boolean } | null)?.is_admin,
+  );
+  if (!callerIsAdmin) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const targetUserId =
+    typeof body?.user_id === "string" ? body.user_id.trim() : "";
+  const targetIsVip = Boolean(body?.is_vip);
+  const notes =
+    typeof body?.notes === "string" ? body.notes.trim() : null;
+  if (!targetUserId) {
+    return NextResponse.json(
+      { error: "user_id is required." },
+      { status: 400 },
+    );
+  }
+
+  const admin = createServiceRoleClient();
+  const update: Record<string, unknown> = {
+    is_vip: targetIsVip,
+  };
+  if (targetIsVip) {
+    update.vip_granted_at = new Date().toISOString();
+    update.vip_granted_by = user.id;
+    update.vip_notes = notes;
+  } else {
+    // Revoke clears the audit fields too so a future re-grant gets a
+    // fresh timestamp + notes. Keeps things honest.
+    update.vip_granted_at = null;
+    update.vip_granted_by = null;
+    update.vip_notes = null;
+  }
+  const { error: updErr } = await admin
+    .from("profiles")
+    .update(update)
+    .eq("id", targetUserId);
+  if (updErr) {
+    return NextResponse.json(
+      { error: `Could not update VIP status: ${updErr.message}` },
+      { status: 500 },
+    );
+  }
+
+  try {
+    await admin.from("audit_log").insert({
+      user_id: targetUserId,
+      event_type: targetIsVip ? "vip.granted" : "vip.revoked",
+      metadata: {
+        actor_user_id: user.id,
+        actor_email: user.email,
+        notes,
+      },
+    });
+  } catch (err) {
+    console.error("[toggle-vip] audit log insert failed:", err);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    user_id: targetUserId,
+    is_vip: targetIsVip,
+  });
+}
