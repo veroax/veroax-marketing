@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { balanceForUser } from "@/lib/billing/credits";
 
 // Creates a new "reports" row owned by the authenticated user.
 // Returns the report ID and user ID so the client can build the
 // per-file storage path (disclosures/{user_id}/{report_id}/...).
+//
+// Credit gate: before creating the row, check that the user has at
+// least one credit available (subscription / one-off / trial). The
+// credit isn't actually consumed at create time — consumption
+// happens in performAnalysis when the report transitions to
+// qa_pending, so a half-finished upload that the user abandons
+// doesn't cost them a credit. The gate here is just "can this user
+// SPEND a credit if they finish?"
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -12,6 +21,25 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+
+  // Credit gate. balanceForUser checks subscription period, one-off
+  // balance, and trial credits.
+  const balance = await balanceForUser(user.id);
+  if (!balance.canCreateReport) {
+    return NextResponse.json(
+      {
+        error:
+          "No credits available. Choose a plan or buy a single report from /pricing to keep going.",
+        code: "NO_CREDITS",
+        balance: {
+          subscription: balance.subscriptionReportsRemaining,
+          oneoff: balance.oneoffCredits,
+          trial: balance.trialCredits,
+        },
+      },
+      { status: 402 },
+    );
   }
 
   const body = await request.json().catch(() => ({}));
@@ -54,5 +82,9 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ id: data.id, user_id: user.id });
+  return NextResponse.json({
+    id: data.id,
+    user_id: user.id,
+    will_be_watermarked: balance.willBeWatermarked,
+  });
 }

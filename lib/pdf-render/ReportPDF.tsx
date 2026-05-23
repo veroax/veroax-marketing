@@ -814,6 +814,21 @@ const styles = StyleSheet.create({
     color: C.subtext,
     marginBottom: 1,
   },
+  // Trial-watermark band. Appears on every page above the regular
+  // page header for trial-credit reports. Amber background reads as
+  // an obvious "not for delivery" signal.
+  watermarkBar: {
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  watermarkText: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#92400e",
+    textAlign: "center",
+  },
 });
 
 // ============================================================================
@@ -864,6 +879,7 @@ export function ReportPDF({
   originalFiles,
   reportName,
   clientName,
+  watermarked = false,
 }: {
   report: ReportData;
   property: string;
@@ -880,6 +896,11 @@ export function ReportPDF({
   // Never used as the address itself — the address always comes from
   // the disclosure documents.
   reportName?: string | null;
+  // True when this report was generated against a trial credit. The
+  // BodyPage adds a large semi-transparent "SAMPLE — VEROAX TRIAL"
+  // overlay on every page so the agent can preview quality without
+  // being able to deliver to a client. Defaults to false.
+  watermarked?: boolean;
   // Buyer client's name, surfaced in the cover's "PREPARED FOR" panel.
   clientName?: string | null;
 }) {
@@ -947,6 +968,7 @@ export function ReportPDF({
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
+        watermarked={watermarked}
       >
         <SectionPropertySnapshot report={report} analysisDate={analysisDate} />
         <SectionDocumentInventory report={report} originalFiles={originalFiles} />
@@ -957,6 +979,7 @@ export function ReportPDF({
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
+        watermarked={watermarked}
       >
         <SectionExecutiveSummary report={report} />
       </BodyPage>
@@ -966,6 +989,7 @@ export function ReportPDF({
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
+        watermarked={watermarked}
       >
         <SectionCritical report={report} />
       </BodyPage>
@@ -975,6 +999,7 @@ export function ReportPDF({
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
+        watermarked={watermarked}
       >
         <SectionModerate report={report} />
         <SectionCosmetic report={report} />
@@ -985,6 +1010,7 @@ export function ReportPDF({
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
+        watermarked={watermarked}
       >
         <SectionCostSummary report={report} />
       </BodyPage>
@@ -994,6 +1020,7 @@ export function ReportPDF({
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
+        watermarked={watermarked}
       >
         <SectionEnvironmental report={report} />
       </BodyPage>
@@ -1003,6 +1030,7 @@ export function ReportPDF({
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
+        watermarked={watermarked}
       >
         <SectionHoa report={report} />
       </BodyPage>
@@ -1012,6 +1040,7 @@ export function ReportPDF({
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
+        watermarked={watermarked}
       >
         <SectionPermits report={report} />
         <SectionTitleVesting report={report} />
@@ -1022,6 +1051,7 @@ export function ReportPDF({
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
+        watermarked={watermarked}
       >
         <SectionNegotiation report={report} />
         <SectionMarketContext report={report} />
@@ -1032,6 +1062,7 @@ export function ReportPDF({
         agentLine={agentFooterLine}
         websiteUrl={agent.websiteUrl}
         officeAddress={agent.officeAddress}
+        watermarked={watermarked}
       >
         <SectionInspectionFollowUps report={report} />
         <SectionOverallRating report={report} />
@@ -1046,6 +1077,7 @@ function BodyPage({
   agentLine,
   websiteUrl,
   officeAddress,
+  watermarked = false,
 }: {
   children: React.ReactNode;
   property: string;
@@ -1054,6 +1086,9 @@ function BodyPage({
   // agent has filled them in.
   websiteUrl?: string | null;
   officeAddress?: string | null;
+  // Render the diagonal "SAMPLE — VEROAX TRIAL" watermark on this
+  // page. Set true for trial-credit reports.
+  watermarked?: boolean;
 }) {
   // Both the header and footer are wrapped in `<View fixed>` so they
   // repeat on every page including auto-paginated continuation pages.
@@ -1074,6 +1109,24 @@ function BodyPage({
   // a stale "Page 2 of 5" that was computed at the parent level.
   return (
     <Page size="LETTER" style={styles.page}>
+      {/* Trial watermark — fixed so it repeats on every page including
+          auto-paginated continuation pages. Rendered as a Text with
+          a small font, lots of letter spacing (via spacing in the
+          string itself since CSS letter-spacing is on the project-
+          forbidden list), large vertical margins, and a low-contrast
+          slate-on-white color. NOT a true semi-transparent overlay
+          (React-PDF can't reliably composite that without breaking
+          PDF rendering); instead a visible-but-unobtrusive header
+          stripe just under the page chrome that makes the
+          watermark unmissable when the agent forwards the PDF. */}
+      {watermarked ? (
+        <View fixed style={styles.watermarkBar}>
+          <Text style={styles.watermarkText}>
+            SAMPLE — VEROAX TRIAL · NOT FOR CLIENT DELIVERY
+          </Text>
+        </View>
+      ) : null}
+
       <View fixed style={styles.pageHeader}>
         <Text>{property}</Text>
         <Text>AI-Assisted Disclosure Analysis | Confidential</Text>

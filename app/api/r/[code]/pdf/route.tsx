@@ -31,7 +31,7 @@ export async function GET(_req: Request, context: { params: Params }) {
   const { data: report, error } = await admin
     .from("reports")
     .select(
-      "id, user_id, status, property_address, report_name, client_name, report_data, share_code, archived, original_files, created_at",
+      "id, user_id, status, property_address, report_name, client_name, report_data, share_code, archived, original_files, created_at, watermarked",
     )
     .eq("share_code", code)
     .maybeSingle();
@@ -119,6 +119,9 @@ export async function GET(_req: Request, context: { params: Params }) {
         originalFiles={originalFiles}
         reportName={report.report_name ?? null}
         clientName={report.client_name ?? null}
+        watermarked={Boolean(
+          (report as { watermarked?: boolean } | null)?.watermarked,
+        )}
       />,
     );
     return new NextResponse(buffer as unknown as BodyInit, {

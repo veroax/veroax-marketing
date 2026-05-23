@@ -43,6 +43,7 @@ import type { ReportData } from "@/lib/anthropic/schema";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 import { generateShareCode } from "@/lib/share/code";
+import { consumeReportCredit, freeUpdateWindow } from "@/lib/billing/credits";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 
@@ -431,6 +432,60 @@ export async function performAnalysis(
     .eq("id", reportId);
   if (updateErr) {
     throw new Error(`Could not save report: ${updateErr.message}`);
+  }
+
+  // Credit consumption — happens AFTER the report data is saved so a
+  // failure here doesn't leave us in a "spent the credit but the
+  // report didn't actually save" state. Two paths:
+  //
+  // - Original analysis (no updateContext): always consume a credit.
+  //   Sets reports.billable=true (and reports.watermarked=true on the
+  //   trial path).
+  // - Re-analysis (updateContext present): only consume a credit if
+  //   the report is OUTSIDE the 30-day free-update window. freeUpdate-
+  //   Window reads reports.created_at.
+  //
+  // If the report has already been marked billable on a previous run
+  // (e.g., admin force-rerun on a completed report), consumption is
+  // skipped — we don't double-charge for re-analysis of the same
+  // logical report.
+  try {
+    const { data: existingForBilling } = await admin
+      .from("reports")
+      .select("billable, created_at")
+      .eq("id", reportId)
+      .maybeSingle();
+    const alreadyBillable = Boolean(
+      (existingForBilling as { billable?: boolean } | null)?.billable,
+    );
+    const createdAt = (existingForBilling as { created_at?: string } | null)
+      ?.created_at;
+
+    const isUpdate = Boolean(updateContext);
+    const withinFreeWindow =
+      isUpdate && createdAt ? freeUpdateWindow(createdAt) : false;
+
+    if (!alreadyBillable && !withinFreeWindow) {
+      await consumeReportCredit(userId, reportId);
+    } else if (withinFreeWindow) {
+      // Audit-log the free use of the update window so the billing
+      // dashboard can show it.
+      await admin.from("report_credit_ledger").insert({
+        user_id: userId,
+        amount: 0,
+        reason: "free_update_window",
+        report_id: reportId,
+        metadata: { is_update: true, within_30_days: true },
+      });
+    }
+  } catch (creditErr) {
+    // Credit-consumption failure shouldn't fail the analysis — the
+    // report data is already saved. Log + continue so an admin can
+    // reconcile later.
+    console.error(
+      "[performAnalysis] credit consumption failed:",
+      creditErr instanceof Error ? creditErr.message : creditErr,
+    );
   }
 
   await admin.from("audit_log").insert({

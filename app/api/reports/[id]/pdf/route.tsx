@@ -42,7 +42,7 @@ export async function GET(
 
     const { data: report, error } = await supabase
       .from("reports")
-      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at")
+      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at, watermarked")
       .eq("id", reportId)
       .maybeSingle();
     if (error || !report) {
@@ -213,6 +213,9 @@ export async function GET(
         originalFiles={originalFiles}
         reportName={reportName}
         clientName={clientName}
+        watermarked={Boolean(
+          (report as { watermarked?: boolean } | null)?.watermarked,
+        )}
       />,
     );
 
