@@ -18,6 +18,7 @@ type ProfileRow = {
   full_name: string | null;
   brokerage: string | null;
   is_admin: boolean | null;
+  is_vip: boolean | null;
   created_at: string | null;
 };
 
@@ -41,7 +42,7 @@ export default async function AdminUsersPage({
   let profilesQuery = admin
     .from("profiles")
     .select(
-      "id, email, full_name, brokerage, is_admin, created_at",
+      "id, email, full_name, brokerage, is_admin, is_vip, created_at",
       { count: "exact" },
     )
     .limit(1000);
@@ -204,15 +205,23 @@ export default async function AdminUsersPage({
                         : "—"}
                     </td>
                     <td className="px-6 py-3.5 text-right">
-                      {p.is_admin ? (
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-800 px-2 py-0.5 rounded">
-                          Admin
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-slate-400 uppercase tracking-wider">
-                          Agent
-                        </span>
-                      )}
+                      <div className="inline-flex flex-col items-end gap-1">
+                        {p.is_admin ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-800 px-2 py-0.5 rounded">
+                            Admin
+                          </span>
+                        ) : null}
+                        {p.is_vip ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-400 text-amber-950 px-2 py-0.5 rounded">
+                            ★ VIP
+                          </span>
+                        ) : null}
+                        {!p.is_admin && !p.is_vip ? (
+                          <span className="text-[10px] text-slate-400 uppercase tracking-wider">
+                            Agent
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );

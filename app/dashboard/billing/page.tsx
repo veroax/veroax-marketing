@@ -81,8 +81,9 @@ export default async function BillingPage() {
     }
   }
 
-  const subscriptionLabel =
-    balance.subscriptionPlan && balance.subscriptionActive
+  const subscriptionLabel = balance.isVip
+    ? "VIP · free access"
+    : balance.subscriptionPlan && balance.subscriptionActive
       ? balance.subscriptionPlan.charAt(0).toUpperCase() +
         balance.subscriptionPlan.slice(1)
       : "Free trial";
@@ -114,6 +115,36 @@ export default async function BillingPage() {
         </div>
       </div>
 
+      {/* VIP banner — shown only to VIP users, replaces the plan
+          chrome with a clear "you have free access" indication. */}
+      {balance.isVip ? (
+        <section
+          className="rounded-2xl border-2 border-amber-400 p-5 sm:p-6"
+          style={{
+            background: "linear-gradient(135deg,#fef3c7 0%,#fde68a 100%)",
+          }}
+        >
+          <p className="text-[10px] font-bold tracking-widest uppercase text-amber-900">
+            ★ VIP Access
+          </p>
+          <p className="text-xl sm:text-2xl font-bold text-amber-950 mt-1">
+            You have free access to all features
+          </p>
+          <p className="text-sm text-amber-900 mt-2 leading-relaxed">
+            Generate as many full-quality, unwatermarked reports as you
+            need. No credit consumption, no billing. If you have
+            questions about your VIP status reach out to{" "}
+            <a
+              href="mailto:support@veroax.com"
+              className="underline underline-offset-2 font-semibold"
+            >
+              support@veroax.com
+            </a>
+            .
+          </p>
+        </section>
+      ) : null}
+
       {/* Plan summary card */}
       <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -124,7 +155,11 @@ export default async function BillingPage() {
             <p className="text-2xl font-bold text-slate-900 mt-1">
               {subscriptionLabel}
             </p>
-            {balance.subscriptionActive && balance.subscriptionPeriodEnd ? (
+            {balance.isVip ? (
+              <p className="text-xs text-amber-700 mt-1">
+                VIP status overrides the credit gate
+              </p>
+            ) : balance.subscriptionActive && balance.subscriptionPeriodEnd ? (
               <p className="text-xs text-slate-500 mt-1">
                 Renews {formatDate(balance.subscriptionPeriodEnd)}
               </p>
@@ -161,8 +196,10 @@ export default async function BillingPage() {
           </div>
         </div>
 
-        {/* Quick "buy more" affordance */}
-        {balance.subscriptionReportsRemaining === 0 &&
+        {/* Quick "buy more" affordance — suppressed for VIPs whose
+            access doesn't depend on credit balance. */}
+        {!balance.isVip &&
+        balance.subscriptionReportsRemaining === 0 &&
         balance.oneoffCredits === 0 &&
         balance.trialCredits === 0 ? (
           <div className="mt-5 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-900">

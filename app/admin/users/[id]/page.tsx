@@ -7,6 +7,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { ToggleAdminButton } from "../../_components/ToggleAdminButton";
+import { ToggleVipButton } from "../../_components/ToggleVipButton";
+import { GrantCreditsPanel } from "../../_components/GrantCreditsPanel";
 
 type Params = Promise<{ id: string }>;
 
@@ -25,11 +27,27 @@ export default async function AdminUserDetail({
   const { data: profile } = await admin
     .from("profiles")
     .select(
-      "id, email, full_name, brokerage, dre_license, phone, is_admin, created_at",
+      "id, email, full_name, brokerage, dre_license, phone, is_admin, is_vip, vip_granted_at, vip_notes, trial_credits_remaining, report_credits_balance, created_at",
     )
     .eq("id", id)
     .maybeSingle();
   if (!profile) notFound();
+
+  const profileTyped = profile as {
+    id: string;
+    email: string;
+    full_name: string | null;
+    brokerage: string | null;
+    dre_license: string | null;
+    phone: string | null;
+    is_admin: boolean | null;
+    is_vip: boolean | null;
+    vip_granted_at: string | null;
+    vip_notes: string | null;
+    trial_credits_remaining: number | null;
+    report_credits_balance: number | null;
+    created_at: string | null;
+  };
 
   // Their reports — most recent 30, plus aggregate counts by status.
   const [{ data: reportsData }, { data: statusBuckets }] = await Promise.all([
@@ -66,12 +84,29 @@ export default async function AdminUserDetail({
         >
           ← All users
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2">
-          {profile.full_name?.trim() || (
-            <span className="text-slate-400 italic">(no name)</span>
-          )}
-        </h1>
+        <div className="flex items-center gap-3 mt-2 flex-wrap">
+          <h1 className="text-2xl font-bold text-slate-900">
+            {profile.full_name?.trim() || (
+              <span className="text-slate-400 italic">(no name)</span>
+            )}
+          </h1>
+          {profileTyped.is_admin ? (
+            <span className="text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-800 px-2 py-0.5 rounded">
+              Admin
+            </span>
+          ) : null}
+          {profileTyped.is_vip ? (
+            <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-400 text-amber-950 px-2 py-0.5 rounded">
+              ★ VIP
+            </span>
+          ) : null}
+        </div>
         <p className="text-sm text-gray-500 mt-1">{profile.email}</p>
+        {profileTyped.is_vip && profileTyped.vip_notes ? (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-1.5 mt-2 inline-block">
+            VIP notes: {profileTyped.vip_notes}
+          </p>
+        ) : null}
       </div>
 
       {/* Profile + actions */}
@@ -122,6 +157,11 @@ export default async function AdminUserDetail({
               currentIsAdmin={Boolean(profile.is_admin)}
               userLabel={profile.full_name?.trim() || profile.email}
             />
+            <ToggleVipButton
+              userId={profile.id}
+              currentIsVip={Boolean(profileTyped.is_vip)}
+              userLabel={profile.full_name?.trim() || profile.email}
+            />
             <Link
               href={`/admin/audit?user=${profile.id}`}
               className="text-xs text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
@@ -131,6 +171,15 @@ export default async function AdminUserDetail({
           </div>
         </div>
       </div>
+
+      {/* Grant credits panel — sits below the profile card so it's
+          visible without scrolling but doesn't compete with the
+          role / VIP buttons for the agent's attention. */}
+      <GrantCreditsPanel
+        userId={profile.id}
+        currentTrial={profileTyped.trial_credits_remaining ?? 0}
+        currentOneoff={profileTyped.report_credits_balance ?? 0}
+      />
 
       {/* Report counts by status */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
