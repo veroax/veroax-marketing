@@ -29,7 +29,7 @@ export async function submitFeedbackAction(
   }
   if (!message) return { error: "Please write a message." };
   if (message.length < 10) {
-    return { error: "Message is too short to be useful — add a bit more." };
+    return { error: "Message is too short to be useful. Add a bit more." };
   }
 
   const apiKey = process.env.RESEND_API_KEY;

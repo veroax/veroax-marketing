@@ -1,6 +1,8 @@
 import Link from "next/link";
 
-export const metadata = { title: "Blog — Veroax" };
+export const metadata = {
+  title: "Blog, Veroax",
+};
 
 export default function BlogPage() {
   return (
@@ -14,7 +16,7 @@ export default function BlogPage() {
         </Link>
         <h1 className="text-3xl font-bold text-slate-900 mb-3">Veroax Blog</h1>
         <p className="text-slate-600 leading-relaxed">
-          Coming soon — disclosure-analysis playbooks, California real-estate
+          Coming soon. Disclosure-analysis playbooks, California real-estate
           regulatory updates, agent tactics, and behind-the-scenes notes on
           how Veroax flags critical issues before contingency removal.
         </p>

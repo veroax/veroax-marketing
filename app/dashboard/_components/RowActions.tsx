@@ -132,7 +132,7 @@ export function RowActions({ reportId, reportLabel, variant }: Props) {
                 {reportLabel}
               </span>
               , including every uploaded PDF and the generated analysis. This
-              cannot be undone — use Archive instead if you only want to hide
+              cannot be undone. Use Archive instead if you only want to hide
               it from your main list.
             </p>
             <label className="block mt-4">

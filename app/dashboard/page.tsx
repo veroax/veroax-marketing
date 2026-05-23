@@ -9,7 +9,7 @@ import {
 import { SearchBar } from "./_components/SearchBar";
 
 export const metadata = {
-  title: "Reports — Veroax",
+  title: "Reports, Veroax",
 };
 
 // Search-param shape: ?sort=property|status|created &dir=asc|desc &q=…
@@ -82,7 +82,14 @@ export default async function DashboardPage({
           <h1 className="text-2xl font-bold text-slate-900">Your reports</h1>
           <p className="text-sm text-gray-500 mt-1">
             All active disclosure analyses tied to your account. Archived
-            reports are hidden here — see the Archive link in the sidebar.
+            reports are hidden here. See the{" "}
+            <Link
+              href="/dashboard/archive"
+              className="text-indigo-700 underline underline-offset-2 hover:text-indigo-900"
+            >
+              Archive
+            </Link>
+            {" "}to view them.
           </p>
         </div>
         <Link
@@ -157,7 +164,7 @@ function NoSearchMatches({ query }: { query: string }) {
       </p>
       <p className="text-xs text-slate-500 mt-2">
         Try a shorter substring of the address or client name, or check the
-        Archive in the sidebar — archived reports don&apos;t appear here.
+        Archive. Archived reports don&apos;t appear here.
       </p>
     </div>
   );

@@ -49,7 +49,7 @@ export async function signupAction(_prev: unknown, formData: FormData) {
   return {
     error: null,
     message:
-      "Check your email — we sent a verification link. Click it to finish signing up.",
+      "Check your email. We sent a verification link. Click it to finish signing up.",
   };
 }
 

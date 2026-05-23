@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Privacy Policy — Veroax",
+  title: "Privacy Policy, Veroax",
   description: "Privacy Policy for Veroax disclosure analysis software.",
 };
 
@@ -196,18 +196,18 @@ export default function PrivacyPage() {
             </p>
             <ul>
               <li>
-                <strong>Stripe, Inc.</strong> — payment processing and subscription billing.
+                <strong>Stripe, Inc.</strong> for payment processing and subscription billing.
               </li>
               <li>
-                <strong>Vercel Inc.</strong> — application hosting, edge delivery, and serverless
+                <strong>Vercel Inc.</strong> for application hosting, edge delivery, and serverless
                 compute.
               </li>
               <li>
-                <strong>Resend, Inc.</strong> — transactional email delivery.
+                <strong>Resend, Inc.</strong> for transactional email delivery.
               </li>
               <li>
                 <strong>AI model providers</strong> (such as Anthropic, OpenAI, or equivalent
-                providers we may use from time to time) — large language model inference for
+                providers we may use from time to time) for large language model inference, used to
                 generating Reports. Our agreements with these providers prohibit use of Customer
                 Content for foundation model training.
               </li>

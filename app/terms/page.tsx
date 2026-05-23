@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Terms of Service — Veroax",
+  title: "Terms of Service, Veroax",
   description: "Terms of Service for Veroax disclosure analysis software.",
 };
 

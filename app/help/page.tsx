@@ -1,6 +1,8 @@
 import Link from "next/link";
 
-export const metadata = { title: "Help Videos — Veroax" };
+export const metadata = {
+  title: "Help Videos, Veroax",
+};
 
 export default function HelpPage() {
   return (

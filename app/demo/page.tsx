@@ -1,6 +1,8 @@
 import Link from "next/link";
 
-export const metadata = { title: "Watch a Demo — Veroax" };
+export const metadata = {
+  title: "Watch a Demo, Veroax",
+};
 
 export default function DemoPage() {
   return (
@@ -25,7 +27,7 @@ export default function DemoPage() {
           >
             email support
           </a>{" "}
-          to schedule a live walkthrough — we&apos;ll run a sample disclosure
+          to schedule a live walkthrough. We&apos;ll run a sample disclosure
           package end-to-end on a screen-share and answer questions in real
           time.
         </p>

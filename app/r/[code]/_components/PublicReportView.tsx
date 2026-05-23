@@ -186,7 +186,7 @@ export function PublicReportView({
             full detail organized by topic. Tap any heading to expand
             or collapse.{" "}
             <strong>
-              The full PDF — same content, save-to-print formatting —
+              The full PDF (same content, save-to-print formatting)
               is at the top of this page.
             </strong>
           </p>
@@ -491,7 +491,7 @@ export function PublicReportView({
                   <span className="font-semibold text-slate-900">
                     {f.specialist}
                   </span>{" "}
-                  — {f.reason}{" "}
+                  : {f.reason}{" "}
                   <span className="text-xs text-slate-500">
                     ({f.approx_cost})
                   </span>
@@ -737,7 +737,7 @@ function FindingCard({ finding, index }: { finding: Finding; index: number }) {
       {hoaPaid ? (
         <p className="text-xs text-slate-600 mt-3 bg-slate-100 rounded px-3 py-2">
           <span className="font-semibold">Cost responsibility:</span> HOA /
-          association (paid from reserves or assessments — the buyer does not
+          association (paid from reserves or assessments, the buyer does not
           write this check directly).
         </p>
       ) : hasCost ? (

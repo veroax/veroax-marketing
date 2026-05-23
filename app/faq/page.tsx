@@ -1,11 +1,13 @@
 import Link from "next/link";
 
-export const metadata = { title: "FAQ — Veroax" };
+export const metadata = {
+  title: "FAQ, Veroax",
+};
 
 const FAQS: Array<{ q: string; a: string }> = [
   {
     q: "What does Veroax actually do?",
-    a: "Uploads of California disclosure packages (TDS, SPQ, AVID, NHD, HOA docs, inspection reports) get analyzed by a multi-pass AI pipeline that produces a 14-section buyer report — critical findings, cost estimates grounded in regional pricing, HOA review, environmental hazards, negotiation leverage, and an overall rating. You hand the PDF to your client.",
+    a: "Uploads of California disclosure packages (TDS, SPQ, AVID, NHD, HOA docs, inspection reports) get analyzed by a multi-pass AI pipeline that produces a 14-section buyer report: critical findings, cost estimates grounded in regional pricing, HOA review, environmental hazards, negotiation leverage, and an overall rating. You hand the PDF to your client.",
   },
   {
     q: "How accurate is the analysis?",

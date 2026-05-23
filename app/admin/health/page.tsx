@@ -21,7 +21,7 @@ import Link from "next/link";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const metadata = {
-  title: "System health — Admin",
+  title: "System health, Admin",
 };
 
 const STUCK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
@@ -222,7 +222,7 @@ export default async function AdminHealthPage() {
               Failed analyses · last 7 days
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Look for patterns — repeating Claude errors, a particular
+              Look for patterns. Repeating Claude errors, a particular
               PDF format that keeps tripping the analyzer, etc.
             </p>
           </div>
@@ -347,7 +347,7 @@ export default async function AdminHealthPage() {
                             dateStyle: "short",
                             timeStyle: "short",
                           })
-                        : "—"}
+                        : "Never"}
                     </p>
                   </div>
                 </li>

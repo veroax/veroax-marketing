@@ -63,8 +63,8 @@ export function ToggleVipButton({
         }
         title={
           currentIsVip
-            ? "Revoke VIP — user goes back to the normal credit gate"
-            : "Grant VIP — user gets free, unwatermarked access to everything"
+            ? "Revoke VIP. User goes back to the normal credit gate"
+            : "Grant VIP. User gets free, unwatermarked access to everything"
         }
       >
         {currentIsVip ? "★ Revoke VIP" : "☆ Grant VIP"}
@@ -89,7 +89,7 @@ export function ToggleVipButton({
             <p className="text-sm text-slate-600 mt-2">
               {currentIsVip
                 ? "They'll go back to the normal credit gate. Existing credits stay in their account; future reports will consume from their pools."
-                : "They'll get unlimited, unwatermarked access to the entire product. Use sparingly — friends, pilot agents, brokerage decision-makers we're courting."}
+                : "They'll get unlimited, unwatermarked access to the entire product. Use sparingly: friends, pilot agents, brokerage decision-makers we're courting."}
             </p>
             <label className="block mt-4">
               <span className="text-xs font-semibold text-slate-700 block mb-1">

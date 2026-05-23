@@ -7,7 +7,7 @@ import Link from "next/link";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const metadata = {
-  title: "Users — Admin",
+  title: "Users, Admin",
 };
 
 type SearchParams = Promise<{ q?: string; sort?: string }>;
@@ -185,7 +185,7 @@ export default async function AdminUsersPage({
                     </td>
                     <td className="px-6 py-3.5 text-slate-700 text-sm">
                       {p.brokerage?.trim() || (
-                        <span className="text-slate-400 italic">—</span>
+                        <span className="text-slate-400 italic">unset</span>
                       )}
                     </td>
                     <td className="px-6 py-3.5 text-right text-slate-700 text-sm">
@@ -202,7 +202,7 @@ export default async function AdminUsersPage({
                     <td className="px-6 py-3.5 text-slate-500 text-xs">
                       {p.created_at
                         ? new Date(p.created_at).toLocaleDateString()
-                        : "—"}
+                        : "Unknown"}
                     </td>
                     <td className="px-6 py-3.5 text-right">
                       <div className="inline-flex flex-col items-end gap-1">
