@@ -205,6 +205,144 @@ export default function ComparisonPage() {
           </div>
         </section>
 
+        {/* Dot color refinement, mono vs teal contrast */}
+        <section className="mb-10 bg-white rounded-2xl border-2 border-rose-300 p-5 sm:p-6">
+          <div className="mb-4">
+            <p className="text-[10px] font-bold tracking-widest uppercase text-rose-700">
+              Refinement
+            </p>
+            <h2 className="text-lg font-bold text-slate-900 mt-0.5">
+              Option 1, dot color side by side
+            </h2>
+            <p className="text-sm text-slate-600 mt-2 max-w-2xl leading-relaxed">
+              Coral monochrome on the left, current teal-dot contrast on
+              the right. Same wordmark, same size, same position. The
+              only thing changing is the dot color.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {/* Coral mono */}
+            <div>
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-2">
+                Coral mono, no contrast
+              </p>
+              <div className="bg-white border border-slate-200 rounded-lg p-6 flex items-center justify-center min-h-[100px]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/v3-01b-coral-mono-light.svg"
+                  alt="Coral mono on light"
+                  style={{ height: 50 }}
+                />
+              </div>
+              <div
+                className="rounded-lg p-6 flex items-center justify-center min-h-[100px] mt-3"
+                style={{ background: "#0F0E2E" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/v3-01b-coral-mono-dark.svg"
+                  alt="Coral mono on dark"
+                  style={{ height: 50 }}
+                />
+              </div>
+              <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
+                <span>Favicon:</span>
+                <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/brand/v3-01b-coral-mono-light.svg" alt="" style={{ height: 24 }} />
+                </div>
+                <div className="rounded p-2 flex items-center justify-center" style={{ background: "#0F0E2E" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/brand/v3-01b-coral-mono-dark.svg" alt="" style={{ height: 24 }} />
+                </div>
+              </div>
+              <div className="mt-3 flex gap-3 text-xs">
+                <a
+                  href="/brand/v3-01b-coral-mono-light.svg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-700 underline underline-offset-2"
+                >
+                  Light SVG
+                </a>
+                <a
+                  href="/brand/v3-01b-coral-mono-dark.svg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-700 underline underline-offset-2"
+                >
+                  Dark SVG
+                </a>
+              </div>
+            </div>
+
+            {/* Teal dot (current) */}
+            <div>
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-2">
+                Teal dot, with contrast
+              </p>
+              <div className="bg-white border border-slate-200 rounded-lg p-6 flex items-center justify-center min-h-[100px]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/v3-01-coral-lowercase-light.svg"
+                  alt="Teal dot on light"
+                  style={{ height: 50 }}
+                />
+              </div>
+              <div
+                className="rounded-lg p-6 flex items-center justify-center min-h-[100px] mt-3"
+                style={{ background: "#0F0E2E" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/v3-01-coral-lowercase-dark.svg"
+                  alt="Teal dot on dark"
+                  style={{ height: 50 }}
+                />
+              </div>
+              <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
+                <span>Favicon:</span>
+                <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/brand/v3-01-coral-lowercase-light.svg" alt="" style={{ height: 24 }} />
+                </div>
+                <div className="rounded p-2 flex items-center justify-center" style={{ background: "#0F0E2E" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/brand/v3-01-coral-lowercase-dark.svg" alt="" style={{ height: 24 }} />
+                </div>
+              </div>
+              <div className="mt-3 flex gap-3 text-xs">
+                <a
+                  href="/brand/v3-01-coral-lowercase-light.svg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-700 underline underline-offset-2"
+                >
+                  Light SVG
+                </a>
+                <a
+                  href="/brand/v3-01-coral-lowercase-dark.svg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-700 underline underline-offset-2"
+                >
+                  Dark SVG
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-500 italic leading-relaxed">
+            What to look for: mono reads tighter and more typographic
+            (one color of ink). Teal version has a small visual moment
+            that draws the eye to where the word ends, which can feel
+            more friendly and memorable. Neither is wrong. If the
+            contrast still appeals to you after seeing them next to
+            each other, the teal version is a totally legitimate pick.
+          </p>
+        </section>
+
         {/* My opinion */}
         <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 mb-10">
           <h2 className="text-lg font-bold text-slate-900 mb-3">
@@ -306,11 +444,10 @@ export default function ComparisonPage() {
             permanent brands actually get built.
           </p>
           <p className="text-sm text-slate-700 leading-relaxed mt-3">
-            One small refinement I would offer on Option 1: try the dot
-            in the SAME coral as the wordmark instead of teal. Two
-            colors compete a little. One color reads cleaner at small
-            sizes and ages better. I can mock that up in a minute if you
-            want to see it.
+            (See the &quot;Refinement&quot; section above for the coral
+            monochrome version sitting next to the current teal-dot
+            version. Both are legitimate. Pick the one you can live with
+            for the next several years.)
           </p>
         </section>
 
@@ -325,9 +462,9 @@ export default function ComparisonPage() {
           </p>
           <ul className="list-disc list-inside text-sm text-slate-700 mt-3 space-y-1">
             <li>&quot;Go with the baseline&quot;</li>
-            <li>&quot;Go with Option 1 (teal dot)&quot;</li>
-            <li>&quot;Go with Option 1 but use coral for the dot&quot;</li>
-            <li>&quot;Show me Option 1 with the coral dot first&quot;</li>
+            <li>&quot;Go with Option 1, teal dot&quot;</li>
+            <li>&quot;Go with Option 1, coral mono&quot;</li>
+            <li>&quot;Try the dot in a different color, [color]&quot;</li>
           </ul>
         </div>
       </main>
