@@ -7,6 +7,7 @@ import { AnalysisRunner } from "./_components/AnalysisRunner";
 // removal checklist.
 import { DevRerunButton } from "./_components/DevRerunButton";
 import { CriticalFindingsView } from "./_components/CriticalFindingsView";
+import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { RetryButton } from "./_components/RetryButton";
 import { AgentActions } from "./_components/AgentActions";
 import { RemoveFileButton } from "./_components/RemoveFileButton";
@@ -259,6 +260,22 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
 
       {/* Token burn / cost — dev visibility */}
       {usage && <TokenBurnCard usage={usage} />}
+
+      {/* "Report an error" affordance — sits at the bottom of every
+          report. Agents click here when a finding is wrong, missing,
+          or doesn't apply; admins review submissions on
+          /admin/report-errors and grant a refund credit when
+          warranted. Email is pre-filled from the signed-in profile. */}
+      <div className="border-t border-slate-200 pt-4 mt-6 flex items-center justify-between gap-3">
+        <p className="text-xs text-slate-500">
+          Notice an error in this report? Let us know — we may credit
+          your account.
+        </p>
+        <ReportErrorButton
+          reportId={report.id}
+          defaultEmail={user.email ?? undefined}
+        />
+      </div>
     </div>
   );
 }

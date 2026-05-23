@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ReportData, Finding } from "@/lib/anthropic/schema";
+import { ReportErrorButton } from "@/components/ReportErrorButton";
 
 // Public-facing report view rendered at /r/{code}. Mobile-first
 // layout, collapsible sections (Critical open by default, everything
@@ -519,6 +520,18 @@ export function PublicReportView({
             ) : null}
           </Section>
         ) : null}
+
+        {/* Report-an-error affordance for the public viewer too —
+            we'll resolve their email to a Veroax account when
+            granting credit (works for the agent who shared the
+            link; anonymous buyer submissions go to the admin
+            queue for review). */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 text-sm text-slate-700 flex items-center justify-between gap-3 flex-wrap">
+          <span>
+            Notice something wrong with this report?
+          </span>
+          <ReportErrorButton reportId={reportId} />
+        </div>
 
         {/* Disclaimer */}
         <div className="text-xs text-slate-500 leading-relaxed bg-slate-100 rounded-xl p-4">
