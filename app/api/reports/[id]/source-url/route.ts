@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth/require";
 
 // GET /api/reports/[id]/source-url?file=<filename>
 //
@@ -27,13 +28,9 @@ export async function GET(
     return NextResponse.json({ error: "file is required." }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth;
 
   const { data: profile } = await supabase
     .from("profiles")

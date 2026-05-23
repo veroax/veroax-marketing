@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/require";
 
 // POST /api/admin/toggle-admin
 // Body: { user_id: string, is_admin: boolean }
@@ -15,25 +16,9 @@ import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 // direct SQL access.
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
-
-  const { data: callerProfile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-  const callerIsAdmin = Boolean(
-    (callerProfile as { is_admin?: boolean } | null)?.is_admin,
-  );
-  if (!callerIsAdmin) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { user } = auth;
 
   const body = await request.json().catch(() => ({}));
   const targetUserId =

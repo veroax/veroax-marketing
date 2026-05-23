@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/require";
 
 // POST /api/admin/force-rerun/[id]
 //
@@ -23,28 +24,12 @@ export async function POST(
 ) {
   const { id: reportId } = await context.params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
-
   // Admin role gate. The DevRerunButton already requires admin to even
-  // appear in the UI, but defense-in-depth — the route is callable
+  // appear in the UI, but defense-in-depth, the route is callable
   // directly via HTTP.
-  const { data: callerProfile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-  const callerIsAdmin = Boolean(
-    (callerProfile as { is_admin?: boolean } | null)?.is_admin,
-  );
-  if (!callerIsAdmin) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { user } = auth;
 
   const admin = createServiceRoleClient();
   const { data: report } = await admin

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth/require";
 
 // Lightweight polling endpoint for the AnalysisRunner. Returns the
 // report's current status plus the recent audit_log events for it so
@@ -10,13 +10,9 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id: reportId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+  const { supabase } = auth;
 
   // RLS-bound select confirms the report belongs to this user.
   const { data: report, error: reportErr } = await supabase

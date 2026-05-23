@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth/require";
 
 // Manual recovery endpoint. Resets a stuck "analyzing" report so the
 // AnalysisRunner can kick off a fresh run. Useful when a Vercel function
@@ -18,13 +18,9 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id: reportId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+  const { supabase } = auth;
 
   const { data: report } = await supabase
     .from("reports")

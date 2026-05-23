@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 import type { ReportData } from "@/lib/anthropic/schema";
+import { requireUser } from "@/lib/auth/require";
 
 // POST /api/reports/[id]/email/draft
 //
@@ -29,13 +29,9 @@ export async function POST(
 ) {
   const { id: reportId } = await context.params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth;
 
   const { data: report, error } = await supabase
     .from("reports")

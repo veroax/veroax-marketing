@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { countPages, MAX_PAGES_PER_CHUNK } from "@/lib/pdf/split";
 import { extractText, estimateTokens } from "@/lib/pdf/extract";
+import { requireUser } from "@/lib/auth/require";
 
 // Diagnostic endpoint: inspects every PDF in a report's storage folder
 // and reports each file's page count + whether it would be eligible
@@ -20,13 +21,9 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id: reportId } = await context.params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth;
 
   // RLS-bound select confirms the report belongs to this user.
   const { data: report } = await supabase

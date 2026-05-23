@@ -1,8 +1,9 @@
 import { NextResponse, after } from "next/server";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { performAnalysis } from "@/lib/server/performAnalysis";
 import { countPages } from "@/lib/pdf/split";
 import { safeFileMetadataList } from "@/lib/audit/safe";
+import { requireUser } from "@/lib/auth/require";
 
 // Append additional documents to an existing report and trigger
 // full-package re-analysis.
@@ -30,13 +31,9 @@ export async function POST(
 ) {
   const { id: reportId } = await context.params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth;
 
   const { data: report, error: reportErr } = await supabase
     .from("reports")

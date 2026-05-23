@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import AdmZip from "adm-zip";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { splitPdfIfNeeded, countPages, MAX_PAGES_PER_CHUNK } from "@/lib/pdf/split";
 import { extractText } from "@/lib/pdf/extract";
+import { requireUser } from "@/lib/auth/require";
 
 // Called after client-side uploads to "disclosures/{user_id}/{report_id}/..."
 // finish. Server's job:
@@ -26,13 +27,9 @@ export async function POST(
 ) {
   const { id: reportId } = await context.params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth;
 
   // Verify the report belongs to this user — RLS enforces this anyway,
   // but the explicit check gives a clean 404 instead of a confusing

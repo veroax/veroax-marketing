@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { balanceForUser } from "@/lib/billing/credits";
+import { requireUser } from "@/lib/auth/require";
 
 // Creates a new "reports" row owned by the authenticated user.
 // Returns the report ID and user ID so the client can build the
@@ -15,13 +15,9 @@ import { balanceForUser } from "@/lib/billing/credits";
 // SPEND a credit if they finish?"
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth;
 
   // Credit gate. balanceForUser checks subscription period, one-off
   // balance, and trial credits.

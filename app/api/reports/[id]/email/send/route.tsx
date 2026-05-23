@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { createClient } from "@/lib/supabase/server";
 import {
   ReportPDF,
   type AgentBranding,
   type OriginalFile,
 } from "@/lib/pdf-render/ReportPDF";
 import type { ReportData } from "@/lib/anthropic/schema";
+import { requireUser } from "@/lib/auth/require";
 
 // POST /api/reports/[id]/email/send
 //
@@ -47,13 +47,9 @@ export async function POST(
 ) {
   const { id: reportId } = await context.params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth;
 
   const body = (await request.json().catch(() => ({}))) as SendBody;
   const recipient = typeof body.recipient_email === "string" ? body.recipient_email.trim() : "";

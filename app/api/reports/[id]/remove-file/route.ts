@@ -1,7 +1,8 @@
 import { NextResponse, after } from "next/server";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { performAnalysis } from "@/lib/server/performAnalysis";
 import { safeFileMetadata } from "@/lib/audit/safe";
+import { requireUser } from "@/lib/auth/require";
 
 // POST /api/reports/[id]/remove-file
 //
@@ -27,13 +28,9 @@ export async function POST(
 ) {
   const { id: reportId } = await context.params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  }
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+  const { supabase, user } = auth;
 
   const body = await request.json().catch(() => ({}));
   const filename =
