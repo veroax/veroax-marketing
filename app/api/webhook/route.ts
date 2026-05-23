@@ -5,7 +5,6 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   planFromPriceId,
   reportsIncludedFor,
-  ONEOFF_REPORT_PRICE_ENV,
 } from "@/lib/billing/plans";
 
 // Stripe webhook events to notify on. Excludes noisy events like
@@ -470,9 +469,4 @@ async function handleSubscriptionUpserted(
     });
   }
 
-  // Suppress the unused-import warning for ONEOFF_REPORT_PRICE_ENV.
-  // It's referenced by the pricing page + checkout route but TS
-  // doesn't see them at module scope from this file. Forward-ref it
-  // for the linter's sake.
-  void ONEOFF_REPORT_PRICE_ENV;
 }
