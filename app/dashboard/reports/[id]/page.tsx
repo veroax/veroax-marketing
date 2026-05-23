@@ -6,6 +6,7 @@ import { AnalysisRunner } from "./_components/AnalysisRunner";
 // when shipping to broad availability. See DevRerunButton.tsx for the
 // removal checklist.
 import { DevRerunButton } from "./_components/DevRerunButton";
+import { CriticalFindingsView } from "./_components/CriticalFindingsView";
 import { RetryButton } from "./_components/RetryButton";
 import { AgentActions } from "./_components/AgentActions";
 import { RemoveFileButton } from "./_components/RemoveFileButton";
@@ -579,6 +580,16 @@ function AgentSummary({
           </ol>
         </div>
       </div>
+
+      {/* ----- Critical findings with click-to-source ----------- */}
+      {/* Lives only on the agent's dashboard (not the public /r/{code}
+          view) because the source PDFs are private. Click any "Source:"
+          citation to open a side panel with the underlying inspection
+          / disclosure document jumped to the cited page. */}
+      <CriticalFindingsView
+        reportId={reportId}
+        findings={reportData.critical_findings ?? []}
+      />
 
       {/* ----- Missing disclosures ------------------------------- */}
       <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
