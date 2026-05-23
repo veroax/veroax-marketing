@@ -19,6 +19,7 @@ import {
   selectMarketReference,
   formatMarketReferenceForPrompt,
 } from "@/lib/cost-reference/california-markets";
+import { fetchMarketContext } from "./market-context";
 
 // ============================================================================
 // Multi-pass disclosure analysis
@@ -225,6 +226,37 @@ export async function analyzeDisclosurePackage(
     output_tokens: number;
   }> = [];
 
+  // Live market-context fetch — runs in parallel with the focused
+  // passes via Claude's web_search tool. Hits real-time data sources
+  // for mortgage rates, segment median pricing, and comparable
+  // sales. Failure-tolerant: returns null and the synthesizer falls
+  // back to whatever the focused passes produced (typically nothing).
+  //
+  // We kick this off BEFORE the focused passes so it has the
+  // longest budget to run in parallel; the await happens after
+  // groupPromises so total wall-clock is max(focused, market) not
+  // sum.
+  const firstDocPass = (input.groups.seller_disclosures ?? [])[0];
+  const marketContextPromise = (async () => {
+    try {
+      return await fetchMarketContext({
+        propertyAddress: input.propertyAddressHint ?? null,
+        marketRegion: null, // synthesizer will set from focused passes later
+        propertyType: null,
+        bedrooms: null,
+        bathrooms: null,
+        squareFeet: null,
+        listPrice: null,
+      });
+    } catch {
+      return null;
+    } finally {
+      // Helper so we don't accidentally leave this dangling — the
+      // value is awaited after groupPromises below.
+      void firstDocPass;
+    }
+  })();
+
   // For each group that has documents, run focused pass(es). Groups can
   // run in parallel.
   const groupKeys: PassGroup[] = ["seller_disclosures", "inspections", "hoa", "hazards"];
@@ -270,6 +302,12 @@ export async function analyzeDisclosurePackage(
   const all = (await Promise.all(groupPromises)).flat();
   passResults.push(...all);
 
+  // Resolve the market-context promise that's been running in
+  // parallel since the start. If web_search failed or timed out
+  // this is null and the synthesizer falls back to whatever the
+  // focused passes produced (usually nothing).
+  const liveMarketContext = await marketContextPromise.catch(() => null);
+
   // Synthesis pass — deterministic code, not a Claude call.
   // Observed in production: the Claude-driven synthesis call hung
   // indefinitely on real disclosure packages, dying at maxDuration.
@@ -282,6 +320,7 @@ export async function analyzeDisclosurePackage(
     passResults.map((p) => p.analysis),
     input.propertyAddressHint ?? null,
     input.updateContext ?? null,
+    liveMarketContext,
   );
   await input.onSynthesisCompleted?.({ input_tokens: 0, output_tokens: 0 });
 
@@ -677,6 +716,11 @@ function synthesizeReportInCode(
   focused: FocusedAnalysis[],
   propertyAddressHint: string | null,
   updateContext: UpdateContext | null,
+  // Optional live market context from the web_search pass. When
+  // present, this WINS over what individual focused passes
+  // produced — it's grounded in current rate aggregators and recent
+  // sales data, which the focused passes can't reach.
+  liveMarketContext: ReportData["market_context"] | null = null,
 ): ReportData {
   // Aggregate findings (treat permit_compliance findings separately so
   // they end up in the permit section, not double-counted).
@@ -1149,8 +1193,16 @@ function synthesizeReportInCode(
     focused.find(
       (p) => p.inspection_follow_ups && p.inspection_follow_ups.length > 0,
     )?.inspection_follow_ups ?? null;
+  // Prefer the live web-search-grounded market context over what
+  // focused passes produced. Focused passes typically can't reach
+  // the data needed for this section (current rates, current segment
+  // medians, recent comps), so when liveMarketContext is populated
+  // it's almost always the right choice. Fall through to the focused-
+  // pass value when live context is null.
   const marketContext =
-    focused.find((p) => p.market_context?.summary)?.market_context ?? null;
+    liveMarketContext ??
+    focused.find((p) => p.market_context?.summary)?.market_context ??
+    null;
   const titleVesting =
     focused.find((p) => p.title_vesting?.vesting_summary)?.title_vesting ??
     null;
