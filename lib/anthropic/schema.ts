@@ -21,6 +21,31 @@ export type Finding = {
   cost_estimate: CostRange;
   risk_if_ignored: string;
   recommended_action: string;
+  // Verbatim quote pulled directly from the source document. Surfaced
+  // in the PDF inside a "From the source document:" quote block so the
+  // finding is auditable against the underlying disclosure. Keep this
+  // SHORT — 1-3 sentences max; the full document is still available
+  // for deeper reads. Null when no clean quote is available.
+  source_quote?: string | null;
+  // Plain-language "what is this thing." Different from description in
+  // that what_it_is explains the THING in lay terms ("the inspector's
+  // panel was painted shut, so the branch wire material couldn't be
+  // verified"), while description states the observation. Renders as
+  // its own paragraph in the new finding card layout.
+  what_it_is?: string | null;
+  // Why the buyer should care — consequences, insurance/lender impact,
+  // safety risk. Renders as "Why it matters" paragraph.
+  why_it_matters?: string | null;
+  // Concrete next step the buyer/agent should take to resolve the
+  // unknown or remediate the issue. Renders as "Next step" paragraph.
+  next_step?: string | null;
+  // Out-of-pocket cost to investigate / evaluate the finding (vs.
+  // cost_estimate which is the remediation cost if confirmed). For
+  // example: aluminum wiring evaluation is $300-$600 to investigate,
+  // but $500-$4,500 per circuit to remediate. The investigate cost is
+  // what the buyer might spend during contingency; the remediation
+  // cost is the post-confirmation negotiation lever. Optional.
+  immediate_out_of_pocket?: CostRange | null;
   // Who pays this bill if the repair gets done?
   //   - "owner": the buyer-occupant of this specific unit/property
   //   - "hoa": the HOA / condo association from reserves or assessments
@@ -124,6 +149,26 @@ export type ReportData = {
     applicable: boolean;
     summary: string;
     concerns: string[];
+    // Optional financial / governance KV facts surfaced by the HOA
+    // analyzer pass. Powers the new HOA section's compact fact table
+    // (Master policy carrier, Reserves range, Operating account,
+    // Special assessment status, Capital projects approved, Rental
+    // restriction, Age restriction, Reserve study cadence, etc.). The
+    // analyzer populates whatever it could pull from the HOA package;
+    // missing fields just don't render. Free-form key/value strings so
+    // we can add new facts without a schema migration.
+    facts?: Array<{ label: string; value: string }> | null;
+    // "Reserve health, our read" — a 2-3 sentence editorial paragraph
+    // about whether reserves are adequate, what the current path is
+    // (assessments planned, dues trajectory), and how that compares
+    // to typical CA HOAs of this age + unit count. Renders as its own
+    // titled paragraph below the facts table.
+    reserve_health_read?: string | null;
+    // "Watch items" — a 1-2 sentence prose flag for HOA items the
+    // buyer should monitor through close (mid-project contractor
+    // switches, unit-by-unit water-intrusion patterns, etc.). NOT a
+    // hard finding — it's a heads-up for the agent's diligence list.
+    watch_items?: string | null;
   };
   environmental: {
     summary: string;
@@ -148,10 +193,55 @@ export type ReportData = {
     lender_concerns: string[];
   };
   outstanding_questions: string[];
+  // Numbered checklist of specialists the buyer should engage during
+  // their contingency period to close the largest unknowns in the
+  // disclosure package. Renders as a clean numbered table with
+  // Specialist / Reason / Approx. cost columns. Optional — when
+  // empty (e.g., legacy reports) the section is skipped.
+  inspection_follow_ups?: Array<{
+    specialist: string;
+    reason: string;
+    approx_cost: string;
+  }> | null;
+  // Market context for the unit's sub-segment. Renders as a section
+  // with median pricing for the segment, days-on-market, mortgage
+  // rate environment, monthly carrying cost calculation, and the
+  // within-complex + adjacent-building comparables. Optional.
+  market_context?: {
+    summary: string;
+    monthly_carrying_cost?: string | null;
+    mortgage_rate_range?: string | null;
+    median_price?: string | null;
+    median_dom?: number | null;
+    comparable_units?: Array<{
+      label: string; // e.g., "947 Catkin Ct, 658 sqft 1BR/1BA"
+      status: string; // e.g., "Sold $435,000", "Listed $468,000"
+      note?: string | null;
+    }> | null;
+  } | null;
+  // Title & vesting summary from the preliminary title report. Captures
+  // how the unit is vested (sole, joint, tenants-in-common, percentages),
+  // liens of note (first deed, second, PACE/HERO), and recorded matters
+  // touching the project (HOA settlements, easements). Renders as its
+  // own narrative section. Optional.
+  title_vesting?: {
+    vesting_summary: string;
+    liens_summary?: string | null;
+    recorded_matters?: string | null;
+  } | null;
   overall_rating: {
     label: "Excellent" | "Good" | "Acceptable" | "Significant Concerns" | "Walk Away";
     summary: string;
     contingency_advice: string;
+    // Optional "Why this rating" narrative — 2-4 sentences explaining
+    // the rating drivers and the major conditions that need to hold
+    // for the rating to remain valid. Renders below the rating pill
+    // in the new layout.
+    why_this_rating?: string | null;
+    // Conditions that must hold for the rating to remain valid (e.g.,
+    // "no aluminum wiring confirmed in the unit", "no widespread ABS
+    // failure across the complex"). Renders as a short paragraph.
+    conditions_on_which_this_depends?: string | null;
   };
   // Populated only when this analysis was produced as an UPDATE to an
   // earlier report (i.e., the agent added documents). Surfaces a
@@ -383,6 +473,31 @@ export const FOCUSED_TOOL_SCHEMA = {
             description:
               "Who actually pays this bill if the repair gets done. 'owner' = the buyer of this specific unit/property pays out of pocket; 'hoa' = the HOA/condo association covers it from reserves or assessments (the buyer never writes a check); 'shared' = both contribute. Default to 'owner' unless the source documents indicate the work is in a common area, on the building exterior, in shared mechanical systems, or otherwise the HOA's responsibility per the CC&Rs / governing docs. CRITICAL: if cost_responsibility = 'hoa' you must NOT mark the finding Critical based on the cost threshold alone — the dollar amount doesn't hit the buyer's pocket. The finding can still be Critical for an active hazard or insurance/lender blockability.",
           },
+          source_quote: {
+            type: ["string", "null"],
+            description: "VERBATIM 1-3 sentence quote from the source document supporting this finding. Renders in a 'From the source document:' quote block on the PDF. Use ellipsis (…) for elided middle text. Don't paraphrase — the quote is what makes the finding auditable against the underlying document.",
+          },
+          what_it_is: {
+            type: ["string", "null"],
+            description: "Plain-language paragraph (2-4 sentences) describing the underlying THING. Lay terminology, no jargon. Example: 'The home inspector recorded the panel's branch material as both copper and aluminum, and could not fully view the bedroom subpanel because it was painted shut.'",
+          },
+          why_it_matters: {
+            type: ["string", "null"],
+            description: "Plain-language paragraph (2-4 sentences) on why the BUYER should care: safety risk, insurance/lender impact, financial exposure. Example: 'Aluminum branch wiring at 120V outlets is associated with elevated risk of overheating and fire when not properly terminated. Insurance carriers may decline or surcharge a unit with unremediated aluminum branch wiring.'",
+          },
+          next_step: {
+            type: ["string", "null"],
+            description: "Concrete, specific next action for the buyer or buyer's agent. Example: 'Have a licensed electrician open a representative number of outlets and switches to confirm whether aluminum is in branch circuits (concerning) or only in the service feeder (typical and benign). If branch is aluminum, get a written quote for COPALUM crimp or AlumiConn pigtail remediation.'",
+          },
+          immediate_out_of_pocket: {
+            type: ["object", "null"],
+            description: "Cost to INVESTIGATE the finding during the contingency window (separate from cost_estimate which is the remediation cost if confirmed). For an aluminum-wiring finding the immediate spend is ~$300-$600 for an electrician's evaluation; the remediation is $500-$4,500 per circuit if confirmed.",
+            properties: {
+              low: { type: "number" },
+              high: { type: "number" },
+              description: { type: "string" },
+            },
+          },
         },
         required: [
           "title",
@@ -541,6 +656,29 @@ export const REPORT_TOOL_SCHEMA = {
           applicable: { type: "boolean" },
           summary: { type: "string" },
           concerns: { type: "array", items: { type: "string" } },
+          facts: {
+            type: ["array", "null"],
+            description:
+              "Compact KV facts from the HOA package — Master policy carrier + phone, Master policy premium, Operating account range, Reserves range, Dues, Special assessment status, Capital projects approved, Litigation, Collections, Rental restriction, Age restriction, Reserve study cadence, etc. Free-form label/value pairs so we can add more without a schema change.",
+            items: {
+              type: "object",
+              properties: {
+                label: { type: "string" },
+                value: { type: "string" },
+              },
+              required: ["label", "value"],
+            },
+          },
+          reserve_health_read: {
+            type: ["string", "null"],
+            description:
+              "2-3 sentence editorial paragraph on whether reserves are adequate, the current dues trajectory, and how this HOA compares to typical CA HOAs of the same age + unit count.",
+          },
+          watch_items: {
+            type: ["string", "null"],
+            description:
+              "1-2 sentence prose flag for HOA items the buyer should monitor through close (mid-project contractor switches, unit-by-unit water-intrusion patterns, etc.). Not a hard finding — a heads-up for the diligence list.",
+          },
         },
         required: ["applicable", "summary", "concerns"],
       },
@@ -622,6 +760,81 @@ export const REPORT_TOOL_SCHEMA = {
         type: "array",
         items: { type: "string" },
       },
+      inspection_follow_ups: {
+        type: ["array", "null"],
+        description:
+          "Numbered checklist of specialists the buyer should engage during their contingency period to close the largest unknowns. Each item is a specialist + reason + approximate cost. Example: {specialist: 'Licensed electrician', reason: 'Verify aluminum vs. copper branch wiring; quote remediation if confirmed', approx_cost: '$300-$600'}.",
+        items: {
+          type: "object",
+          properties: {
+            specialist: { type: "string" },
+            reason: { type: "string" },
+            approx_cost: { type: "string" },
+          },
+          required: ["specialist", "reason", "approx_cost"],
+        },
+      },
+      market_context: {
+        type: ["object", "null"],
+        description:
+          "Market context for the unit's sub-segment: median pricing, days on market, mortgage rate environment, monthly carrying cost, and comparable units. Optional — populate when the documents + analyzer's knowledge are sufficient.",
+        properties: {
+          summary: {
+            type: "string",
+            description: "2-3 sentence narrative of the market context for this specific unit type/size/location.",
+          },
+          monthly_carrying_cost: {
+            type: ["string", "null"],
+            description: "Calculated monthly carrying cost at the list price including PITI + HOA. Example: '$3,500-$3,650 before insurance' for a $467K purchase with 20% down at 6.625%.",
+          },
+          mortgage_rate_range: {
+            type: ["string", "null"],
+            description: "Current mortgage rate range for the buyer's likely loan profile.",
+          },
+          median_price: {
+            type: ["string", "null"],
+            description: "Median price for the unit's segment in the local market.",
+          },
+          median_dom: {
+            type: ["integer", "null"],
+            description: "Median days on market for the segment.",
+          },
+          comparable_units: {
+            type: ["array", "null"],
+            description: "Within-complex + adjacent-building comparables. Each item is a label, status, and optional note.",
+            items: {
+              type: "object",
+              properties: {
+                label: { type: "string" },
+                status: { type: "string" },
+                note: { type: ["string", "null"] },
+              },
+              required: ["label", "status"],
+            },
+          },
+        },
+        required: ["summary"],
+      },
+      title_vesting: {
+        type: ["object", "null"],
+        description:
+          "Title & vesting summary from the preliminary title report. Captures how the unit is vested, liens of note, and recorded matters touching the project. Optional — populate when the prelim title document is in the package.",
+        properties: {
+          vesting_summary: {
+            type: "string",
+            description: "Narrative of how the unit is vested (sole, joint, tenants-in-common with percentages, trust, LLC, etc.) and the property estate type (e.g., 'condominium in fee, comprised of Unit X of Tract Y').",
+          },
+          liens_summary: {
+            type: ["string", "null"],
+            description: "Liens of note from the prelim — first deed of trust (lender + original principal), second mortgages, PACE/HERO, mechanic's liens, notices of default.",
+          },
+          recorded_matters: {
+            type: ["string", "null"],
+            description: "Recorded matters touching the project — prior litigation settlements, easements (Comcast, PG&E), CC&R recording details, etc.",
+          },
+        },
+        required: ["vesting_summary"],
+      },
       overall_rating: {
         type: "object",
         properties: {
@@ -635,8 +848,19 @@ export const REPORT_TOOL_SCHEMA = {
               "Walk Away",
             ],
           },
-          summary: { type: "string" },
+          summary: {
+            type: "string",
+            description: "One-line summary that renders inside the rating pill. Example: 'A workable file with a small number of follow-ups before contingency removal.'",
+          },
           contingency_advice: { type: "string" },
+          why_this_rating: {
+            type: ["string", "null"],
+            description: "2-4 sentence narrative explaining the rating drivers. What's the major upside? What kept it from being a higher tier?",
+          },
+          conditions_on_which_this_depends: {
+            type: ["string", "null"],
+            description: "Short paragraph listing the major conditions that must hold for the rating to remain valid (e.g., 'no aluminum branch wiring confirmed in the unit', 'no widespread ABS failure across the complex', 'Section I termite clearance completed by seller').",
+          },
         },
         required: ["label", "summary", "contingency_advice"],
       },
@@ -672,6 +896,31 @@ export const REPORT_TOOL_SCHEMA = {
             enum: ["owner", "hoa", "shared", null],
             description:
               "Who actually pays this bill if the repair gets done. 'owner' = the buyer of this specific unit/property pays out of pocket; 'hoa' = the HOA/condo association covers it from reserves or assessments (the buyer never writes a check); 'shared' = both contribute. Default to 'owner' unless the source documents indicate the work is in a common area, on the building exterior, in shared mechanical systems, or otherwise the HOA's responsibility per the CC&Rs / governing docs. CRITICAL: if cost_responsibility = 'hoa' you must NOT mark the finding Critical based on the cost threshold alone — the dollar amount doesn't hit the buyer's pocket. The finding can still be Critical for an active hazard or insurance/lender blockability.",
+          },
+          source_quote: {
+            type: ["string", "null"],
+            description: "VERBATIM 1-3 sentence quote from the source document supporting this finding. Renders in a 'From the source document:' quote block on the PDF. Use ellipsis (…) for elided middle text. Don't paraphrase — the quote is what makes the finding auditable against the underlying document.",
+          },
+          what_it_is: {
+            type: ["string", "null"],
+            description: "Plain-language paragraph (2-4 sentences) describing the underlying THING. Lay terminology, no jargon. Example: 'The home inspector recorded the panel's branch material as both copper and aluminum, and could not fully view the bedroom subpanel because it was painted shut.'",
+          },
+          why_it_matters: {
+            type: ["string", "null"],
+            description: "Plain-language paragraph (2-4 sentences) on why the BUYER should care: safety risk, insurance/lender impact, financial exposure. Example: 'Aluminum branch wiring at 120V outlets is associated with elevated risk of overheating and fire when not properly terminated. Insurance carriers may decline or surcharge a unit with unremediated aluminum branch wiring.'",
+          },
+          next_step: {
+            type: ["string", "null"],
+            description: "Concrete, specific next action for the buyer or buyer's agent. Example: 'Have a licensed electrician open a representative number of outlets and switches to confirm whether aluminum is in branch circuits (concerning) or only in the service feeder (typical and benign). If branch is aluminum, get a written quote for COPALUM crimp or AlumiConn pigtail remediation.'",
+          },
+          immediate_out_of_pocket: {
+            type: ["object", "null"],
+            description: "Cost to INVESTIGATE the finding during the contingency window (separate from cost_estimate which is the remediation cost if confirmed). For an aluminum-wiring finding the immediate spend is ~$300-$600 for an electrician's evaluation; the remediation is $500-$4,500 per circuit if confirmed.",
+            properties: {
+              low: { type: "number" },
+              high: { type: "number" },
+              description: { type: "string" },
+            },
           },
         },
         required: [
