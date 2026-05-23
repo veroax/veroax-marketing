@@ -13,6 +13,7 @@ import {
 } from "@/lib/anthropic/analyze";
 import { extractText, estimateTokens } from "@/lib/pdf/extract";
 import { countPages, splitPdfIfNeeded } from "@/lib/pdf/split";
+import { safeFileMetadata } from "@/lib/audit/safe";
 
 // Must match PDF_PASS_PAGE_BUDGET in lib/anthropic/analyze.ts. Duplicated
 // here (not imported) because the in-memory re-split runs BEFORE the
@@ -111,7 +112,13 @@ export async function performAnalysis(
   );
 
   const documents: Document[] = [];
-  const failedExtractions: Array<{ filename: string; reason: string }> = [];
+  // PII rule: do not store raw filenames anywhere audit_log can see
+  // them. Each entry holds the safe digest + extension + reason.
+  const failedExtractions: Array<{
+    filename_sha256_12: string;
+    extension: string | null;
+    reason: string;
+  }> = [];
 
   for (const f of pdfs) {
     const path = `${folder}/${f.name}`;
@@ -151,7 +158,7 @@ export async function performAnalysis(
         } catch (err) {
           const reason =
             err instanceof Error ? err.message : "PDF unreadable";
-          failedExtractions.push({ filename: f.name, reason });
+          failedExtractions.push({ ...safeFileMetadata(f.name), reason });
           documents.push({
             filename: f.name,
             text: "",
@@ -164,7 +171,7 @@ export async function performAnalysis(
             report_id: reportId,
             event_type: "analysis.file_uploaded",
             metadata: {
-              filename: f.name,
+              ...safeFileMetadata(f.name),
               extract_error: reason,
               transport: "pdf_fallback_text",
               uploaded_index: documents.length,
@@ -185,7 +192,7 @@ export async function performAnalysis(
           report_id: reportId,
           event_type: "analysis.file_uploaded",
           metadata: {
-            filename: f.name,
+            ...safeFileMetadata(f.name),
             pages: extracted.pages,
             tokens: estimateTokens(extracted.text),
             transport: "pdf_fallback_text",
@@ -232,7 +239,7 @@ export async function performAnalysis(
           report_id: reportId,
           event_type: "analysis.file_uploaded",
           metadata: {
-            filename: chunk.name,
+            ...safeFileMetadata(chunk.name),
             pages: chunkPages,
             tokens: chunkPages * 2000,
             transport: "pdf",
@@ -241,10 +248,14 @@ export async function performAnalysis(
             // Surface in-memory re-splits to the audit log so the
             // agent (and future me) can tell which Documents came
             // from a legacy oversized storage object vs. a clean
-            // one-to-one mapping.
+            // one-to-one mapping. We log the SOURCE filename hash
+            // (not the raw name) for the same PII reason.
             in_memory_subchunk:
               subChunks.length > 1
-                ? { source_filename: f.name, total_sub_chunks: subChunks.length }
+                ? {
+                    ...safeFileMetadata(f.name),
+                    total_sub_chunks: subChunks.length,
+                  }
                 : undefined,
           },
         });
@@ -259,7 +270,7 @@ export async function performAnalysis(
     } catch (err) {
       const reason =
         err instanceof Error ? err.message : "Text extraction failed";
-      failedExtractions.push({ filename: f.name, reason });
+      failedExtractions.push({ ...safeFileMetadata(f.name), reason });
       documents.push({
         filename: f.name,
         text: "",
@@ -272,7 +283,7 @@ export async function performAnalysis(
         report_id: reportId,
         event_type: "analysis.file_uploaded",
         metadata: {
-          filename: f.name,
+          ...safeFileMetadata(f.name),
           extract_error: reason,
           transport: "text",
           uploaded_index: documents.length,
@@ -294,7 +305,7 @@ export async function performAnalysis(
       report_id: reportId,
       event_type: "analysis.file_uploaded",
       metadata: {
-        filename: f.name,
+        ...safeFileMetadata(f.name),
         pages: extracted.pages,
         tokens: estimateTokens(extracted.text),
         transport: "text",

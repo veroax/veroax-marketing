@@ -292,24 +292,61 @@ async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
   admin: ReturnType<typeof createServiceRoleClient>,
 ): Promise<void> {
-  // Resolve the user via the email Stripe collected. Future
-  // iteration: pass user_id through session.metadata so we don't
-  // depend on email match.
-  const email = session.customer_details?.email?.toLowerCase();
-  if (!email) {
-    console.warn("[webhook] checkout.session.completed without customer email");
-    return;
+  // SECURITY: resolve the user via the server-signed identity first.
+  // /api/checkout passes user.id through both client_reference_id
+  // (Stripe-native) and metadata.user_id (redundant). Either one is
+  // trustworthy because only the server creating the session can
+  // write them.
+  //
+  // Fall back to email matching ONLY when neither is present
+  // (legacy sessions from before this fix, or unauthenticated
+  // checkout). Email matching is the original attack vector: an
+  // attacker can pay with a victim's email at Stripe and have
+  // credits granted to that victim's account.
+  const metaUserId =
+    (session.metadata?.user_id as string | undefined) ||
+    (session.client_reference_id as string | null | undefined) ||
+    null;
+
+  let userId: string | null = null;
+
+  if (metaUserId) {
+    // Validate the user exists. If metadata was somehow corrupted
+    // we'd rather drop the event than grant credits to a nonexistent
+    // user (or worse, a guessed UUID).
+    const { data: profileById } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("id", metaUserId)
+      .maybeSingle();
+    if (profileById) {
+      userId = (profileById as { id: string }).id;
+    } else {
+      console.warn(
+        `[webhook] checkout metadata.user_id ${metaUserId} did not resolve to a profile; falling back to email`,
+      );
+    }
   }
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("email", email)
-    .maybeSingle();
-  if (!profile) {
-    console.warn(`[webhook] no profile for checkout email ${email}`);
-    return;
+
+  if (!userId) {
+    const email = session.customer_details?.email?.toLowerCase();
+    if (!email) {
+      console.warn(
+        "[webhook] checkout.session.completed without user_id metadata or customer email",
+      );
+      return;
+    }
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+    if (!profile) {
+      console.warn(`[webhook] no profile for checkout email ${email}`);
+      return;
+    }
+    userId = (profile as { id: string }).id;
   }
-  const userId = (profile as { id: string }).id;
   const customerId =
     typeof session.customer === "string"
       ? session.customer
@@ -364,20 +401,44 @@ async function handleSubscriptionUpserted(
   sub: Stripe.Subscription,
   admin: ReturnType<typeof createServiceRoleClient>,
 ): Promise<void> {
-  // Resolve the user via the Stripe customer ID we set on the
-  // profile during checkout.completed.
+  // Resolve the user. Preferred path: the server-signed user_id we
+  // wrote into subscription_data.metadata at checkout creation. This
+  // is the authoritative identity link and works even if
+  // handleCheckoutCompleted hasn't run yet (events can arrive
+  // out of order in rare cases). Fall back to stripe_customer_id
+  // when the metadata is absent (legacy subscriptions created before
+  // the user_id metadata was added).
   const customerId =
     typeof sub.customer === "string" ? sub.customer : sub.customer.id;
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("stripe_customer_id", customerId)
-    .maybeSingle();
-  if (!profile) {
-    console.warn(`[webhook] no profile for stripe customer ${customerId}`);
-    return;
+  const metaUserId = (sub.metadata?.user_id as string | undefined) || null;
+
+  let userId: string | null = null;
+
+  if (metaUserId) {
+    const { data: profileById } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("id", metaUserId)
+      .maybeSingle();
+    if (profileById) {
+      userId = (profileById as { id: string }).id;
+    }
   }
-  const userId = (profile as { id: string }).id;
+
+  if (!userId) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("stripe_customer_id", customerId)
+      .maybeSingle();
+    if (!profile) {
+      console.warn(
+        `[webhook] no profile for subscription ${sub.id} (metadata.user_id=${metaUserId ?? "absent"}, stripe_customer_id=${customerId})`,
+      );
+      return;
+    }
+    userId = (profile as { id: string }).id;
+  }
 
   // Determine plan + billing from the price ID on the subscription's
   // first item. Price IDs come from Vercel env vars; we reverse-look

@@ -50,10 +50,27 @@ export async function GET(request: Request) {
         billing_address_collection: "required",
         allow_promotion_codes: true,
         customer_email: user?.email ?? undefined,
-        metadata: {
-          purchase_type: "oneoff_report",
-          report_credits: "1",
-        },
+        // SECURITY: pass user.id through both client_reference_id
+        // (Stripe-native field, propagates to every event) and
+        // session.metadata.user_id (redundant defense). The webhook
+        // matches on these first and falls back to email only when
+        // both are absent. Prevents the "I paid with the victim's
+        // email at Stripe checkout to grant them credits" attack.
+        ...(user?.id
+          ? {
+              client_reference_id: user.id,
+              metadata: {
+                purchase_type: "oneoff_report",
+                report_credits: "1",
+                user_id: user.id,
+              },
+            }
+          : {
+              metadata: {
+                purchase_type: "oneoff_report",
+                report_credits: "1",
+              },
+            }),
       });
       if (!session.url) {
         return NextResponse.json(
@@ -102,14 +119,22 @@ export async function GET(request: Request) {
       // Pre-fill the email when the user is signed in so the webhook
       // can match the subscription back to the profile row.
       customer_email: user?.email ?? undefined,
+      // SECURITY: pass user.id through client_reference_id AND
+      // metadata.user_id. The webhook matches on these first so a
+      // signed-in user paying with someone else's email at the
+      // Stripe checkout page cannot redirect credits to that
+      // someone else. See the one-off block for the same pattern.
+      ...(user?.id ? { client_reference_id: user.id } : {}),
       metadata: {
         plan,
         billing,
+        ...(user?.id ? { user_id: user.id } : {}),
       },
       subscription_data: {
         metadata: {
           plan,
           billing,
+          ...(user?.id ? { user_id: user.id } : {}),
         },
       },
     });

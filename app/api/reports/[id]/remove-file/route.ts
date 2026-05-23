@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { performAnalysis } from "@/lib/server/performAnalysis";
+import { safeFileMetadata } from "@/lib/audit/safe";
 
 // POST /api/reports/[id]/remove-file
 //
@@ -227,7 +228,8 @@ export async function POST(
     report_id: reportId,
     event_type: "report.file_removed",
     metadata: {
-      removed_filename: filename,
+      // PII rule: store the hashed filename, not the raw name.
+      removed_file: safeFileMetadata(filename),
       remaining_count: remainingOriginalFiles.length,
       storage_objects_deleted: pathsToDelete.length,
       update_count: updateCount,

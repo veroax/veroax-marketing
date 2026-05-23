@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { performAnalysis } from "@/lib/server/performAnalysis";
 import { countPages } from "@/lib/pdf/split";
+import { safeFileMetadataList } from "@/lib/audit/safe";
 
 // Append additional documents to an existing report and trigger
 // full-package re-analysis.
@@ -213,7 +214,10 @@ export async function POST(
     event_type: "report.update_started",
     metadata: {
       update_count: updateCount,
-      added_filenames: addedFilenames,
+      // PII rule: filenames can encode buyer / seller / address data.
+      // Store hashed digests + extensions so audit replay can match a
+      // file across events without leaking the human-readable name.
+      added_files: safeFileMetadataList(addedFilenames),
       inside_free_window: insideFreeWindow,
       age_days: Math.round(ageDays),
     },
