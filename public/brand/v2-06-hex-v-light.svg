@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
+  <!-- v2-06 Hexagonal V. Replaces the rounded square with a flat-top
+       hexagon. Reads as technical / scientific / engineered — feels
+       like a "verified component" stamp. The hex outline plus the
+       V inside is a strong, trademark-friendly composition. -->
+  <path d="M 13 4 L 33 4 L 43 23 L 33 42 L 13 42 L 3 23 Z" fill="#191970"/>
+  <path d="M 13 21 L 21 31 L 34 13" stroke="#D4B85C" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="34" fill="#191970">Veroax</text>
+</svg>

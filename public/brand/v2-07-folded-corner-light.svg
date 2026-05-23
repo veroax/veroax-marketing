@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
+  <!-- v2-07 Folded corner. A bold rounded square with the upper-right
+       corner "folded" forward, revealing a gold triangle underneath —
+       a deliberate document / page reference that ties directly to
+       the disclosure-analysis use case. -->
+  <path d="M 12 2 L 30 2 L 44 16 L 44 34 Q 44 44 34 44 L 12 44 Q 2 44 2 34 L 2 12 Q 2 2 12 2 Z" fill="#191970"/>
+  <path d="M 30 2 L 44 16 L 30 16 Z" fill="#D4B85C"/>
+  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="34" fill="#191970">Veroax</text>
+</svg>

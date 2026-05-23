@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
+  <!-- v2-08 V + underline. Solid filled V silhouette with a bold gold
+       underline beneath it — like a signature or a stamp of approval.
+       Reads as "verified, signed off." Strong typographic feel. -->
+  <rect x="2" y="2" width="42" height="42" rx="10" fill="#191970"/>
+  <path d="M 10 10 L 17 10 L 23 26 L 29 10 L 36 10 L 27 32 L 19 32 Z" fill="#D4B85C"/>
+  <rect x="10" y="35" width="26" height="3" rx="1.5" fill="#D4B85C"/>
+  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="34" fill="#191970">Veroax</text>
+</svg>
