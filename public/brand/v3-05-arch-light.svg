@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
+  <!-- v3-05 Terracotta arch. A simple keystone arch reads as
+       architecture, foundation, and "doorway to the deal." Warm
+       terracotta is unusual in SaaS and gives the brand a hand-built,
+       boutique feel. -->
+  <path d="M 4 42 V 22 Q 4 4 22 4 Q 40 4 40 22 V 42 H 31 V 22 Q 31 13 22 13 Q 13 13 13 22 V 42 Z" fill="#C2826D"/>
+  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="34" fill="#2D3748">Veroax</text>
+</svg>

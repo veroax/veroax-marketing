@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
+  <!-- v3-08 Marigold X. Veroax's other distinctive letter is the X.
+       A bold marigold X as the mark (with the X removed from the
+       wordmark and replaced by the icon position) reads as "veroa[X]"
+       where the X is the brand. Energetic, friendly, unique. -->
+  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="34" fill="#2D3748">Veroax</text>
+  <path d="M 8 8 L 38 38 M 38 8 L 8 38" stroke="#F4A536" stroke-width="7" stroke-linecap="round"/>
+</svg>

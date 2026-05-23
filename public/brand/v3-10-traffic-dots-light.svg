@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
+  <!-- v3-10 Three severity dots. Red, amber, green in a row reads as
+       the severity-rating system the product produces. Honest about
+       what Veroax does: triage. Friendly, recognizable, and reproduces
+       at 16px favicon scale because the three dots stay legible. -->
+  <circle cx="10" cy="23" r="7" fill="#E85D75"/>
+  <circle cx="26" cy="23" r="7" fill="#F4A536"/>
+  <circle cx="42" cy="23" r="7" fill="#7FB069"/>
+  <text x="60" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="34" fill="#2D3748">Veroax</text>
+</svg>

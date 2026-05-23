@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
+  <!-- v3-02 Sage leaf. Organic curving leaf shape that hints at a V
+       without being literal. Sage green reads as growth, calm,
+       trustworthy. Softer than navy, friendlier than corporate. -->
+  <path d="M 6 6 Q 23 38 40 6 Q 35 26 23 32 Q 11 26 6 6 Z" fill="#7FB069"/>
+  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="34" fill="#2D3748">Veroax</text>
+</svg>

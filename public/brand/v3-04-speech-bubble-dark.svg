@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
+  <rect width="230" height="46" fill="#0F0E2E"/>
+  <path d="M 2 4 Q 2 2 4 2 H 40 Q 42 2 42 4 V 36 Q 42 38 40 38 H 16 L 8 44 L 11 38 H 4 Q 2 38 2 36 Z" fill="#6BB6E5"/>
+  <circle cx="14" cy="20" r="2.5" fill="#0F0E2E"/>
+  <circle cx="22" cy="20" r="2.5" fill="#0F0E2E"/>
+  <circle cx="30" cy="20" r="2.5" fill="#0F0E2E"/>
+  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="34" fill="#FFFFFF">Veroax</text>
+</svg>
