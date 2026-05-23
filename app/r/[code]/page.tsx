@@ -55,7 +55,6 @@ type ProfileRow = {
   dre_license: string | null;
   phone: string | null;
   display_email: string | null;
-  email: string | null;
   brokerage_logo_url: string | null;
   headshot_url: string | null;
   brand_accent_hex: string | null;
@@ -106,7 +105,11 @@ export default async function PublicReportPage({
   const { data: profile } = await admin
     .from("profiles")
     .select(
-      "id, full_name, brokerage, dre_license, phone, display_email, email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, brokerage_dre, office_address",
+      // NOTE: we intentionally do NOT select profiles.email here.
+      // The public share page must not leak the agent's signup
+      // mailbox to anonymous link recipients. Only display_email
+      // (which the agent set as their contact-of-record) is shown.
+      "id, full_name, brokerage, dre_license, phone, display_email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, brokerage_dre, office_address",
     )
     .eq("id", report.user_id)
     .maybeSingle<ProfileRow>();

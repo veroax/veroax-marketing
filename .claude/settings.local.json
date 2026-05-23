@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "WebFetch(domain:websitedemos.net)",
+      "Bash(git -C /Users/michaelfielden/veroax-marketing status)",
+      "Bash(git -C /Users/michaelfielden/veroax-marketing log --oneline)",
+      "Bash(gh auth *)",
+      "Bash(git --version)",
+      "Bash(brew list *)",
+      "Bash(brew install *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(gh repo *)",
+      "Bash(npm install *)",
+      "Bash(curl -s -X GET https://api.resend.com/domains -H 'Authorization: Bearer re_gfTAL2wu_HP4SSmv9WjmzG2HUCbb6PB2x')",
+      "Bash(python3 -m json.tool)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/contact -H 'Content-Type: application/json' -d '{\"name\":\"Test User\",\"email\":\"test@example.com\",\"message\":\"This is a test from the Veroax contact form.\"}')",
+      "Bash(git push *)",
+      "Bash(open *)"
+    ]
+  }
+}

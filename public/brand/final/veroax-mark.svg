@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Veroax">
+  <!-- Favicon / app-icon mark. Lowercase v in coral with a teal dot
+       to its lower-right. Recognizable miniaturization of the full
+       lockup. Works on light and dark browser chrome (both colors
+       have enough chroma to pop against any background). -->
+  <text x="4" y="50" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="56" fill="#E85D75">v</text>
+  <circle cx="50" cy="46" r="9" fill="#3FB8AF"/>
+</svg>

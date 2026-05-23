@@ -49,8 +49,13 @@ export default async function DashboardLayout({
         style={{ background: "linear-gradient(180deg, #1e1b4b 0%, #0f0e2e 100%)" }}
       >
         <div className="px-6 h-16 flex items-center border-b border-white/5">
-          <Link href="/dashboard" className="text-white font-bold text-lg tracking-tight">
-            Veroax
+          <Link href="/dashboard" aria-label="Veroax">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/final/veroax-lockup-dark.svg"
+              alt="Veroax"
+              style={{ height: 26 }}
+            />
           </Link>
         </div>
         <nav className="flex-1 px-3 py-6 space-y-1 text-sm">
@@ -120,19 +125,51 @@ export default async function DashboardLayout({
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile header */}
-        <header className="md:hidden h-14 px-4 flex items-center justify-between border-b border-slate-200 bg-white">
-          <Link href="/dashboard" className="font-bold text-slate-900">
-            Veroax
-          </Link>
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="text-xs text-slate-500 underline underline-offset-2"
+        {/* Mobile header. Includes a compact support row below the
+            logo so phone + email are always reachable on mobile
+            (sidebar is hidden on small screens). */}
+        <header className="md:hidden border-b border-slate-200 bg-white">
+          <div className="h-14 px-4 flex items-center justify-between">
+            <Link href="/dashboard" aria-label="Veroax">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/final/veroax-lockup-light.svg"
+                alt="Veroax"
+                style={{ height: 22 }}
+              />
+            </Link>
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                className="text-xs text-slate-500 underline underline-offset-2"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
+          <div className="px-4 pb-2 flex items-center gap-3 text-[11px] text-slate-600">
+            <a
+              href="tel:+18662478833"
+              className="hover:text-slate-900"
+              aria-label="Call Veroax support at 866 247 8833"
             >
-              Sign out
-            </button>
-          </form>
+              (866) 247-8833
+            </a>
+            <span className="text-slate-300">·</span>
+            <a
+              href="mailto:support@veroax.com"
+              className="hover:text-slate-900 underline underline-offset-2"
+            >
+              support@veroax.com
+            </a>
+            <span className="text-slate-300">·</span>
+            <Link
+              href="/feedback"
+              className="text-amber-700 hover:text-amber-900"
+            >
+              Feedback
+            </Link>
+          </div>
         </header>
 
         {/* Profile-completion banner — hard requirement now: reports
@@ -141,7 +178,7 @@ export default async function DashboardLayout({
           <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 text-sm text-amber-900 flex items-center justify-between gap-4">
             <span>
               Add your name, DRE license, and brokerage before downloading
-              reports — these print on every PDF cover.
+              reports. These print on every PDF cover.
             </span>
             <Link
               href="/dashboard/settings"

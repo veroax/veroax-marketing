@@ -157,12 +157,13 @@ export async function POST(request: Request) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!secret || !webhookSecret) {
-    // Don't 500 — Stripe will retry forever. Return 200 + log so we can
-    // diagnose without burning quota.
+    // Return 503 (not 200). Stripe will retry and the failures will
+    // surface in the Stripe dashboard, alerting us to the misconfig.
+    // Silently 200-ing means events are dropped without anyone knowing.
     console.error("[webhook] STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET missing");
     return NextResponse.json(
-      { received: true, configured: false },
-      { status: 200 },
+      { error: "Stripe webhook not configured", configured: false },
+      { status: 503 },
     );
   }
 

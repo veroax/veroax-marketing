@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
+  <!-- Canonical Veroax lockup, light-background version. Coral
+       lowercase wordmark + teal dot. Coined-word brand; the WORD is
+       the trademark, the visual treatment is the current expression. -->
+  <text x="4" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="34" fill="#E85D75">veroax</text>
+  <circle cx="130" cy="29" r="4" fill="#3FB8AF"/>
+</svg>

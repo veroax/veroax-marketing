@@ -21,7 +21,6 @@ type ProfileShape = {
   dre_license: string | null;
   phone: string | null;
   display_email: string | null;
-  email: string | null;
   brokerage_logo_url: string | null;
   headshot_url: string | null;
   brand_accent_hex: string | null;
@@ -59,8 +58,11 @@ export function PublicReportView({
   profile,
 }: Props) {
   const accent = profile?.brand_accent_hex || "#FBBF24"; // gold default
-  const agentDisplayEmail =
-    profile?.display_email?.trim() || profile?.email?.trim() || null;
+  // PRIVACY: do NOT fall back to profile.email (the agent's signup
+  // mailbox). Only show display_email, which the agent intentionally
+  // set as the address they want buyers to contact. If unset, no
+  // email is rendered. (Buyers can still reach out via phone if set.)
+  const agentDisplayEmail = profile?.display_email?.trim() || null;
   const ratingLabel = reportData.overall_rating?.label ?? "Unrated";
   const ratingTone = ratingPillTone(ratingLabel);
 

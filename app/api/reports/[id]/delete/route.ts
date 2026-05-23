@@ -43,7 +43,7 @@ export async function POST(
   const reader = isAdmin ? createServiceRoleClient() : supabase;
   const { data: report, error: readErr } = await reader
     .from("reports")
-    .select("id, user_id, source_file_path, property_address, report_name")
+    .select("id, user_id, source_file_path")
     .eq("id", reportId)
     .maybeSingle();
   if (readErr || !report) {
@@ -111,14 +111,15 @@ export async function POST(
       user_id: report.user_id, // owner of the report, for log searches
       event_type:
         !isOwner && isAdmin ? "report.deleted_by_admin" : "report.deleted",
+      // PII rule: audit_log never stores property addresses, buyer
+      // names, seller names, financial details, or lender info. Only
+      // operational metadata (who, when, what action, counts).
       metadata: {
         deleted_report_id: reportId,
         actor_user_id: user.id,
         actor_is_admin: isAdmin,
         actor_is_owner: isOwner,
         storage_objects_deleted: storageObjectCount,
-        property_address: report.property_address,
-        report_name: report.report_name,
       },
     });
   } catch (err) {

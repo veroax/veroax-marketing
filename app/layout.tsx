@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 
@@ -8,9 +8,13 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Disclosure Analyzer | AI-assisted disclosure analysis for California real estate",
+  title: "Veroax | AI Disclosure Analysis for California Real Estate",
   description:
-    "Turn a California residential disclosure package into a polished, 14-section buyer report in minutes. Severity-rated findings, regional cost estimates, negotiation guidance, and an overall property rating — all grounded in what the disclosures actually say.",
+    "Turn a California residential disclosure package into a polished, 14-section buyer report in minutes. Severity-rated findings, regional cost estimates, negotiation guidance, and an overall property rating, all grounded in what the disclosures actually say.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0F0E2E",
 };
 
 export default function RootLayout({

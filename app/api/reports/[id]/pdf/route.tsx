@@ -232,27 +232,26 @@ export async function GET(
       },
     });
   } catch (err) {
-    // Surface the actual error so we can diagnose. PDF render failures
-    // are usually programmer errors (invalid props, missing fields)
-    // rather than security-sensitive — safe to expose during dev.
+    // Log the full error server-side for diagnosis. NEVER include
+    // message or stack in the response body. PDF render failures are
+    // usually programmer errors (invalid props, missing fields) but
+    // some error messages embed report data, which would leak across
+    // a security boundary if exposed to the client. In dev,
+    // NODE_ENV !== production, attach the message back for debugging.
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : undefined;
-    console.error("[pdf] render failed:", err);
-    return new Response(
-      JSON.stringify(
-        {
-          error: "PDF render failed",
-          message,
-          stack: stack?.split("\n").slice(0, 12),
-        },
-        null,
-        2,
-      ),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    console.error("[pdf] render failed:", err, stack);
+    const body: Record<string, unknown> = {
+      error: "PDF render failed",
+    };
+    if (process.env.NODE_ENV !== "production") {
+      body.message = message;
+      body.stack = stack?.split("\n").slice(0, 12);
+    }
+    return new Response(JSON.stringify(body, null, 2), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
 
