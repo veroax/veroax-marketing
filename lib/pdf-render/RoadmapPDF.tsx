@@ -151,7 +151,7 @@ const SECTIONS: Section[] = [
         text: "Print + render quality test on a long report (40+ findings, multiple HOA docs) before broad release",
       },
       {
-        done: false,
+        done: true,
         text: "Split each report section into its own forced-page-break BodyPage so no section can auto-overflow. Unlocks clean header/footer on every page without position:absolute (which crashes React-PDF on overflow pages — see 2026-05-22 incident)",
       },
       {
