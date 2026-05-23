@@ -177,59 +177,34 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: C.text,
   },
-  // Section banner
-  sectionBanner: {
-    flexDirection: "row",
-    backgroundColor: C.navy,
-    marginTop: 14,
-    marginBottom: 10,
-  },
-  sectionBannerLabelBox: {
-    width: 60,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: C.navy,
-  },
-  sectionBannerLabel: {
-    fontSize: 7,
+  // Section heading — replaced the previous big navy banner with
+  // simple typography matching the Cowork-skill style: "N. Title"
+  // in dark navy at section-header weight. The big banner was
+  // visually heavy and interrupted the reading flow on every section.
+  // The doc's running header (running header at the very top of
+  // every page) carries the navy chrome instead.
+  sectionHeading: {
+    fontSize: 16,
     fontFamily: "Helvetica-Bold",
-    color: "#9BBDCC",
+    color: C.navy,
+    marginTop: 16,
+    marginBottom: 8,
   },
-  sectionBannerTitleBox: {
-    flexGrow: 1,
-    flexShrink: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: C.navy,
-  },
-  sectionBannerTitle: {
-    fontSize: 13,
-    fontFamily: "Helvetica-Bold",
-    color: C.white,
-  },
-  // Findings — each rendered as a distinct card with a colored
-  // left-edge severity accent strip, light background, and padding.
+  // Findings — Cowork-style cards. The card itself is a light tinted
+  // panel (no left accent strip; tint is the only chrome) with a
+  // bold title + severity pill at the top, then the verbatim source
+  // quote in an italic block, then the narrative sections (What it
+  // is / Why it matters / Next step) each labeled, then the cost
+  // line and confidence at the bottom.
   findingCard: {
-    flexDirection: "row",
-    marginBottom: 12,
-    backgroundColor: C.light,
-  },
-  findingAccent: {
-    width: 4,
-  },
-  findingBody: {
-    // The body lives inside findingCard (flexDirection: row). With only
-    // flexGrow:1, a long unbroken string would force the body wider than
-    // its parent — pushing the right edge off the page. flexShrink:1
-    // lets it shrink back to the available width so text wraps.
-    flexGrow: 1,
-    flexShrink: 1,
+    marginBottom: 14,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    backgroundColor: C.light,
   },
   findingHeader: {
     flexDirection: "row",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   findingTitle: {
     // flexShrink:1 prevents a long finding title from pushing the
@@ -237,9 +212,56 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexShrink: 1,
     fontFamily: "Helvetica-Bold",
-    fontSize: 10,
-    color: C.navy,
+    fontSize: 12,
+    color: C.critical,
     paddingRight: 8,
+  },
+  // Verbatim source quote block — italic body with a labeled lead-in.
+  findingQuoteLabel: {
+    fontSize: 9,
+    color: C.subtext,
+    fontStyle: "italic",
+    marginBottom: 3,
+  },
+  findingQuote: {
+    fontSize: 9.5,
+    color: C.text,
+    fontStyle: "italic",
+    lineHeight: 1.55,
+    marginBottom: 6,
+    paddingLeft: 10,
+  },
+  // Source citation — small italic line below the quote.
+  findingSourceCitation: {
+    fontSize: 9,
+    color: C.subtext,
+    marginBottom: 10,
+  },
+  // Labels for the narrative paragraphs ("What it is:", "Why it
+  // matters:", "Next step:"). Inline-bold lead-in to the paragraph
+  // so the visual rhythm matches the Cowork sample where the label
+  // is the same font weight as the paragraph but bold.
+  findingNarrativeLabel: {
+    fontFamily: "Helvetica-Bold",
+  },
+  findingNarrativePara: {
+    fontSize: 10,
+    color: C.text,
+    lineHeight: 1.55,
+    marginBottom: 8,
+  },
+  // Cost line + confidence row.
+  findingCostLine: {
+    fontSize: 10,
+    color: C.text,
+    lineHeight: 1.5,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  findingConfidence: {
+    fontSize: 9,
+    color: C.positive,
+    marginTop: 4,
   },
   source: {
     fontSize: 8.5,
@@ -1161,30 +1183,15 @@ function CoverPage({
 // ============================================================================
 
 function SectionBanner({ number, title }: { number: number; title: string }) {
-  // The banner is the "header group" — a deliberately small wrapper
-  // (~32pt tall) marked wrap={false} so the banner itself can never
-  // be split across pages.
-  //
-  // minPresenceAhead=180 says: if there's less than 180pt of vertical
-  // room below the banner on the current page, push the WHOLE banner
-  // to the next page. We previously used 80pt, which was enough to
-  // prevent the banner from being split mid-text but not enough to
-  // prevent an orphan banner (banner sitting alone at the bottom of
-  // a page with content forced to the next). 180pt is roughly enough
-  // for the section heading + an intro paragraph + a couple bullets,
-  // so the banner stays with its content.
-  //
-  // wrap={false} is safe here despite the project-wide prohibition on
-  // wrap={false} for tall content — this wrapper is intentionally tiny
-  // (just the banner, ~32pt) and well under page height.
+  // Typographic section heading — replaces the previous big navy
+  // banner. Single line "N. Title" in dark navy. Wrapped in a
+  // wrap={false} View with minPresenceAhead so a heading doesn't
+  // orphan at the bottom of a page without its first paragraph.
   return (
-    <View wrap={false} minPresenceAhead={180} style={styles.sectionBanner}>
-      <View style={styles.sectionBannerLabelBox}>
-        <Text style={styles.sectionBannerLabel}>SECTION {number}</Text>
-      </View>
-      <View style={styles.sectionBannerTitleBox}>
-        <Text style={styles.sectionBannerTitle}>{title.toUpperCase()}</Text>
-      </View>
+    <View wrap={false} minPresenceAhead={120}>
+      <Text style={styles.sectionHeading}>
+        {number}. {title}
+      </Text>
     </View>
   );
 }
@@ -1221,13 +1228,10 @@ function SeverityBadge({ severity }: { severity: Severity }) {
 }
 
 function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
-  const accentColor = severityHexColor(finding.severity);
-  // Hide the Est. Cost row when the cost is zero OR when the cost
-  // doesn't actually land on the buyer (HOA-paid). For legacy reports
-  // without cost_responsibility we fall back to a textual heuristic so
-  // an existing report's HOA-sourced findings stop showing dollar
-  // amounts the buyer won't pay. New analyses (post the schema change)
-  // set cost_responsibility explicitly.
+  // Cost handling matches the previous version: hide the cost row
+  // when the buyer doesn't pay (HOA-paid or $0). cost_responsibility
+  // is the new explicit flag; we keep the heuristic fallback for
+  // legacy reports without it.
   const hasZeroCost =
     (finding.cost_estimate?.high ?? 0) === 0 &&
     (finding.cost_estimate?.low ?? 0) === 0;
@@ -1236,71 +1240,114 @@ function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
     (finding.cost_responsibility == null && looksHoaPaid(finding));
   const showCostRow = !hasZeroCost && !hoaPaid;
 
+  // Source quote, what_it_is, why_it_matters, next_step, and
+  // immediate_out_of_pocket are the Cowork-style enrichments. When
+  // they're populated, we render the richer card layout. When the
+  // analyzer didn't fill them in (legacy reports), we fall back to
+  // the existing description / risk / recommended_action fields so
+  // nothing renders empty.
+  const sourceQuote =
+    typeof finding.source_quote === "string" && finding.source_quote.trim()
+      ? finding.source_quote.trim()
+      : null;
+  const whatItIs =
+    typeof finding.what_it_is === "string" && finding.what_it_is.trim()
+      ? finding.what_it_is.trim()
+      : finding.description?.trim() || null;
+  const whyItMatters =
+    typeof finding.why_it_matters === "string" && finding.why_it_matters.trim()
+      ? finding.why_it_matters.trim()
+      : finding.risk_if_ignored?.trim() || null;
+  const nextStep =
+    typeof finding.next_step === "string" && finding.next_step.trim()
+      ? finding.next_step.trim()
+      : finding.recommended_action?.trim() || null;
+  const immediateOop =
+    finding.immediate_out_of_pocket &&
+    typeof finding.immediate_out_of_pocket === "object" &&
+    ((finding.immediate_out_of_pocket as CostRange).low ||
+      (finding.immediate_out_of_pocket as CostRange).high)
+      ? (finding.immediate_out_of_pocket as CostRange)
+      : null;
+
   return (
-    // wrap={false} would normally pin the card to one page so it never
-    // splits mid-finding, but it's on the CLAUDE.md don't-list because
-    // a tall finding wider than a page caused infinite-loop layouts.
-    // Letting React-PDF auto-wrap means a finding may split across two
-    // pages occasionally — the fixed header/footer added to BodyPage
-    // ensures the continuation page is still recognizable as part of
-    // the report.
     <View style={styles.findingCard}>
-      <View style={[styles.findingAccent, { backgroundColor: accentColor }]} />
-      <View style={styles.findingBody}>
-        <View style={styles.findingHeader}>
-          {/* Title can be arbitrarily long — withSoftBreaks lets it
-              wrap to a second line instead of pushing the severity
-              badge off the right edge. */}
-          <Text style={styles.findingTitle}>
-            Issue {index}: {withSoftBreaks(finding.title)}
-          </Text>
-          <SeverityBadge severity={finding.severity} />
-        </View>
-        <Text style={styles.source}>{withSoftBreaks(finding.source)}</Text>
-        {finding.description ? (
-          <Text style={styles.description}>
-            {withSoftBreaks(finding.description)}
-          </Text>
-        ) : null}
-        {/* Per-finding detail rows are stacked (label on its own line,
-            value below it) instead of a two-column KvTable because the
-            Risk-if-Ignored and Recommended-Action values are usually
-            sentence-length. Two-column layout had the right column
-            running off the page on every issue. Stacked layout uses
-            the full row width for the value, so long text wraps
-            naturally without column constraints. */}
-        {showCostRow ? (
-          <FindingDetailRow
-            label="Est. Cost"
-            value={formatCostRange(finding.cost_estimate)}
-          />
-        ) : null}
-        {hoaPaid ? (
-          <FindingDetailRow
-            label="Cost Responsibility"
-            value="HOA / association (paid from reserves or assessments — the buyer does not write this check directly)."
-          />
-        ) : null}
-        {finding.risk_if_ignored ? (
-          <FindingDetailRow
-            label="Risk if Ignored"
-            value={finding.risk_if_ignored}
-          />
-        ) : null}
-        {finding.recommended_action ? (
-          <FindingDetailRow
-            label="Recommended Action"
-            value={finding.recommended_action}
-          />
-        ) : null}
-        <FindingDetailRow
-          label="Confidence"
-          value={
-            finding.confidence.charAt(0).toUpperCase() +
-            finding.confidence.slice(1)
-          }
-        />
+      <View style={styles.findingHeader}>
+        <Text style={styles.findingTitle}>
+          {index}. {withSoftBreaks(finding.title)}
+        </Text>
+        <SeverityBadge severity={finding.severity} />
       </View>
+
+      {/* Verbatim source quote — Cowork-style auditability anchor. */}
+      {sourceQuote ? (
+        <>
+          <Text style={styles.findingQuoteLabel}>From the source document:</Text>
+          <Text style={styles.findingQuote}>
+            &ldquo;{withSoftBreaks(sourceQuote)}&rdquo;
+          </Text>
+        </>
+      ) : null}
+      <Text style={styles.findingSourceCitation}>
+        Source: {withSoftBreaks(finding.source)}
+      </Text>
+
+      {/* Plain-language narrative sections, each with a bold inline
+          label. Falls back to the legacy fields (description /
+          risk_if_ignored / recommended_action) when the new fields
+          aren't populated. */}
+      {whatItIs ? (
+        <Text style={styles.findingNarrativePara}>
+          <Text style={styles.findingNarrativeLabel}>What it is: </Text>
+          {withSoftBreaks(whatItIs)}
+        </Text>
+      ) : null}
+      {whyItMatters ? (
+        <Text style={styles.findingNarrativePara}>
+          <Text style={styles.findingNarrativeLabel}>Why it matters: </Text>
+          {withSoftBreaks(whyItMatters)}
+        </Text>
+      ) : null}
+      {nextStep ? (
+        <Text style={styles.findingNarrativePara}>
+          <Text style={styles.findingNarrativeLabel}>Next step: </Text>
+          {withSoftBreaks(nextStep)}
+        </Text>
+      ) : null}
+
+      {/* Cost line: remediation cost (when buyer pays) + immediate
+          out-of-pocket. HOA-paid items show a cost-responsibility
+          note instead of dollars. */}
+      {showCostRow ? (
+        <Text style={styles.findingCostLine}>
+          <Text style={styles.findingNarrativeLabel}>Cost range: </Text>
+          {formatCostRange(finding.cost_estimate)}
+          {immediateOop ? (
+            <>
+              {"    "}
+              <Text style={styles.findingNarrativeLabel}>
+                Immediate out-of-pocket:{" "}
+              </Text>
+              {formatCostRange(immediateOop)}
+            </>
+          ) : null}
+        </Text>
+      ) : null}
+      {hoaPaid ? (
+        <Text style={styles.findingCostLine}>
+          <Text style={styles.findingNarrativeLabel}>
+            Cost responsibility:{" "}
+          </Text>
+          HOA / association (paid from reserves or assessments — the
+          buyer does not write this check directly).
+        </Text>
+      ) : null}
+
+      <Text style={styles.findingConfidence}>
+        Confidence:{" "}
+        {finding.confidence.charAt(0).toUpperCase() +
+          finding.confidence.slice(1)}
+      </Text>
     </View>
   );
 }
