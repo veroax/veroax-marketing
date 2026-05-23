@@ -1890,44 +1890,38 @@ function SectionCosmetic({ report }: { report: ReportData }) {
   );
 }
 
-// Compact 5-column table used by both High/Moderate and (via prop
-// override) any other group of findings we want to render in
-// tabular form rather than as per-finding cards. The columns mirror
-// the Cowork sample: Item | What the document says | Cost range |
-// Timeline | Confidence.
+// Compact 3-column table for High/Moderate findings. Previous
+// implementation had 5 columns + flex-grown Text cells that React-PDF
+// couldn't reliably wrap — text ran off the right edge on long
+// descriptions. The new layout:
+//   Item (135pt) — title + source citation stacked
+//   What says (flexGrow View wrapping a Text) — description with
+//     timeline/confidence appended inline so we don't need separate
+//     columns for them
+//   Cost (90pt) — dollar range or "HOA-paid" label
+// Total fixed: 225pt; flex column gets ~275pt of the 500pt content
+// width. That's roughly 50 characters per line — enough for a
+// document-says sentence to fit on 2-3 lines per row.
 function FindingsTable({ items }: { items: Finding[] }) {
-  // Letter content area ≈ 500pt wide. Allocate:
-  //   Item:        150
-  //   What says:   180 (flex grow to fill)
-  //   Cost range:   80
-  //   Timeline:     60
-  //   Confidence:   30  (just "H"/"M"/"L")
   return (
     <View style={styles.fTable}>
       <View style={styles.fTableHeaderRow}>
-        <Text style={[styles.fTableHeaderCell, { width: 150 }]}>Item</Text>
-        <Text
-          style={[
-            styles.fTableHeaderCell,
-            { flexGrow: 1, flexShrink: 1 },
-          ]}
-        >
-          What the document says
-        </Text>
-        <Text style={[styles.fTableHeaderCell, { width: 80 }]}>
-          Cost range
-        </Text>
-        <Text style={[styles.fTableHeaderCell, { width: 60 }]}>
-          Timeline
-        </Text>
-        <Text style={[styles.fTableHeaderCell, { width: 30 }]}>Cnf</Text>
+        <View style={{ width: 135 }}>
+          <Text style={styles.fTableHeaderCell}>Item</Text>
+        </View>
+        <View style={{ flexGrow: 1, flexShrink: 1 }}>
+          <Text style={styles.fTableHeaderCell}>What the document says</Text>
+        </View>
+        <View style={{ width: 90 }}>
+          <Text style={styles.fTableHeaderCell}>Cost / Timeline</Text>
+        </View>
       </View>
       {items.map((f, i) => (
         <View
           key={i}
           style={i % 2 === 1 ? styles.fTableRowAlt : styles.fTableRow}
         >
-          <View style={{ width: 150 }}>
+          <View style={{ width: 135 }}>
             <Text style={styles.fTableCell}>
               {withSoftBreaks(f.title)}
             </Text>
@@ -1935,38 +1929,33 @@ function FindingsTable({ items }: { items: Finding[] }) {
               {withSoftBreaks(f.source)}
             </Text>
           </View>
-          <Text
-            style={[
-              styles.fTableCell,
-              { flexGrow: 1, flexShrink: 1 },
-            ]}
-          >
-            {withSoftBreaks(
-              f.description || f.what_it_is || f.recommended_action || "",
-            )}
-          </Text>
-          <Text style={[styles.fTableCell, { width: 80 }]}>
-            {f.cost_responsibility === "hoa"
-              ? "HOA"
-              : formatCostRange(f.cost_estimate)}
-          </Text>
-          <Text style={[styles.fTableCell, { width: 60 }]}>
-            {/* No explicit timeline field yet — derive a coarse hint
-                from severity. When the synthesizer gets richer
-                timeline data this maps directly. */}
-            {f.severity === "moderate"
-              ? "1-5 yr"
-              : f.severity === "high"
-                ? "30-60 d"
-                : "—"}
-          </Text>
-          <Text style={[styles.fTableCell, { width: 30 }]}>
-            {f.confidence === "high"
-              ? "H"
-              : f.confidence === "medium"
-                ? "M"
-                : "L"}
-          </Text>
+          <View style={{ flexGrow: 1, flexShrink: 1 }}>
+            <Text style={styles.fTableCell}>
+              {withSoftBreaks(
+                f.description ||
+                  f.what_it_is ||
+                  f.recommended_action ||
+                  "",
+              )}
+            </Text>
+          </View>
+          <View style={{ width: 90 }}>
+            <Text style={styles.fTableCell}>
+              {f.cost_responsibility === "hoa"
+                ? "HOA-paid"
+                : formatCostRange(f.cost_estimate)}
+            </Text>
+            <Text style={styles.fTableCellMuted}>
+              {f.severity === "moderate"
+                ? "1–5 yr"
+                : f.severity === "high"
+                  ? "30–60 d"
+                  : ""}
+              {" · "}
+              Confidence:{" "}
+              {f.confidence.charAt(0).toUpperCase() + f.confidence.slice(1)}
+            </Text>
+          </View>
         </View>
       ))}
     </View>
@@ -2243,20 +2232,15 @@ function SectionEnvironmental({ report }: { report: ReportData }) {
       ) : (
         <View style={styles.envTable}>
           <View style={styles.fTableHeaderRow}>
-            <Text style={[styles.fTableHeaderCell, { width: 190 }]}>
-              Hazard / disclosure
-            </Text>
-            <Text style={[styles.fTableHeaderCell, { width: 90 }]}>
-              Status
-            </Text>
-            <Text
-              style={[
-                styles.fTableHeaderCell,
-                { flexGrow: 1, flexShrink: 1 },
-              ]}
-            >
-              Buyer takeaway
-            </Text>
+            <View style={{ width: 190 }}>
+              <Text style={styles.fTableHeaderCell}>Hazard / disclosure</Text>
+            </View>
+            <View style={{ width: 90 }}>
+              <Text style={styles.fTableHeaderCell}>Status</Text>
+            </View>
+            <View style={{ flexGrow: 1, flexShrink: 1 }}>
+              <Text style={styles.fTableHeaderCell}>Buyer takeaway</Text>
+            </View>
           </View>
           {hazards.map((h, i) => {
             // Status reads "IN" / "NOT IN" based on whether the unit
@@ -2268,22 +2252,26 @@ function SectionEnvironmental({ report }: { report: ReportData }) {
                 key={i}
                 style={i % 2 === 1 ? styles.fTableRowAlt : styles.fTableRow}
               >
-                <Text style={styles.envColHazard}>
-                  {withSoftBreaks(h.name)}
-                </Text>
-                <Text
-                  style={[
-                    styles.envColStatus,
-                    {
-                      color: inZone ? C.critical : C.positive,
-                    },
-                  ]}
-                >
-                  {inZone ? "IN" : "NOT IN"}
-                </Text>
-                <Text style={styles.envColTakeaway}>
-                  {withSoftBreaks(h.notes)}
-                </Text>
+                <View style={{ width: 190 }}>
+                  <Text style={styles.envColHazard}>
+                    {withSoftBreaks(h.name)}
+                  </Text>
+                </View>
+                <View style={{ width: 90 }}>
+                  <Text
+                    style={[
+                      styles.envColStatus,
+                      { color: inZone ? C.critical : C.positive },
+                    ]}
+                  >
+                    {inZone ? "IN" : "NOT IN"}
+                  </Text>
+                </View>
+                <View style={{ flexGrow: 1, flexShrink: 1 }}>
+                  <Text style={styles.envColTakeaway}>
+                    {withSoftBreaks(h.notes)}
+                  </Text>
+                </View>
               </View>
             );
           })}
@@ -2534,42 +2522,42 @@ function SectionInspectionFollowUps({ report }: { report: ReportData }) {
           </Text>
           <View style={styles.fTable}>
             <View style={styles.fTableHeaderRow}>
-              <Text style={[styles.fTableHeaderCell, { width: 22 }]}>#</Text>
-              <Text style={[styles.fTableHeaderCell, { width: 130 }]}>
-                Specialist
-              </Text>
-              <Text
-                style={[
-                  styles.fTableHeaderCell,
-                  { flexGrow: 1, flexShrink: 1 },
-                ]}
-              >
-                Reason
-              </Text>
-              <Text style={[styles.fTableHeaderCell, { width: 90 }]}>
-                Approx. cost
-              </Text>
+              <View style={{ width: 22 }}>
+                <Text style={styles.fTableHeaderCell}>#</Text>
+              </View>
+              <View style={{ width: 130 }}>
+                <Text style={styles.fTableHeaderCell}>Specialist</Text>
+              </View>
+              <View style={{ flexGrow: 1, flexShrink: 1 }}>
+                <Text style={styles.fTableHeaderCell}>Reason</Text>
+              </View>
+              <View style={{ width: 90 }}>
+                <Text style={styles.fTableHeaderCell}>Approx. cost</Text>
+              </View>
             </View>
             {items.map((f, i) => (
               <View
                 key={i}
                 style={i % 2 === 1 ? styles.fTableRowAlt : styles.fTableRow}
               >
-                <Text style={[styles.fTableCell, { width: 22 }]}>{i + 1}</Text>
-                <Text style={[styles.fTableCell, { width: 130 }]}>
-                  {withSoftBreaks(f.specialist)}
-                </Text>
-                <Text
-                  style={[
-                    styles.fTableCell,
-                    { flexGrow: 1, flexShrink: 1 },
-                  ]}
-                >
-                  {withSoftBreaks(f.reason)}
-                </Text>
-                <Text style={[styles.fTableCell, { width: 90 }]}>
-                  {withSoftBreaks(f.approx_cost)}
-                </Text>
+                <View style={{ width: 22 }}>
+                  <Text style={styles.fTableCell}>{i + 1}</Text>
+                </View>
+                <View style={{ width: 130 }}>
+                  <Text style={styles.fTableCell}>
+                    {withSoftBreaks(f.specialist)}
+                  </Text>
+                </View>
+                <View style={{ flexGrow: 1, flexShrink: 1 }}>
+                  <Text style={styles.fTableCell}>
+                    {withSoftBreaks(f.reason)}
+                  </Text>
+                </View>
+                <View style={{ width: 90 }}>
+                  <Text style={styles.fTableCell}>
+                    {withSoftBreaks(f.approx_cost)}
+                  </Text>
+                </View>
               </View>
             ))}
           </View>
