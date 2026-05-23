@@ -17,7 +17,51 @@ type Variation = {
   notes: string;
   height: number;
   width: number;
+  // True when this variant is designed for dark backgrounds; the
+  // comparison row puts it on the dark tile by default so the
+  // intended-use rendering is what you see first.
+  intendedForDark?: boolean;
 };
+
+const REFINEMENTS: Variation[] = [
+  {
+    id: "R-A",
+    name: "v1 refined · gold #D4B85C",
+    file: "/brand/lockup-v1-refined-a.svg",
+    notes:
+      "Box scaled down so its height aligns optically with the wordmark caps. Gold lifted slightly from the original #C9A84C to #D4B85C — barely noticeable in isolation but reads more golden side-by-side.",
+    height: 46,
+    width: 230,
+  },
+  {
+    id: "R-B",
+    name: "v1 refined · gold #DDBE6A",
+    file: "/brand/lockup-v1-refined-b.svg",
+    notes:
+      "Same proportions as A. Gold pushed further to a champagne / honey tone. Still institutional but a touch friendlier.",
+    height: 46,
+    width: 230,
+  },
+  {
+    id: "R-C",
+    name: "v1 refined · gold #E8CB7C",
+    file: "/brand/lockup-v1-refined-c.svg",
+    notes:
+      "Same proportions. Gold lifted to a buttery / sunlit feel. Furthest from the original antique-brass saturation.",
+    height: 46,
+    width: 230,
+  },
+  {
+    id: "R-D",
+    name: "v1 on dark — designed for black",
+    file: "/brand/lockup-v1-on-dark.svg",
+    notes:
+      "Same geometry but the colors invert for legibility against dark backgrounds. Box becomes gold, V becomes navy, wordmark becomes white. Use this version on the dashboard sidebar, the PDF cover chrome, dark social graphics.",
+    height: 46,
+    width: 230,
+    intendedForDark: true,
+  },
+];
 
 const VARIATIONS: Variation[] = [
   {
@@ -123,85 +167,42 @@ export default function BrandVariationsPage() {
             Lockup variations
           </h1>
           <p className="text-sm text-slate-600 mt-2 max-w-2xl leading-relaxed">
-            Nine takes on the wordmark + check-V lockup. Each card shows
-            the lockup at full size and at favicon scale so you can
-            judge it both ways. Click a variation if you want to view
-            the raw SVG.
+            The refinements section at the top is the latest round
+            (smaller box sized inline with the text + three gold
+            tones + a dark-background variant). The full set of
+            earlier explorations follows underneath.
           </p>
         </div>
 
+        {/* Refinements section — newest iterations from the most
+            recent feedback round (smaller box, lighter gold,
+            dark-mode treatment). */}
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-slate-900">
+              Refinements of variation 1
+            </h2>
+            <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+              Latest
+            </span>
+          </div>
+          <div className="space-y-5">
+            {REFINEMENTS.map((v) => (
+              <VariationCard key={v.id} variation={v} />
+            ))}
+          </div>
+        </section>
+
+        <h2 className="text-lg font-bold text-slate-900 mb-4">
+          Earlier explorations
+        </h2>
         <div className="space-y-5">
           {VARIATIONS.map((v) => (
-            <article
-              key={v.id}
-              className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6"
-            >
-              <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase text-slate-500">
-                    Variation {v.id}
-                  </p>
-                  <h2 className="text-lg font-bold text-slate-900 mt-0.5">
-                    {v.name}
-                  </h2>
-                </div>
-                <a
-                  href={v.file}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-indigo-700 underline underline-offset-2"
-                >
-                  View raw SVG
-                </a>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                {/* Large preview */}
-                <div className="md:col-span-2 bg-white border border-slate-200 rounded-lg p-6 flex items-center justify-center min-h-[140px]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={v.file}
-                    alt={`Veroax lockup variation ${v.id}: ${v.name}`}
-                    style={{ maxHeight: 80, width: "auto" }}
-                  />
-                </div>
-
-                {/* Two background tests */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={v.file}
-                      alt=""
-                      style={{ maxHeight: 32, width: "auto" }}
-                    />
-                  </div>
-                  <div
-                    className="border border-slate-200 rounded-lg p-3 flex items-center justify-center"
-                    style={{
-                      background:
-                        "linear-gradient(135deg,#1e1b4b 0%,#0f0e2e 100%)",
-                    }}
-                  >
-                    {/* On dark background — this only really works
-                        for some variations; the others will read
-                        poorly here and that's a useful signal. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={v.file}
-                      alt=""
-                      style={{ maxHeight: 32, width: "auto" }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-sm text-slate-700 leading-relaxed">
-                {v.notes}
-              </p>
-            </article>
+            <VariationCard key={v.id} variation={v} />
           ))}
         </div>
+
+        {/* end of variations list */}
 
         <div className="mt-12 bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="text-lg font-bold text-slate-900 mb-3">
@@ -232,5 +233,86 @@ export default function BrandVariationsPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+// Per-card rendering — shared between the refinements section at
+// the top and the earlier-explorations section below. Each card
+// shows the lockup at four scales/backgrounds so judgement is
+// honest:
+//   1. Large white background (the marketing-header size)
+//   2. Small white tile (favicon scale)
+//   3. Small navy tile (the dashboard sidebar)
+//   4. Small TRUE BLACK tile (worst-case dark background)
+// The dark variant for the lockup is shown twice on the dark
+// tiles to reflect its intended use.
+function VariationCard({ variation: v }: { variation: Variation }) {
+  return (
+    <article className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
+      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
+        <div>
+          <p className="text-[10px] font-bold tracking-widest uppercase text-slate-500">
+            Variation {v.id}
+          </p>
+          <h3 className="text-lg font-bold text-slate-900 mt-0.5">{v.name}</h3>
+        </div>
+        <a
+          href={v.file}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-indigo-700 underline underline-offset-2"
+        >
+          View raw SVG
+        </a>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="md:col-span-2 bg-white border border-slate-200 rounded-lg p-6 flex items-center justify-center min-h-[140px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={v.file}
+            alt={`Veroax lockup ${v.name}`}
+            style={{ maxHeight: 80, width: "auto" }}
+          />
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {/* Light background tile */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={v.file}
+              alt=""
+              style={{ maxHeight: 32, width: "auto" }}
+            />
+          </div>
+          {/* Navy background tile */}
+          <div
+            className="border border-slate-200 rounded-lg p-3 flex items-center justify-center"
+            style={{
+              background: "linear-gradient(135deg,#1e1b4b 0%,#0f0e2e 100%)",
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={v.file}
+              alt=""
+              style={{ maxHeight: 32, width: "auto" }}
+            />
+          </div>
+          {/* True black tile — the toughest test. */}
+          <div className="border border-slate-700 rounded-lg p-3 flex items-center justify-center bg-black">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={v.file}
+              alt=""
+              style={{ maxHeight: 32, width: "auto" }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <p className="text-sm text-slate-700 leading-relaxed">{v.notes}</p>
+    </article>
   );
 }
