@@ -76,18 +76,25 @@ export function PublicReportView({
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Top brand banner — small navy band, gold/brand accent line.
-          Always shown on every page; reads as the doc identity. */}
+      {/* Top brand banner. Reframed as the BUYER'S identity strip
+          (not the agent's internal label) — this URL is what the
+          agent hands the buyer, so the eyebrow reads as a personalized
+          delivery rather than an internal "Disclosure Package
+          Analysis" label. */}
       <header
         className="text-white"
         style={{ background: "linear-gradient(135deg,#1e1b4b 0%,#0f0e2e 100%)" }}
       >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4">
           <p className="text-[10px] font-bold tracking-widest uppercase text-amber-300">
-            Disclosure Package Analysis
+            Your Disclosure Review
           </p>
           <p className="text-sm text-indigo-100 mt-1 break-words">
-            Prepared for the buyer of {propertyAddress}
+            {clientName
+              ? `Prepared for ${clientName}`
+              : `Prepared for the buyer of ${propertyAddress}`}
+            {profile?.full_name ? ` by ${profile.full_name}` : ""}
+            {profile?.brokerage ? `, ${profile.brokerage}` : ""}
           </p>
         </div>
         <div className="h-1" style={{ backgroundColor: accent }} />
@@ -160,9 +167,32 @@ export function PublicReportView({
           </div>
         </section>
 
-        {/* Agent summary / talking points — always open so the buyer
-            sees the punchline first. */}
-        <Section title="Agent summary" defaultOpen>
+        {/* "How to read this report" — short framing for the buyer
+            who clicked the link cold. Establishes what this is +
+            who made it + what to do with it. */}
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
+          <h2 className="text-base font-bold text-slate-900 mb-2">
+            How to read this report
+          </h2>
+          <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
+            {profile?.full_name ? profile.full_name : "Your agent"} put this
+            together from the seller&apos;s disclosure package, third-
+            party inspection reports, the HOA documents, and the
+            preliminary title report. Below is the punchline first
+            (overall rating, top strengths, top concerns), then the
+            full detail organized by topic. Tap any heading to expand
+            or collapse.{" "}
+            <strong>
+              The full PDF — same content, save-to-print formatting —
+              is at the top of this page.
+            </strong>
+          </p>
+        </section>
+
+        {/* The plain-language summary that opens the report. Title
+            reads "Summary" rather than "Agent summary" since the
+            buyer is the audience here, not the agent. */}
+        <Section title="Summary" defaultOpen>
           <div className="space-y-3 text-sm sm:text-base text-slate-700 leading-relaxed">
             {narrative.map((p, i) => (
               <p key={i}>{p}</p>
