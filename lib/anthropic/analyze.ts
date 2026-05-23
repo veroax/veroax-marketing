@@ -416,6 +416,17 @@ CRITICAL RULES:
    - A "garage stall water intrusion" finding surfaced for a unit whose CC&Rs assign no garage stall, only street parking.
    To enable filtering, ALWAYS populate property_facts.unit_features with the lowercase tokens describing this specific unit's physical features when the documents make them clear: balcony, patio, private_yard, garage_stall_assigned, in_unit_laundry, top_floor, ground_floor, fireplace, in_unit_hvac. Add other tokens as needed. CRITICAL DISCIPLINE: only list a feature if you're confident this unit ACTUALLY has it. The downstream filter drops findings whose subject is a feature missing from unit_features — so "balcony" being absent means balcony findings get cut. When in doubt, OMIT — better to surface a marginal finding than to falsely claim a feature exists. Also populate property_facts.unit_number and property_facts.floor when available; they help the agent + buyer mentally place the unit in the building.
 
+8.0. BUILDING-COMMON-AREA HAZARDS — NOT CRITICAL FOR THIS UNIT. Hazards that exist in COMMON AREAS of the building (common staircases, common hallways, common-area exterior walls, common-area waterproofing, courtyard, breezeway, pool deck, building envelope) are HOA concerns. They are NOT Critical findings against THIS unit unless the language explicitly states the hazard has entered THIS unit's interior. Concrete real-world examples from past reports where we got this wrong:
+
+   - "Water intrusion at multiple staircase landings — ongoing structural concerns" → HOA concern, NOT a buyer-unit Critical. The landings are common area. The buyer's unit isn't impacted unless their interior is flooding.
+   - "Stair landing waterproofing failure at multiple landings — water intrusion confirmed" → same. Building-wide, HOA-paid, doesn't enter the buyer's interior.
+   - "Common-balcony deterioration" on a ground-floor unit → not even applicable (the buyer has no balcony).
+   - "Architectural violations against other units" → not applicable to the buyer at all.
+
+   The bar for Critical on a building-common-area hazard is: language EXPLICITLY says the hazard has entered THIS unit's interior, OR the hazard physically prevents close (e.g., common-area structural failure of the building shell that triggers insurance non-renewal for every owner). If neither holds, surface as an HOA concern in the HOA section with cost_responsibility="hoa", NOT as a unit-level Critical/High finding. The buyer's exposure is via dues + special-assessment risk; that's the HOA section's job, not the headline findings list.
+
+   Common-area-scoping signal phrases the downstream synthesizer looks for: "common", "staircase", "stair landing", "stairwell", "hallway", "exterior", "courtyard", "breezeway", "building-wide", "multiple units", "across the complex", "neighbor's balcony". When you write a finding using these phrases, expect the synthesizer to redirect it to the HOA section unless you also explicitly cite the buyer's unit being directly impacted.
+
 8. HOA SCOPING — PRIORITY ORDER FOR ANY FINDING SOURCED FROM HOA DOCUMENTS. Apply this checklist top-down and DROP if none of the conditions hold:
    (a) Does this finding affect the BUYER'S PHYSICAL UNIT — its interior, an exclusive-use area assigned to it per the CC&Rs, or a feature this unit actually has? → surface, severity based on impact.
    (b) Does this finding affect the RESERVES the buyer will pay into through dues? Reserve shortfall, planned underfunded capital project, etc. → surface as an HOA finding with cost_responsibility="hoa". Severity reflects financial exposure to the buyer (a $500K building roof at 60% reserve funding is High, not Critical, because the buyer's share is a possible dues increase or special assessment, not a $500K check).
@@ -839,28 +850,55 @@ function synthesizeReportInCode(
     (f) => f.severity === "critical" || f.severity === "high",
   );
   const criticalHighKept = criticalHighRaw.filter((f) => {
+    const findingText = `${f.source ?? ""} ${f.title ?? ""} ${f.description ?? ""} ${f.risk_if_ignored ?? ""} ${f.recommended_action ?? ""}`;
     const isHoa =
       f.cost_responsibility === "hoa" ||
       (f.cost_responsibility == null &&
         // For legacy findings without cost_responsibility we use a
         // textual heuristic on the source citation — same approach
         // as the PDF render's looksHoaPaid().
-        /\b(reserve study|reserve fund|hoa reserve|association reserve|board minutes|hoa budget|association budget|special assessment|common area|common element|building exterior|exterior of (the )?building|building envelope|common roof|elevator|lobby|common[\s-]?area plumbing|common boiler|common parking)\b/i.test(
-          `${f.source ?? ""} ${f.title ?? ""} ${f.description ?? ""}`,
+        /\b(reserve study|reserve fund|hoa reserve|association reserve|board minutes|hoa budget|association budget|special assessment|common area|common element|building exterior|exterior of (the )?building|building envelope|common roof|elevator|lobby|common[\s-]?area plumbing|common boiler|common parking|staircase|stair landing|stairwell|common hallway|common laundry|courtyard|breezeway|pool deck|building exterior)\b/i.test(
+          findingText,
         ));
     if (!isHoa) return true; // owner-pays — keep
-    // Active hazard or insurance/lender block? Keep — those affect
-    // closing regardless of who pays.
-    if (
-      f.triggered_rule ||
-      mentionsActiveHazardOrInsuranceBlock(
-        `${f.title} ${f.description ?? ""} ${f.risk_if_ignored ?? ""}`,
-      )
-    ) {
+    // The active-hazard escape preserves Critical when the hazard
+    // affects the BUYER'S UNIT directly. Critical real-world
+    // example: "active leak in this unit's bedroom ceiling" stays
+    // Critical even though the HOA pays the repair.
+    //
+    // BUT we don't want building-wide HOA hazards (water intrusion
+    // at multiple common staircase landings, common-balcony
+    // deterioration) to stay Critical when the buyer's unit isn't
+    // physically affected. Customer feedback (2026-05-22): ground-
+    // floor unit was rated "Significant Concerns" because Critical
+    // findings about COMMON staircase water intrusion were
+    // preserved by the hazard-escape — those don't impact a unit
+    // that doesn't use those stairs.
+    //
+    // Refined rule: keep Critical ONLY when active-hazard language
+    // AND the language doesn't ALSO flag the issue as confined to
+    // a common area or other building parts. If both signals are
+    // present, the hazard is the BUILDING'S, not this unit's —
+    // divert to HOA concerns.
+    const isHazardLanguage = mentionsActiveHazardOrInsuranceBlock(
+      `${f.title} ${f.description ?? ""} ${f.risk_if_ignored ?? ""}`,
+    );
+    const isBuildingScoped = mentionsBuildingCommonArea(findingText);
+    const mentionsThisUnitDirectly = mentionsTheBuyersUnit(findingText);
+
+    if (f.triggered_rule) {
+      // Always-Critical rules (FPE, polybutylene, etc.) supersede
+      // everything else — keep regardless of HOA/common-area
+      // scoping.
       return true;
     }
-    // HOA-paid + no hazard + no triggered rule → divert into HOA
-    // concerns list and drop from critical/high.
+    if (isHazardLanguage && (!isBuildingScoped || mentionsThisUnitDirectly)) {
+      // Active hazard affecting this unit (or unclear scope that
+      // could affect this unit) — keep Critical.
+      return true;
+    }
+    // HOA-paid AND no clear unit-level hazard → divert into HOA
+    // concerns and drop from critical/high.
     const concernLine = formatHoaDivertedConcern(f);
     if (concernLine) hoaDivertedConcerns.push(concernLine);
     return false;
@@ -1216,6 +1254,24 @@ function synthesizeReportInCode(
     filteredAllFindings.concat(filteredPermitFindings),
   );
 
+  // Safety-net: detect missed always-Critical rules and append them
+  // to completeness_audit.issues so the agent + admin can see "the
+  // source documents mentioned ABS pipe in the 1984-1990 window but
+  // the analyzer didn't surface a Critical finding for it." This
+  // catches Claude regressions across reruns (real 2026-05-22 case:
+  // ABS pipe Critical disappeared between runs on the same docs).
+  const missedRules = detectMissedAlwaysCriticalRules(
+    focused,
+    filteredAllFindings.concat(filteredPermitFindings),
+  );
+  if (missedRules.length > 0) {
+    for (const r of missedRules) {
+      completenessIssues.push(
+        `Possible missed always-Critical signal: ${r.label}. The source documents mentioned this but the analyzer didn't surface a finding. Review manually — re-running the analysis often resolves it.`,
+      );
+    }
+  }
+
   return {
     property_snapshot: property,
     document_inventory: documentInventory,
@@ -1465,6 +1521,87 @@ function composeFallbackRatingConditions(critical: Finding[]): string {
   return `This rating depends on: ${lines.join(" ")}`;
 }
 
+// Safety-net scanner: scans the entire focused-pass output for
+// always-Critical-rule keywords and detects "missed" findings — cases
+// where the source documents clearly contain a triggering condition
+// but Claude didn't surface a Critical for it. Real-world example
+// (2026-05-22): a re-run dropped the "ABS drain piping in 1984-1990
+// class-action window" finding even though the previous run had it
+// and the source inspection report still mentioned ABS pipe. Claude
+// is stochastic — we can't guarantee every run catches every
+// trigger. This scanner doesn't add findings (that requires real
+// reasoning) but DOES surface a guardrail audit-log entry so the
+// agent + admin can spot the gap during QA.
+const ALWAYS_CRITICAL_KEYWORDS: Array<{
+  rule: string;
+  pattern: RegExp;
+  label: string;
+}> = [
+  {
+    rule: "ABS_recall_era",
+    // TypeScript target doesn't support the `s` (dotAll) flag here.
+    // Use [\s\S] to match any char including newlines.
+    pattern: /\babs\s+(drain\s+)?(pipe|piping)\b[\s\S]*\b(198[4-9]|1990|class[- ]action|recall)/i,
+    label: "ABS drain piping (1984-1990 class-action window)",
+  },
+  {
+    rule: "polybutylene",
+    pattern: /\bpolybutylene\b/i,
+    label: "Polybutylene supply plumbing",
+  },
+  {
+    rule: "FPE_panel",
+    pattern: /\b(federal\s+pacific|stab[- ]?lok|zinsco|sylvania)\s+(panel|electric)/i,
+    label: "Federal Pacific / Zinsco / Sylvania electric panel",
+  },
+  {
+    rule: "aluminum_wiring",
+    pattern: /\baluminum\s+(branch\s+)?(wiring|wire|circuit)/i,
+    label: "Aluminum branch wiring",
+  },
+  {
+    rule: "knob_and_tube",
+    pattern: /\bknob[- ]?and[- ]?tube\b/i,
+    label: "Knob-and-tube wiring",
+  },
+  {
+    rule: "kitec_plumbing",
+    pattern: /\bkitec\b/i,
+    label: "Kitec plumbing",
+  },
+];
+
+function detectMissedAlwaysCriticalRules(
+  focused: FocusedAnalysis[],
+  surfacedFindings: Finding[],
+): Array<{ rule: string; label: string }> {
+  // Gather all the text the analyzer SAW: focused-pass findings,
+  // their descriptions, source quotes, etc.
+  const seenText = focused
+    .flatMap((p) => p.findings ?? [])
+    .map(
+      (f) =>
+        `${f.source ?? ""} ${f.title ?? ""} ${f.description ?? ""} ${f.source_quote ?? ""} ${f.risk_if_ignored ?? ""}`,
+    )
+    .join(" ");
+
+  // Set of triggered_rule values Claude actually used.
+  const surfacedRules = new Set(
+    surfacedFindings
+      .map((f) => f.triggered_rule)
+      .filter((r): r is string => Boolean(r)),
+  );
+
+  const missed: Array<{ rule: string; label: string }> = [];
+  for (const candidate of ALWAYS_CRITICAL_KEYWORDS) {
+    if (surfacedRules.has(candidate.rule)) continue;
+    if (candidate.pattern.test(seenText)) {
+      missed.push({ rule: candidate.rule, label: candidate.label });
+    }
+  }
+  return missed;
+}
+
 // One-line summary of an HOA-paid finding that's being diverted from
 // the critical/high bucket into the HOA section's concerns list.
 // Includes the finding's title + dollar context so the agent reading
@@ -1479,6 +1616,33 @@ function formatHoaDivertedConcern(f: Finding): string {
       : ` (HOA project cost ≈ $${cost!.low.toLocaleString()}–$${cost!.high.toLocaleString()})`
     : " (HOA-paid)";
   return `${f.title}${costSuffix}`;
+}
+
+// Does the finding language localize the issue to a building common
+// area (staircase, common hallway, exterior, courtyard, etc.)?
+// Used by the divert-from-Critical step: when an HOA-paid finding's
+// hazard language is paired with common-area scoping, the hazard
+// belongs to the building, not the buyer's unit, and the finding
+// goes to HOA concerns instead of being held as a unit-level
+// Critical.
+function mentionsBuildingCommonArea(text: string): boolean {
+  const lower = text.toLowerCase();
+  return /\b(common(\s+area|\s+element|\s+hallway|\s+stairs?(case)?|\s+walkway|\s+laundry|\s+exterior|\s+roof|\s+breezeway|\s+courtyard|\s+balcony|\s+pool)|stair(\s+landing|case|well)|breezeway|courtyard|pool deck|exterior of (the )?building|building exterior|building envelope|multiple (units|landings|stairs)|building-?wide|across the (complex|property|building)|other (units|owners)|neighbor['']?s? (unit|balcony)|adjacent units)\b/.test(
+    lower,
+  );
+}
+
+// Does the finding language explicitly call out the BUYER'S
+// specific unit (the unit they're purchasing) as affected? Used as
+// the counterweight to mentionsBuildingCommonArea — if the finding
+// scope flags BOTH common-area AND this-unit, we keep Critical
+// because the hazard reaches into the buyer's interior even though
+// the source is the common area.
+function mentionsTheBuyersUnit(text: string): boolean {
+  const lower = text.toLowerCase();
+  return /\b(in (the |this )?unit\b|inside (the |this )?unit\b|the unit['']?s interior|subject unit|subject property|buyer['']?s unit|inside the home|in[-\s]?unit (leak|intrusion|damage|moisture|mold))\b/.test(
+    lower,
+  );
 }
 
 // Decide whether finding language indicates an active hazard, water
