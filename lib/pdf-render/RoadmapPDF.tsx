@@ -147,6 +147,14 @@ const SECTIONS: Section[] = [
         text: "Per-file upload date in document inventory; preliminary title detection by filename",
       },
       {
+        done: true,
+        text: "Cowork-quality finding cards: verbatim source quote, What it is / Why it matters / Next step, separate immediate-out-of-pocket cost. Compact 5-col tables for High/Moderate, bullet list for Cosmetic, 3-col table for Hazards.",
+      },
+      {
+        done: true,
+        text: "New sections matching Cowork structure: Title & Vesting (from prelim), Market Context (comps + carrying cost + rate range), Suggested Inspection Follow-Ups (numbered specialist table). HOA section gets a financial KV table + Reserve-health-read + Watch-items paragraphs.",
+      },
+      {
         done: false,
         text: "Print + render quality test on a long report (40+ findings, multiple HOA docs) before broad release",
       },
