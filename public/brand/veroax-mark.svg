@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" role="img" aria-label="Veroax">
+  <!-- Standalone monogram. Use as favicon, app icon, profile
+       avatar, social media identity. The rounded square is the
+       brand container; the gold V doubles as a checkmark to
+       reinforce the verification idea. -->
+  <rect x="0" y="0" width="60" height="60" rx="14" fill="#191970"/>
+  <path d="M 16 28 L 27 43 L 48 17" stroke="#C9A84C" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
