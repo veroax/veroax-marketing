@@ -122,8 +122,8 @@ const SECTIONS: Section[] = [
         text: "HOA-paid vs owner-paid cost split; property-type-aware findings; obvious-fact filter; question cap",
       },
       {
-        done: false,
-        text: "Live regional cost lookup per run (skill-style web search at analyze time so estimates are current, not static)",
+        done: true,
+        text: "Live regional cost lookup per run (Claude web_search tool grounds Market Context section in current mortgage rates, segment median pricing, and comps the docs can't carry)",
       },
       {
         done: false,
@@ -190,6 +190,14 @@ const SECTIONS: Section[] = [
       {
         done: true,
         text: "Admin section: dashboard metrics, users list + detail with promote/demote, all-reports list, audit log viewer, system-health (stuck/failed/slow) at /admin/*",
+      },
+      {
+        done: true,
+        text: "Public mobile-first web report at /r/{shortcode}: collapsible sections, full agent + brokerage branding, on-demand PDF download. Share button on dashboard copies the URL. Reruns update what the same URL shows; old PDFs preserved in versions[].",
+      },
+      {
+        done: true,
+        text: "Click-to-source on the agent dashboard: each critical-finding citation opens the source PDF in a side panel at the cited page (signed Supabase storage URL with 5-min TTL).",
       },
       {
         done: false,
