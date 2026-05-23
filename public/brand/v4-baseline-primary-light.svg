@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
+  <!-- v4 baseline primary. Gold rounded square with a chunky navy V
+       silhouette, paired with a navy wordmark. This is the existing
+       baseline cleaned up and locked in as the canonical primary. -->
+  <rect x="2" y="2" width="42" height="42" rx="10" fill="#D4B85C"/>
+  <path d="M 10 10 L 22 34 L 34 10 L 29 10 L 22 26 L 15 10 Z" fill="#191970"/>
+  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="34" fill="#191970">Veroax</text>
+</svg>
