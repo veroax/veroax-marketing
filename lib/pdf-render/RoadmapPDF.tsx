@@ -213,20 +213,24 @@ const SECTIONS: Section[] = [
     title: "4. Billing + plans — how Veroax makes money",
     items: [
       {
-        done: false,
-        text: "Stripe pricing plan & seat tiers (individual agent / small brokerage / large brokerage)",
+        done: true,
+        text: "Stripe Checkout subscription + one-off purchase flows for Solo / Pro / Brokerage tiers + pay-as-you-go. Pricing page at /pricing; checkout route handles all 7 price IDs.",
+      },
+      {
+        done: true,
+        text: "Per-report credit ledger (report_credit_ledger table); 30-day free-update window enforced; 402 NO_CREDITS gate on /api/reports/create; consumption happens at performAnalysis completion.",
+      },
+      {
+        done: true,
+        text: "Billing dashboard at /dashboard/billing: subscription summary, three credit-pool stat cards, credit-activity ledger, Stripe invoice history pulled live, Manage Subscription → Stripe Customer Portal.",
+      },
+      {
+        done: true,
+        text: "Free-trial flow: profiles.trial_credits_remaining=1 by default. Trial consumption sets reports.watermarked=true; ReportPDF renders an amber SAMPLE — VEROAX TRIAL band on every page (auth + public PDF).",
       },
       {
         done: false,
-        text: "Per-report credit ledger; 30-day free-update window enforced; outside-window credit-gate",
-      },
-      {
-        done: false,
-        text: "Billing dashboard (usage by month, upgrade path, invoice history)",
-      },
-      {
-        done: false,
-        text: "Free-trial flow with watermarked sample report",
+        text: "PENDING ACTION (founder): apply migration 0011, create Stripe products + prices + webhook + customer-portal config. See docs/BILLING_SETUP.md.",
       },
     ],
   },
