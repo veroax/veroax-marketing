@@ -186,11 +186,16 @@ export async function consumeReportCredit(
   const admin = createServiceRoleClient();
   const balance = await balanceForUser(userId);
 
-  // VIP bypass — write a ledger entry for visibility (so admins can
+  // VIP bypass. Write a ledger entry for visibility (so admins can
   // see the report count per VIP) but don't decrement any pool and
   // don't mark the report billable/watermarked. The VIP gets a clean
-  // full-quality report every time.
+  // full-quality report every time. credit_source='vip' lets the PDF
+  // renderer treat them as a subscription-tier deliverable.
   if (balance.isVip) {
+    await admin
+      .from("reports")
+      .update({ credit_source: "vip" })
+      .eq("id", reportId);
     await admin.from("report_credit_ledger").insert({
       user_id: userId,
       amount: 0,
@@ -201,14 +206,17 @@ export async function consumeReportCredit(
     return { watermarked: false, consumed_from: "vip" };
   }
 
-  // The order: subscription → one-off → trial. The report row
-  // gets billable=true so the next balanceForUser counts it
+  // The order: subscription, then one-off, then trial. The report
+  // row gets billable=true so the next balanceForUser counts it
   // against the subscription. For one-off / trial, we decrement
-  // the profile counter.
+  // the profile counter. We also stamp credit_source on the row
+  // so the PDF renderer can gate branding accordingly in a follow-
+  // up render change (subscription = full chrome; oneoff = minimal
+  // Veroax-cobranded chrome).
   if (balance.subscriptionReportsRemaining > 0) {
     await admin
       .from("reports")
-      .update({ billable: true })
+      .update({ billable: true, credit_source: "subscription" })
       .eq("id", reportId);
     await admin.from("report_credit_ledger").insert({
       user_id: userId,
@@ -226,7 +234,7 @@ export async function consumeReportCredit(
       .eq("id", userId);
     await admin
       .from("reports")
-      .update({ billable: true })
+      .update({ billable: true, credit_source: "oneoff" })
       .eq("id", reportId);
     await admin.from("report_credit_ledger").insert({
       user_id: userId,
@@ -245,7 +253,11 @@ export async function consumeReportCredit(
       .eq("id", userId);
     await admin
       .from("reports")
-      .update({ billable: true, watermarked: true })
+      .update({
+        billable: true,
+        watermarked: true,
+        credit_source: "trial",
+      })
       .eq("id", reportId);
     await admin.from("report_credit_ledger").insert({
       user_id: userId,
@@ -257,7 +269,7 @@ export async function consumeReportCredit(
     return { watermarked: true, consumed_from: "trial" };
   }
 
-  throw new Error("No credits available — consumeReportCredit called with empty balance.");
+  throw new Error("No credits available, consumeReportCredit called with empty balance.");
 }
 
 // Whether updating this report falls within the 30-day free re-

@@ -85,7 +85,7 @@ const GROUPS: Group[] = [
     items: [
       {
         q: "What about pricing?",
-        a: "Solo: $49/mo for 1 report per month plus $59 per additional report. Pro: $149/mo for 8 reports plus $35 per additional. Brokerage: $449/mo for 30 reports plus $25 per additional, with team seats and white-label branding. Pay-as-you-go (no monthly): $69 per report. Annual prepay saves two months on Solo and Pro. See the homepage pricing section for the live numbers.",
+        a: "Solo: $49/mo for 1 report per month plus $59 per additional report. Pro: $149/mo for 8 reports plus $35 per additional. Brokerage: $449/mo for 30 reports plus $25 per additional, with team seats and white-label branding. Pay-as-you-go: $69 per report, no subscription. PAYG is intentionally priced higher per unit than the cheapest plan so that any repeat user has a clear upgrade path. If you do even one report a month, Solo saves you $20 vs paying as you go. Annual prepay saves two months on Solo and Pro. See the homepage pricing section for the live numbers.",
       },
       {
         q: "What counts as one report?",

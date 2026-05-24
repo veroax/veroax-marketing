@@ -59,7 +59,7 @@ const plans: Plan[] = [
     description: "For active agents and small teams running multiple deals a month.",
     features: [
       "8 disclosure reports included monthly",
-      "$29 per additional report",
+      "$35 per additional report",
       "All supported states as they launch (CA, TX, FL, WA)",
       "Priority 12-hour turnaround",
       "Branded PDF with your logo, photo, and contact details",
