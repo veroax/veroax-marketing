@@ -5,7 +5,25 @@ This is the single document to read when you come back. The "What
 shipped" section captures both runs; "Open items" is filtered to only
 the things that haven't been done yet.
 
-## Session 2 summary (most recent run)
+## Session 3 summary (most recent run)
+
+Six things on your bedtime list, all shipped:
+
+1. **Stale-analyzing sweep**: reports stuck in `analyzing` for more than 30 minutes now auto-flip to `failed` with a clear reason. Runs every 15 min via Vercel cron (`/api/cron/sweep-stale-reports`, configured in `vercel.json`) AND on every admin-home page load (defense in depth). Per-report `audit_log` entries tagged `report.auto_failed_stale`. Admin home shows an amber banner with the sweep count when anything was cleaned up.
+
+2. **Plan + profitability everywhere**: `/admin/users` list now shows the active subscription plan column plus three money columns (Paid lifetime, Cost lifetime, Margin with Profitable / Break-even / Unprofitable badge). Reports column also shows admin-granted free credits when present. `/admin/users/[id]` gains a full Plan + Profitability card with lifetime AND this-month numbers side by side. Math lives in `lib/billing/profitability.ts`: paid blends subscription value + pay-as-you-go ledger purchases; cost is Anthropic Sonnet 4.5 list price applied to every report's input + output tokens.
+
+3. **Admin credit-grant attribution** (already in place from the original grant-credits route): every ledger and audit-log row records `actor_user_id` + `actor_email`. New `/admin/free-credits` page rolls those up by recipient with total comp'd credits, grant count, last grant date, last admin who granted, and whether the recipient is on a paid plan. Sorted by heaviest comps. Sidebar nav link added.
+
+4. **Reports list with user names**: admin reports list already had owner column (name + email + link). Confirmed and cleaned up the page title em dash.
+
+5. **VC pitch deck** (`decks/veroax-vc-pitch.pptx`, 10 slides): cover, problem, solution, how it works, market, business model + unit economics, why now (3 forces), defensibility (4 moats), roadmap + use of funds, ask + contact. Coral / teal / navy brand throughout.
+
+6. **Brokerage sales deck** (`decks/veroax-brokerage-sales.pptx`, 12 slides): cover, agent's reality, hidden cost, what Veroax does, inside the report (14-section list), quality safeguards (6 tiles on dark), white-label brand experience with a mock cover, three plans (Pro / Brokerage / Enterprise), ROI math (15-agent worked example showing 14x return), privacy + compliance (6 policies), two-week implementation, next step + contact.
+
+Both deck source scripts in `decks/` regenerate the `.pptx` files on demand. `decks/README.md` documents which numbers are placeholders to verify before presenting.
+
+## Session 2 summary
 
 Items 4, 5, 9, 11, polish 17 to 22, and 10 blog drafts all shipped.
 Four commits:
