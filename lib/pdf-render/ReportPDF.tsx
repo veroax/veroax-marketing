@@ -550,6 +550,27 @@ const styles = StyleSheet.create({
     color: C.brandTeal,
     marginLeft: 2,
   },
+  // Pay-as-you-go cover treatment. PAYG reports have no brokerage
+  // logo and no headshot (those are subscription perks), so the
+  // top-right of the cover renders the Veroax wordmark instead. The
+  // wordmark is larger here than the bottom "Powered by" credit so
+  // the brand still has a real presence on the cover despite the
+  // stripped agent branding.
+  paygWordmarkRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  paygWordmarkVeroax: {
+    fontSize: 18,
+    fontFamily: "Helvetica-Bold",
+    color: C.brandCoral,
+  },
+  paygWordmarkDot: {
+    fontSize: 18,
+    fontFamily: "Helvetica-Bold",
+    color: C.brandTeal,
+    marginLeft: 2,
+  },
   // Subtle "Internal reference: ..." line shown below the address when
   // the agent gave the report a memorable label. Italicized + muted so
   // it never competes visually with the property address.
@@ -903,6 +924,8 @@ export type OriginalFile = {
   uploaded_at?: string | null;
 };
 
+export type CreditSource = "subscription" | "oneoff" | "trial" | "vip" | null;
+
 export function ReportPDF({
   report,
   property,
@@ -913,6 +936,7 @@ export function ReportPDF({
   reportName,
   clientName,
   watermarked = false,
+  creditSource = null,
 }: {
   report: ReportData;
   property: string;
@@ -921,29 +945,62 @@ export function ReportPDF({
   generatedAt: Date;
   // Canonical list of files the agent uploaded, captured in /finalize
   // BEFORE any internal page-splitting. When present, the Document
-  // Inventory section uses this list — the user sees exactly what they
+  // Inventory section uses this list, the user sees exactly what they
   // uploaded, never the _part_N chunks Claude analyzed.
   originalFiles?: OriginalFile[] | null;
   // Agent's internal label for the report ("Smith family · 945 Catkin").
   // Shown as a subtle "Internal reference: ..." line under the address.
-  // Never used as the address itself — the address always comes from
+  // Never used as the address itself, the address always comes from
   // the disclosure documents.
   reportName?: string | null;
   // True when this report was generated against a trial credit. The
-  // BodyPage adds a large semi-transparent "SAMPLE — VEROAX TRIAL"
+  // BodyPage adds a large semi-transparent "SAMPLE / VEROAX TRIAL"
   // overlay on every page so the agent can preview quality without
   // being able to deliver to a client. Defaults to false.
   watermarked?: boolean;
   // Buyer client's name, surfaced in the cover's "PREPARED FOR" panel.
   clientName?: string | null;
+  // Which credit pool paid for this report. Drives PDF chrome tier:
+  //   'subscription' / 'vip' / null (legacy) -> full agent branding
+  //                       on the cover (logo, headshot, accent color,
+  //                       full contact card in footer)
+  //   'oneoff'         -> stripped branding. The Veroax wordmark sits
+  //                       top-right of the cover where the brokerage
+  //                       logo would have been; no headshot; accent
+  //                       color forced to Veroax coral; agent's
+  //                       name + DRE + brokerage text still shown
+  //                       (legally required); contact extras
+  //                       (website, office address) omitted from the
+  //                       body-page footer.
+  //   'trial'          -> full branding PLUS the watermarked SAMPLE
+  //                       overlay (already handled via the
+  //                       `watermarked` prop). Trial reports are
+  //                       previews of the full subscription
+  //                       experience.
+  creditSource?: CreditSource;
 }) {
+  // For PAYG reports we strip the body-page footer extras so the
+  // running footer reads as a minimal "Agent name · Brokerage · DRE"
+  // line instead of the fuller subscriber treatment. The cover's
+  // own branding logic lives inside CoverPage and uses creditSource
+  // directly.
+  const bodyAgent: AgentBranding =
+    creditSource === "oneoff"
+      ? {
+          ...agent,
+          websiteUrl: null,
+          officeAddress: null,
+        }
+      : agent;
   const shortId = reportId.slice(0, 8);
   const analysisDate = generatedAt.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
   });
-  const agentFooterLine = formatAgentFooter(agent);
+  // For PAYG the footer line uses the stripped agent so website /
+  // office address don't leak through the running footer.
+  const agentFooterLine = formatAgentFooter(bodyAgent);
 
   // Body page grouping. The heavy-hitter sections (Critical/High,
   // Moderate, Cosmetic, Cost Summary) each get their OWN BodyPage so
@@ -971,6 +1028,7 @@ export function ReportPDF({
           shortId={shortId}
           reportName={reportName}
           clientName={clientName}
+          creditSource={creditSource}
         />
       </Page>
 
@@ -999,8 +1057,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
-        websiteUrl={agent.websiteUrl}
-        officeAddress={agent.officeAddress}
+        websiteUrl={bodyAgent.websiteUrl}
+        officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
       >
         <SectionPropertySnapshot report={report} analysisDate={analysisDate} />
@@ -1010,8 +1068,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
-        websiteUrl={agent.websiteUrl}
-        officeAddress={agent.officeAddress}
+        websiteUrl={bodyAgent.websiteUrl}
+        officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
       >
         <SectionExecutiveSummary report={report} />
@@ -1020,8 +1078,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
-        websiteUrl={agent.websiteUrl}
-        officeAddress={agent.officeAddress}
+        websiteUrl={bodyAgent.websiteUrl}
+        officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
       >
         <SectionCritical report={report} />
@@ -1030,8 +1088,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
-        websiteUrl={agent.websiteUrl}
-        officeAddress={agent.officeAddress}
+        websiteUrl={bodyAgent.websiteUrl}
+        officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
       >
         <SectionModerate report={report} />
@@ -1041,8 +1099,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
-        websiteUrl={agent.websiteUrl}
-        officeAddress={agent.officeAddress}
+        websiteUrl={bodyAgent.websiteUrl}
+        officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
       >
         <SectionCostSummary report={report} />
@@ -1051,8 +1109,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
-        websiteUrl={agent.websiteUrl}
-        officeAddress={agent.officeAddress}
+        websiteUrl={bodyAgent.websiteUrl}
+        officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
       >
         <SectionEnvironmental report={report} />
@@ -1061,8 +1119,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
-        websiteUrl={agent.websiteUrl}
-        officeAddress={agent.officeAddress}
+        websiteUrl={bodyAgent.websiteUrl}
+        officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
       >
         <SectionHoa report={report} />
@@ -1071,8 +1129,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
-        websiteUrl={agent.websiteUrl}
-        officeAddress={agent.officeAddress}
+        websiteUrl={bodyAgent.websiteUrl}
+        officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
       >
         <SectionPermits report={report} />
@@ -1082,8 +1140,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
-        websiteUrl={agent.websiteUrl}
-        officeAddress={agent.officeAddress}
+        websiteUrl={bodyAgent.websiteUrl}
+        officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
       >
         <SectionNegotiation report={report} />
@@ -1093,8 +1151,8 @@ export function ReportPDF({
       <BodyPage
         property={property}
         agentLine={agentFooterLine}
-        websiteUrl={agent.websiteUrl}
-        officeAddress={agent.officeAddress}
+        websiteUrl={bodyAgent.websiteUrl}
+        officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
       >
         <SectionInspectionFollowUps report={report} />
@@ -1213,6 +1271,7 @@ function CoverPage({
   shortId,
   reportName,
   clientName,
+  creditSource,
 }: {
   property: string;
   report: ReportData;
@@ -1221,16 +1280,27 @@ function CoverPage({
   shortId: string;
   reportName?: string | null;
   clientName?: string | null;
+  creditSource?: CreditSource;
 }) {
   const p = report.property_snapshot;
   const addressParts = property.split(",");
   const line1 = (addressParts[0] ?? property).trim();
   const line2 = addressParts.slice(1).join(",").trim();
 
-  // Resolve the agent's chosen accent color, falling back to the
-  // Veroax gold default. Used in three places below as an inline
-  // override on the static StyleSheet entries.
-  const accentColor = agent.brandAccentHex || C.gold;
+  // Pay-as-you-go cover treatment. See ReportPDF prop docs for the
+  // full spec. Short version: oneoff reports lose the agent's logo,
+  // headshot, custom accent color, and tagline; gain a Veroax
+  // wordmark top-right where the logo would have sat. Their name,
+  // brokerage, and DRE still appear in the Prepared By section
+  // because California disclosure work legally needs that identity.
+  const isPayg = creditSource === "oneoff";
+
+  // Resolve the accent color. PAYG forces Veroax coral; subscription
+  // /VIP/trial/legacy reports keep the agent's chosen accent (or
+  // fall back to the Veroax gold default).
+  const accentColor = isPayg
+    ? C.brandCoral
+    : agent.brandAccentHex || C.gold;
 
   // Build the coverKv rows in a deliberate order:
   //   1. Identity        (property type with beds/baths/sqft, year built)
@@ -1320,15 +1390,22 @@ function CoverPage({
     <View style={styles.coverWrap}>
       <View style={[styles.coverAccentBar, { backgroundColor: accentColor }]} />
       <View style={styles.coverInner}>
-        {/* Logo row: brokerage logo top-right of the cover. Renders
-            only when set; layout collapses cleanly when absent
-            because the row contains just the eyebrow + an empty
-            spacer. */}
+        {/* Logo row: brokerage logo top-right of the cover. For
+            subscription reports, the brokerage logo renders when
+            set; layout collapses cleanly when absent. For PAYG
+            reports the brokerage logo is suppressed entirely and
+            the Veroax wordmark sits in its place so the brand still
+            has a real presence on the cover. */}
         <View style={styles.coverTopRow}>
           <Text style={[styles.coverEyebrow, { color: accentColor }]}>
             AI-ASSISTED DISCLOSURE ANALYSIS
           </Text>
-          {agent.brokerageLogoUrl ? (
+          {isPayg ? (
+            <View style={styles.paygWordmarkRow}>
+              <Text style={styles.paygWordmarkVeroax}>veroax</Text>
+              <Text style={styles.paygWordmarkDot}>•</Text>
+            </View>
+          ) : agent.brokerageLogoUrl ? (
             <Image src={agent.brokerageLogoUrl} style={styles.coverLogo} />
           ) : null}
         </View>
@@ -1394,18 +1471,20 @@ function CoverPage({
         ) : null}
 
         <Text style={styles.preparedByLabel}>Prepared By</Text>
-        {/* When a headshot is set, lay it out to the left of the
-            name+meta stack. When absent, the stack flows naturally
-            full-width as before. */}
+        {/* For subscription reports we lay the headshot to the left
+            of the name+meta stack. PAYG reports skip the headshot
+            entirely; the stack renders full-width on its own. The
+            tagline is also a subscription-tier element and gets
+            suppressed for PAYG. */}
         <View style={styles.preparedByRow}>
-          {agent.headshotUrl ? (
+          {!isPayg && agent.headshotUrl ? (
             <Image src={agent.headshotUrl} style={styles.preparedByHeadshot} />
           ) : null}
           <View style={styles.preparedByStack}>
             {agent.fullName ? (
               <Text style={styles.preparedByName}>{agent.fullName}</Text>
             ) : null}
-            {agent.tagline ? (
+            {!isPayg && agent.tagline ? (
               <Text style={styles.preparedByTagline}>{agent.tagline}</Text>
             ) : null}
             {agent.brokerage ? (

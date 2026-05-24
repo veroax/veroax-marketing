@@ -81,7 +81,7 @@ export async function POST(
   // explicit select gives us a clean 404 path.
   const { data: report, error: reportErr } = await supabase
     .from("reports")
-    .select("id, status, report_data, property_address, report_name, client_name, original_files, watermarked")
+    .select("id, status, report_data, property_address, report_name, client_name, original_files, watermarked, credit_source")
     .eq("id", reportId)
     .maybeSingle();
   if (reportErr || !report) {
@@ -216,10 +216,20 @@ export async function POST(
   // Watermark MUST mirror the /api/reports/[id]/pdf render path.
   // If a trial-credit report is emailed without a watermark, the
   // recipient gets a free unwatermarked PDF, which is a billing leak.
-  // Read watermarked from the report row and pass it through.
+  // Read watermarked from the report row and pass it through. Same
+  // mirroring applies to credit_source so the email PDF stays
+  // visually identical to the downloaded one (PAYG reports stripped
+  // of agent logo / headshot; subscription reports fully branded).
   const watermarked = Boolean(
     (report as { watermarked?: boolean | null }).watermarked,
   );
+  const creditSource =
+    ((report as { credit_source?: string | null }).credit_source ?? null) as
+      | "subscription"
+      | "oneoff"
+      | "trial"
+      | "vip"
+      | null;
 
   let pdfBuffer: Buffer;
   try {
@@ -234,6 +244,7 @@ export async function POST(
         reportName={reportName}
         clientName={clientName}
         watermarked={watermarked}
+        creditSource={creditSource}
       />,
     );
   } catch (err) {

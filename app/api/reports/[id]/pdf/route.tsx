@@ -42,7 +42,7 @@ export async function GET(
 
     const { data: report, error } = await supabase
       .from("reports")
-      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at, watermarked")
+      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at, watermarked, credit_source")
       .eq("id", reportId)
       .maybeSingle();
     if (error || !report) {
@@ -203,6 +203,14 @@ export async function GET(
           })
       : null;
 
+    // credit_source drives the PDF chrome tier. Subscription / VIP /
+    // null (legacy) reports get full agent branding; oneoff (PAYG)
+    // reports get the stripped Veroax-cobranded cover. See ReportPDF
+    // prop docs.
+    const creditSource =
+      ((report as { credit_source?: string | null } | null)?.credit_source ??
+        null) as "subscription" | "oneoff" | "trial" | "vip" | null;
+
     const buffer = await renderToBuffer(
       <ReportPDF
         report={reportData}
@@ -216,6 +224,7 @@ export async function GET(
         watermarked={Boolean(
           (report as { watermarked?: boolean } | null)?.watermarked,
         )}
+        creditSource={creditSource}
       />,
     );
 
