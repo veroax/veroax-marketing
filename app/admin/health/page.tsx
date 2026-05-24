@@ -68,6 +68,7 @@ export default async function AdminHealthPage() {
     lastStripeRes,
     lastResendRes,
     lastCronRes,
+    syntheticRes,
   ] = await Promise.all([
     admin
       .from("reports")
@@ -146,6 +147,14 @@ export default async function AdminHealthPage() {
       .eq("event_type", "cron.sweep_ran")
       .order("created_at", { ascending: false })
       .limit(1),
+    // Synthetic heartbeat data for the last 24 hours, across all
+    // services. We aggregate per-service in code below.
+    admin
+      .from("synthetic_pings")
+      .select("service, ran_at, ok, latency_ms, error_message")
+      .gte("ran_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .order("ran_at", { ascending: false })
+      .limit(500),
   ]);
   const failed24h = failed24hCountRes.count ?? 0;
   const success24h = success24hCountRes.count ?? 0;
@@ -245,6 +254,51 @@ export default async function AdminHealthPage() {
   const totalFailed24h = buckets.reduce((acc, b) => acc + b.failed, 0);
   const errorRate24h =
     totalFinished24h > 0 ? totalFailed24h / totalFinished24h : 0;
+
+  // ----- Synthetic heartbeat aggregation -------------------------
+  // Group the last 24h of pings by service. Per service we expose
+  // the latest ping (status + latency + error), the success rate
+  // across the window, and a small status history for the trail
+  // visualization (last 12 attempts, newest first).
+  type PingRow = {
+    service: string;
+    ran_at: string;
+    ok: boolean;
+    latency_ms: number | null;
+    error_message: string | null;
+  };
+  type ServiceSummary = {
+    service: string;
+    latest: PingRow | null;
+    success_rate: number; // 0-1
+    sample_count: number;
+    fail_count: number;
+    p50_latency_ms: number | null;
+    history: PingRow[]; // newest first, up to 12
+  };
+  const pingRows = (syntheticRes.data ?? []) as PingRow[];
+  const HEARTBEAT_SERVICES = ["anthropic", "storage", "stripe", "resend"] as const;
+  const syntheticByService: Record<string, ServiceSummary> = {};
+  for (const svc of HEARTBEAT_SERVICES) {
+    const ofSvc = pingRows.filter((p) => p.service === svc);
+    const latencies = ofSvc
+      .filter((p) => p.ok && p.latency_ms !== null)
+      .map((p) => p.latency_ms as number)
+      .sort((a, b) => a - b);
+    const failCount = ofSvc.filter((p) => !p.ok).length;
+    syntheticByService[svc] = {
+      service: svc,
+      latest: ofSvc[0] ?? null,
+      success_rate: ofSvc.length > 0 ? 1 - failCount / ofSvc.length : 0,
+      sample_count: ofSvc.length,
+      fail_count: failCount,
+      p50_latency_ms:
+        latencies.length > 0
+          ? latencies[Math.floor(latencies.length / 2)]
+          : null,
+      history: ofSvc.slice(0, 12),
+    };
+  }
 
   // Owner lookup for everything visible.
   const userIds = Array.from(
@@ -379,11 +433,65 @@ export default async function AdminHealthPage() {
         </div>
       </section>
 
+      {/* Synthetic heartbeats. Proactive checks fired hourly by
+          /api/cron/synthetic-heartbeat against each external
+          service. Shows latest status, p50 latency, 24h success
+          rate, and a 12-attempt trail per service. Goes red as
+          soon as the next scheduled ping fails. */}
+      <section className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              Synthetic heartbeats
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
+              Cron fires every hour and runs a tiny round-trip
+              against each upstream service. These tiles tell you
+              what is broken right now, even when there is no
+              organic user traffic to mine signal from.
+            </p>
+          </div>
+          <p className="text-[11px] text-slate-500 italic">
+            Cron: <span className="font-mono">/api/cron/synthetic-heartbeat</span>{" "}
+            (hourly)
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <HeartbeatTile
+            service="anthropic"
+            label="Anthropic"
+            description="Sonnet 4.5 ping → pong"
+            summary={syntheticByService["anthropic"]}
+          />
+          <HeartbeatTile
+            service="storage"
+            label="Supabase storage"
+            description="Bucket write + read back"
+            summary={syntheticByService["storage"]}
+          />
+          <HeartbeatTile
+            service="stripe"
+            label="Stripe"
+            description="balance.retrieve read"
+            summary={syntheticByService["stripe"]}
+          />
+          <HeartbeatTile
+            service="resend"
+            label="Resend"
+            description="domains.list read"
+            summary={syntheticByService["resend"]}
+          />
+        </div>
+      </section>
+
       {/* Connected services. Last-successful timestamp per upstream
-          dependency, mined from existing data so no instrumentation
-          burden is added. Tones derived from per-service freshness
-          thresholds (cron is critical; the others are quieter by
-          their nature). Each tile links somewhere actionable. */}
+          dependency, mined from existing organic data so no
+          instrumentation burden is added. Tones derived from
+          per-service freshness thresholds (cron is critical; the
+          others are quieter by their nature). Each tile links
+          somewhere actionable. Read as a "real traffic" view; the
+          Synthetic heartbeats section above is the "we just
+          checked" view. */}
       <section className="bg-white rounded-2xl border border-slate-200 p-6">
         <div className="mb-4">
           <h2 className="text-base font-bold text-slate-900">
@@ -777,6 +885,175 @@ function ErrorRateSparkline({ buckets }: { buckets: Bucket[] }) {
         })}
         <title>{`Now: ${new Date(nowMs).toLocaleTimeString()}`}</title>
       </svg>
+    </div>
+  );
+}
+
+// Synthetic-heartbeat tile. Shows the latest ping result plus the
+// 24h success rate, the p50 latency, and a 12-attempt trail of
+// little squares so the recent history is visible at a glance.
+function HeartbeatTile({
+  service: _service,
+  label,
+  description,
+  summary,
+}: {
+  service: string;
+  label: string;
+  description: string;
+  summary: {
+    service: string;
+    latest:
+      | {
+          ran_at: string;
+          ok: boolean;
+          latency_ms: number | null;
+          error_message: string | null;
+        }
+      | null;
+    success_rate: number;
+    sample_count: number;
+    fail_count: number;
+    p50_latency_ms: number | null;
+    history: Array<{
+      ran_at: string;
+      ok: boolean;
+      latency_ms: number | null;
+    }>;
+  };
+}) {
+  const { latest, success_rate, sample_count, fail_count, p50_latency_ms, history } =
+    summary;
+
+  let tone: "green" | "amber" | "red" | "muted" = "muted";
+  let toneLabel = "No data yet";
+  if (latest) {
+    if (!latest.ok) {
+      tone = "red";
+      toneLabel = "Down";
+    } else if (success_rate < 0.95) {
+      tone = "amber";
+      toneLabel = "Flaky";
+    } else {
+      tone = "green";
+      toneLabel = "Healthy";
+    }
+  }
+  const dotColor =
+    tone === "green"
+      ? "bg-emerald-500"
+      : tone === "amber"
+        ? "bg-amber-500"
+        : tone === "red"
+          ? "bg-red-500"
+          : "bg-slate-300";
+  const borderColor =
+    tone === "red"
+      ? "border-red-300"
+      : tone === "amber"
+        ? "border-amber-300"
+        : tone === "green"
+          ? "border-emerald-200"
+          : "border-slate-200";
+
+  return (
+    <div
+      className={`bg-white rounded-xl border ${borderColor} p-4 flex flex-col gap-2`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor} shrink-0`}
+            aria-hidden="true"
+          />
+          <p className="text-sm font-bold text-slate-900 truncate">
+            {label}
+          </p>
+        </div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">
+          {toneLabel}
+        </p>
+      </div>
+      <p className="text-[11px] text-slate-500">{description}</p>
+
+      {/* 12-attempt history trail. Newest right (visually most
+          recent). Each square is one ping; green = ok, red = fail,
+          gray = no data slot. */}
+      <div className="flex items-center gap-1 mt-1" aria-label="Recent pings">
+        {Array.from({ length: 12 }).map((_, i) => {
+          // history is newest first; map index 0..11 right-to-left so
+          // the newest sits at the far right of the trail row.
+          const trailIdx = 11 - i;
+          const p = history[trailIdx];
+          if (!p) {
+            return (
+              <span
+                key={i}
+                className="block w-2.5 h-3.5 rounded-sm bg-slate-200"
+                title="no ping yet"
+              />
+            );
+          }
+          const c = p.ok ? "bg-emerald-500" : "bg-red-500";
+          const t = `${new Date(p.ran_at).toLocaleTimeString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+          })} · ${p.ok ? `ok ${p.latency_ms ?? "?"}ms` : "FAIL"}`;
+          return (
+            <span
+              key={i}
+              className={`block w-2.5 h-3.5 rounded-sm ${c}`}
+              title={t}
+            />
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Last
+          </p>
+          <p className="text-slate-900 font-mono">
+            {latest ? formatAgo(Date.now() - new Date(latest.ran_at).getTime()) : "—"}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            P50
+          </p>
+          <p className="text-slate-900 font-mono">
+            {p50_latency_ms !== null ? `${p50_latency_ms}ms` : "—"}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            24h OK
+          </p>
+          <p className="text-slate-900 font-mono">
+            {sample_count > 0
+              ? `${Math.round(success_rate * 100)}%`
+              : "—"}
+          </p>
+        </div>
+      </div>
+
+      {latest && !latest.ok && latest.error_message ? (
+        <p className="text-[11px] text-red-800 bg-red-50 border border-red-200 rounded px-2 py-1 mt-1 leading-snug break-words">
+          {latest.error_message}
+        </p>
+      ) : null}
+
+      {sample_count === 0 ? (
+        <p className="text-[11px] text-slate-500 italic mt-1">
+          Waiting for the first cron run. Hourly schedule.
+        </p>
+      ) : fail_count > 0 ? (
+        <p className="text-[10px] text-slate-500 mt-1">
+          {fail_count} fail{fail_count === 1 ? "" : "s"} in last {sample_count}{" "}
+          attempt{sample_count === 1 ? "" : "s"}
+        </p>
+      ) : null}
     </div>
   );
 }
