@@ -2,9 +2,20 @@
 // restrict to the viewing admin's own profile. Search by email or
 // full_name (both via ILIKE). Sorted by created_at desc by default,
 // flipped to admin/non-admin grouping when ?sort=role.
+//
+// Each row now also shows the user's current paid plan and their
+// lifetime profitability (paid minus our Claude cost) so the founder
+// can see which agents are valuable customers, which are losing us
+// money, and which are coasting on free credits.
 
 import Link from "next/link";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import {
+  computeProfitabilityForUsers,
+  getActiveSubscriptionsForUsers,
+  formatUsdCents,
+  marginLabel,
+} from "@/lib/billing/profitability";
 
 export const metadata = {
   title: "Users, Admin",
@@ -88,7 +99,7 @@ export default async function AdminUsersPage({
     }
   }
 
-  // Report counts per user. Single query — fetch just the user_id
+  // Report counts per user. Single query, fetch just the user_id
   // column for every report, bucket. For tens of thousands of reports
   // this becomes its own query plan; revisit when scale demands.
   const { data: allReports } = await admin
@@ -104,6 +115,15 @@ export default async function AdminUsersPage({
     if (r.status === "failed") entry.failed += 1;
     reportCount.set(r.user_id, entry);
   }
+
+  // Plan + profitability lookups for the visible cohort. We compute
+  // lifetime numbers here; the per-user detail page shows both
+  // lifetime and this-month side-by-side.
+  const userIds = profiles.map((p) => p.id);
+  const [planMap, profitMap] = await Promise.all([
+    getActiveSubscriptionsForUsers({ userIds }),
+    computeProfitabilityForUsers({ userIds, period: "lifetime" }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -181,13 +201,16 @@ export default async function AdminUsersPage({
         </div>
       ) : null}
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+        <table className="w-full text-sm min-w-[960px]">
           <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left font-semibold px-6 py-3">User</th>
-              <th className="text-left font-semibold px-6 py-3">Brokerage</th>
+              <th className="text-left font-semibold px-6 py-3">Plan</th>
               <th className="text-right font-semibold px-6 py-3">Reports</th>
+              <th className="text-right font-semibold px-6 py-3">Paid (life)</th>
+              <th className="text-right font-semibold px-6 py-3">Cost (life)</th>
+              <th className="text-right font-semibold px-6 py-3">Margin</th>
               <th className="text-left font-semibold px-6 py-3">Joined</th>
               <th className="text-right font-semibold px-6 py-3">Role</th>
             </tr>
@@ -196,7 +219,7 @@ export default async function AdminUsersPage({
             {profiles.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={8}
                   className="px-6 py-8 text-center text-sm text-slate-500"
                 >
                   {q ? "No users match that search." : "No users yet."}
@@ -208,6 +231,24 @@ export default async function AdminUsersPage({
                   total: 0,
                   failed: 0,
                 };
+                const plan = planMap.get(p.id) ?? null;
+                const profit = profitMap.get(p.id) ?? {
+                  user_id: p.id,
+                  paid_cents: 0,
+                  cost_cents: 0,
+                  margin_cents: 0,
+                  report_count: 0,
+                  free_report_count: 0,
+                };
+                const marg = marginLabel(profit);
+                const marginTone =
+                  marg.tone === "green"
+                    ? "text-emerald-700"
+                    : marg.tone === "red"
+                      ? "text-red-700"
+                      : marg.tone === "amber"
+                        ? "text-amber-700"
+                        : "text-slate-400";
                 return (
                   <tr key={p.id} className="hover:bg-slate-50/50">
                     <td className="px-6 py-3.5">
@@ -225,11 +266,31 @@ export default async function AdminUsersPage({
                         <div className="text-xs text-slate-500 mt-0.5 truncate">
                           {p.email}
                         </div>
+                        {p.brokerage?.trim() ? (
+                          <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                            {p.brokerage}
+                          </div>
+                        ) : null}
                       </Link>
                     </td>
-                    <td className="px-6 py-3.5 text-slate-700 text-sm">
-                      {p.brokerage?.trim() || (
-                        <span className="text-slate-400 italic">unset</span>
+                    <td className="px-6 py-3.5 text-sm">
+                      {plan ? (
+                        <div>
+                          <span className="font-semibold capitalize text-slate-900">
+                            {plan.plan}
+                          </span>
+                          {plan.billing ? (
+                            <span className="text-slate-500">
+                              {" "}
+                              / {plan.billing}
+                            </span>
+                          ) : null}
+                          <div className="text-[11px] text-slate-400 capitalize">
+                            {plan.status}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 italic">no plan</span>
                       )}
                     </td>
                     <td className="px-6 py-3.5 text-right text-slate-700 text-sm">
@@ -242,6 +303,28 @@ export default async function AdminUsersPage({
                           ({counts.failed}f)
                         </span>
                       ) : null}
+                      {profit.free_report_count > 0 ? (
+                        <div
+                          className="text-[11px] text-amber-700 font-mono"
+                          title={`${profit.free_report_count} admin-granted credit${profit.free_report_count === 1 ? "" : "s"}`}
+                        >
+                          {profit.free_report_count} free
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-6 py-3.5 text-right text-slate-700 text-sm font-mono">
+                      {formatUsdCents(profit.paid_cents)}
+                    </td>
+                    <td className="px-6 py-3.5 text-right text-slate-700 text-sm font-mono">
+                      {formatUsdCents(profit.cost_cents)}
+                    </td>
+                    <td className="px-6 py-3.5 text-right text-sm">
+                      <div className={`font-mono font-semibold ${marginTone}`}>
+                        {formatUsdCents(profit.margin_cents)}
+                      </div>
+                      <div className={`text-[10px] uppercase tracking-wider ${marginTone}`}>
+                        {marg.label}
+                      </div>
                     </td>
                     <td className="px-6 py-3.5 text-slate-500 text-xs">
                       {p.created_at

@@ -1,13 +1,20 @@
-// Admin home — at-a-glance metrics for the founder. Server component;
+// Admin home, at-a-glance metrics for the founder. Server component;
 // reads via the service-role client because every count here spans all
 // users. Numbers are intentionally simple and parallel so the page
 // loads fast and stays readable on a phone.
+//
+// Side effect: every render runs sweepStaleAnalyzing() to flip any
+// report stuck in 'analyzing' past the 30-minute threshold to
+// 'failed'. Defense-in-depth alongside the Vercel cron at
+// /api/cron/sweep-stale-reports so the sweep happens even if cron
+// is misconfigured.
 
 import Link from "next/link";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { sweepStaleAnalyzing } from "@/lib/server/sweepStaleAnalyzing";
 
 export const metadata = {
-  title: "Admin dashboard — Veroax",
+  title: "Admin dashboard, Veroax",
 };
 
 // Count helper that just unwraps the count from a Supabase response.
@@ -17,6 +24,11 @@ function asCount<T extends { count: number | null }>(r: T): number {
 }
 
 export default async function AdminHome() {
+  // Sweep stale 'analyzing' reports FIRST so the counts below
+  // reflect the post-sweep reality (no point reporting "5 analyzing"
+  // when 4 are stuck and just got flipped to failed).
+  const sweep = await sweepStaleAnalyzing();
+
   const admin = createServiceRoleClient();
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -135,6 +147,20 @@ export default async function AdminHome() {
           System-wide overview. All counts are across every account.
         </p>
       </div>
+
+      {sweep.swept_count > 0 ? (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold mb-0.5">
+            Stale sweep: {sweep.swept_count} report
+            {sweep.swept_count === 1 ? "" : "s"} flipped to failed
+          </p>
+          <p className="text-xs">
+            They had been in &apos;analyzing&apos; for more than{" "}
+            {sweep.threshold_minutes} minutes (function probably killed
+            mid-flight). Owners can retry from their dashboard.
+          </p>
+        </div>
+      ) : null}
 
       {/* Metrics grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

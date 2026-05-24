@@ -79,6 +79,7 @@ export default async function AdminLayout({
           <NavLink href="/admin" label="Dashboard" />
           <NavLink href="/admin/users" label="Users" />
           <NavLink href="/admin/reports" label="All reports" />
+          <NavLink href="/admin/free-credits" label="Free credits" />
           <NavLink href="/admin/audit" label="Audit log" />
           <NavLink href="/admin/report-errors" label="Error inbox" />
           <NavLink href="/admin/health" label="System health" />

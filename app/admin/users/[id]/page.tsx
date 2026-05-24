@@ -9,11 +9,17 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { ToggleAdminButton } from "../../_components/ToggleAdminButton";
 import { ToggleVipButton } from "../../_components/ToggleVipButton";
 import { GrantCreditsPanel } from "../../_components/GrantCreditsPanel";
+import {
+  computeProfitabilityForUsers,
+  getActiveSubscription,
+  formatUsdCents,
+  marginLabel,
+} from "@/lib/billing/profitability";
 
 type Params = Promise<{ id: string }>;
 
 export const metadata = {
-  title: "User — Admin",
+  title: "User, Admin",
 };
 
 export default async function AdminUserDetail({
@@ -74,6 +80,31 @@ export default async function AdminUserDetail({
     if ((r as { archived?: boolean }).archived) archivedCount += 1;
   }
   const totalReports = (statusBuckets ?? []).length;
+
+  // Subscription + profitability lookup, lifetime + this-month.
+  const [subscription, lifeMap, monthMap] = await Promise.all([
+    getActiveSubscription({ userId: id }),
+    computeProfitabilityForUsers({ userIds: [id], period: "lifetime" }),
+    computeProfitabilityForUsers({ userIds: [id], period: "this_month" }),
+  ]);
+  const life = lifeMap.get(id) ?? {
+    user_id: id,
+    paid_cents: 0,
+    cost_cents: 0,
+    margin_cents: 0,
+    report_count: 0,
+    free_report_count: 0,
+  };
+  const month = monthMap.get(id) ?? {
+    user_id: id,
+    paid_cents: 0,
+    cost_cents: 0,
+    margin_cents: 0,
+    report_count: 0,
+    free_report_count: 0,
+  };
+  const lifeLabel = marginLabel(life);
+  const monthLabel = marginLabel(month);
 
   return (
     <div className="space-y-6">
@@ -172,9 +203,115 @@ export default async function AdminUserDetail({
         </div>
       </div>
 
-      {/* Grant credits panel — sits below the profile card so it's
-          visible without scrolling but doesn't compete with the
-          role / VIP buttons for the agent's attention. */}
+      {/* Subscription + profitability summary. Sits above credits so
+          the founder reads "who is this person paying us as" first,
+          then sees the per-user margin, then can grant credits with
+          context. */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <h2 className="text-xs font-bold tracking-widest text-slate-700 uppercase mb-4">
+          Plan + profitability
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase mb-2">
+              Current plan
+            </p>
+            {subscription ? (
+              <div className="space-y-1">
+                <p className="text-lg font-bold text-slate-900 capitalize">
+                  {subscription.plan}{" "}
+                  {subscription.billing ? (
+                    <span className="text-slate-500 text-sm font-medium">
+                      / {subscription.billing}
+                    </span>
+                  ) : null}
+                </p>
+                <p className="text-sm text-slate-600">
+                  Status:{" "}
+                  <span className="capitalize font-medium text-slate-900">
+                    {subscription.status}
+                  </span>
+                </p>
+                <p className="text-sm text-slate-600">
+                  Monthly equivalent:{" "}
+                  <span className="font-mono font-semibold text-slate-900">
+                    ${subscription.monthly_usd.toFixed(2)}
+                  </span>
+                </p>
+                {subscription.current_period_end ? (
+                  <p className="text-xs text-slate-500">
+                    Period ends{" "}
+                    {new Date(
+                      subscription.current_period_end,
+                    ).toLocaleDateString(undefined, {
+                      dateStyle: "medium",
+                    })}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic">
+                No active subscription. May be on pay-as-you-go,
+                trial credits, or VIP.
+              </p>
+            )}
+          </div>
+          <div>
+            <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase mb-2">
+              Profitability
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <ProfitTile
+                label="Lifetime paid"
+                value={formatUsdCents(life.paid_cents)}
+              />
+              <ProfitTile
+                label="Lifetime cost"
+                value={formatUsdCents(life.cost_cents)}
+              />
+              <ProfitTile
+                label="Lifetime margin"
+                value={formatUsdCents(life.margin_cents)}
+                tone={lifeLabel.tone}
+                sublabel={lifeLabel.label}
+              />
+              <ProfitTile
+                label="Free credits granted"
+                value={String(life.free_report_count)}
+                tone={life.free_report_count > 0 ? "amber" : "muted"}
+              />
+              <ProfitTile
+                label="This month paid"
+                value={formatUsdCents(month.paid_cents)}
+              />
+              <ProfitTile
+                label="This month cost"
+                value={formatUsdCents(month.cost_cents)}
+              />
+              <ProfitTile
+                label="This month margin"
+                value={formatUsdCents(month.margin_cents)}
+                tone={monthLabel.tone}
+                sublabel={monthLabel.label}
+              />
+              <ProfitTile
+                label="Reports analyzed"
+                value={`${life.report_count} life / ${month.report_count} mo`}
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-3 leading-relaxed">
+              Paid blends active subscription value plus pay-as-you-go
+              purchases. Cost is Anthropic Sonnet 4.5 list price applied
+              to every analyzed report&apos;s input + output tokens.
+              Refunds are not subtracted yet.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Grant credits panel. Sits below the profile + profitability
+          card so the founder makes grants with the margin already in
+          their head. */}
       <GrantCreditsPanel
         userId={profile.id}
         currentTrial={profileTyped.trial_credits_remaining ?? 0}
@@ -245,6 +382,42 @@ export default async function AdminUserDetail({
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+function ProfitTile({
+  label,
+  value,
+  sublabel,
+  tone = "muted",
+}: {
+  label: string;
+  value: string;
+  sublabel?: string;
+  tone?: "muted" | "amber" | "red" | "green";
+}) {
+  const toneClass =
+    tone === "amber"
+      ? "text-amber-700"
+      : tone === "red"
+        ? "text-red-700"
+        : tone === "green"
+          ? "text-emerald-700"
+          : "text-slate-900";
+  return (
+    <div className="bg-slate-50 rounded-xl p-3">
+      <p className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+        {label}
+      </p>
+      <p className={`text-base font-bold mt-1 font-mono ${toneClass}`}>
+        {value}
+      </p>
+      {sublabel ? (
+        <p className={`text-[10px] uppercase tracking-wider mt-0.5 ${toneClass}`}>
+          {sublabel}
+        </p>
+      ) : null}
     </div>
   );
 }

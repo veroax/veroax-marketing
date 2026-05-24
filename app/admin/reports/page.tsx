@@ -12,7 +12,7 @@ import Link from "next/link";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const metadata = {
-  title: "All reports — Admin",
+  title: "All reports, Admin",
 };
 
 type SearchParams = Promise<{
