@@ -24,3 +24,140 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ============================================================
+   .veroax-prose
+   Article body styling for blog posts (Markdown rendered to HTML
+   by lib/blog/posts.ts). Hand-rolled instead of pulling in the
+   @tailwindcss/typography plugin so we stay independent of plugin
+   versioning and keep the CSS surface tiny. Tuned to look at home
+   alongside the rest of the marketing site (indigo accents, slate
+   body, generous line-height for long reads).
+   ============================================================ */
+.veroax-prose {
+  color: #1e293b; /* slate-800 */
+  font-size: 17px;
+  line-height: 1.75;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+}
+.veroax-prose > * + * {
+  margin-top: 1.1em;
+}
+.veroax-prose h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-top: 2.2em;
+  margin-bottom: 0.5em;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.veroax-prose h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-top: 1.8em;
+  margin-bottom: 0.4em;
+  line-height: 1.3;
+}
+.veroax-prose h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-top: 1.6em;
+  margin-bottom: 0.3em;
+}
+.veroax-prose p {
+  margin: 0;
+}
+.veroax-prose ul,
+.veroax-prose ol {
+  padding-left: 1.4em;
+  margin: 0;
+}
+.veroax-prose ul {
+  list-style: disc;
+}
+.veroax-prose ol {
+  list-style: decimal;
+}
+.veroax-prose li {
+  margin-top: 0.4em;
+}
+.veroax-prose li > p {
+  margin-top: 0.3em;
+}
+.veroax-prose a {
+  color: #4338ca; /* indigo-700 */
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.veroax-prose a:hover {
+  color: #312e81; /* indigo-900 */
+}
+.veroax-prose strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+.veroax-prose em {
+  font-style: italic;
+}
+.veroax-prose blockquote {
+  border-left: 3px solid #c7d2fe; /* indigo-200 */
+  padding: 0.2em 0 0.2em 1em;
+  margin-left: 0;
+  color: #475569; /* slate-600 */
+  font-style: italic;
+}
+.veroax-prose code {
+  background: #f1f5f9; /* slate-100 */
+  color: #be185d; /* pink-700 */
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.veroax-prose pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 1em 1.2em;
+  border-radius: 10px;
+  overflow-x: auto;
+  font-size: 0.875em;
+  line-height: 1.55;
+}
+.veroax-prose pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+.veroax-prose hr {
+  border: none;
+  border-top: 1px solid #e2e8f0; /* slate-200 */
+  margin: 2em 0;
+}
+.veroax-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+.veroax-prose th,
+.veroax-prose td {
+  padding: 0.5em 0.75em;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+.veroax-prose th {
+  font-weight: 700;
+  color: #0f172a;
+  background: #f8fafc;
+}
+.veroax-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1.4em 0;
+}

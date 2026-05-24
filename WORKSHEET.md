@@ -97,7 +97,7 @@ URLs to spot-check on the live deploy:
 9. **Split `ReportPDF.tsx` (2731 lines) and `analyze.ts` (2058 lines)** into per-section subcomponents. No correctness issue, just maintenance pain at those sizes.
 
 ### Stub pages to fill (your call on content)
-10. **`/blog`**: 10 drafts now exist under `content/blog/*.md`. Once you edit them, I'll wire the index + per-slug pages. RSS feed and email signup form are easy follow-ups.
+10. **`/blog`**: LIVE. 10 first-draft posts published, indexed at `/blog`, individually at `/blog/[slug]`, RSS at `/blog/rss.xml`, JSON-LD schema for SEO, inline subscribe form posting to `/api/blog-subscribe` (Resend-backed). Edit drafts in place at `content/blog/*.md` and redeploy.
 11. **`/demo`**: currently says "We're assembling a short walkthrough." Either record one or remove the route from the marketing footer until it exists.
 12. **`/help`**: placeholder list of 6 video titles all labeled "Coming". Same deal as `/demo`.
 13. **Privacy + Terms links from the dashboard footer**: currently only linked from the marketing footer. Logged-in users have no way to re-read either.

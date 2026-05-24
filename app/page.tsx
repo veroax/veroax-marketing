@@ -97,12 +97,12 @@ export default function Home() {
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-md"
         style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)" }}>
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/brand/final/veroax-lockup-dark.svg"
             alt="Veroax"
-            style={{ height: 28 }}
+            style={{ height: 44 }}
           />
           <nav className="hidden sm:flex items-center gap-8 text-sm text-indigo-200">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -521,12 +521,12 @@ export default function Home() {
         style={{ background: "linear-gradient(135deg, #0f0e2e 0%, #1e1b4b 100%)" }}>
         <div className="max-w-6xl mx-auto space-y-6 text-sm">
           <div className="grid gap-6 sm:grid-cols-3 sm:items-start">
-            <div className="space-y-2">
+            <div className="space-y-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/brand/final/veroax-lockup-dark.svg"
                 alt="Veroax, Inc"
-                style={{ height: 24 }}
+                style={{ height: 36 }}
               />
               <p className="text-slate-400 leading-relaxed">
                 3964 Rivermark Plaza, Unit #2783<br />
