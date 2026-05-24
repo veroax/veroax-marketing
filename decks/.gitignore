@@ -1,2 +1,6 @@
 node_modules/
 package-lock.json
+
+# PowerPoint / Word lock files (created when the file is open in an
+# Office app). Local-only state, never tracked.
+~$*
