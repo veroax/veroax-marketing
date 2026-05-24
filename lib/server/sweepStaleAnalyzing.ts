@@ -16,6 +16,7 @@
 // killed this one before it finished" incidents to investigate.
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { notifyAlert } from "@/lib/server/alerting";
 
 export type StaleSweepResult = {
   threshold_minutes: number;
@@ -111,6 +112,27 @@ export async function sweepStaleAnalyzing(opts?: {
     } catch (err) {
       console.error("[sweep] audit insert failed for", row.id, err);
     }
+  }
+
+  // Fire an alert when we sweep three or more reports at once.
+  // That's the threshold where "one weird package timed out" tips
+  // into "something systemic is broken". One-off sweeps are noisy;
+  // batch sweeps are signal.
+  if (rows.length >= 3) {
+    await notifyAlert({
+      alert_key: "sweep.batch_failures",
+      severity: "warning",
+      status: "firing",
+      subject: `Stale-sweep flipped ${rows.length} analyses to failed`,
+      body: `The stale-analyzing watchdog just swept ${rows.length} reports that had been in 'analyzing' for more than ${thresholdMinutes} minutes. That's the threshold for "probably systemic" rather than a one-off Vercel kill.\n\nThings to check, in order:\n  1. /admin/health → Synthetic heartbeats. Is Anthropic showing flaky or down?\n  2. Vercel function logs. Look for OOM or timeout patterns.\n  3. Recent failure_reason values on /admin/health → Failed section.`,
+      metadata: {
+        swept_count: rows.length,
+        threshold_minutes: thresholdMinutes,
+        swept_ids: ids.slice(0, 20), // truncate large batches
+      },
+    }).catch((err) => {
+      console.error("[sweep] alert dispatch failed:", err);
+    });
   }
 
   return { threshold_minutes: thresholdMinutes, swept_count: rows.length, swept_ids: ids };

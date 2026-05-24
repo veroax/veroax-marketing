@@ -22,6 +22,7 @@ import Stripe from "stripe";
 import { Resend } from "resend";
 import { getAnthropicClient, ANALYSIS_MODEL } from "@/lib/anthropic/client";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { notifyServiceTransition } from "@/lib/server/alerting";
 
 export type PingService = "anthropic" | "storage" | "stripe" | "resend";
 
@@ -258,13 +259,65 @@ export type HeartbeatRunResult = {
   results: PingResult[];
 };
 
+// Fetch the previous-ok state per service so we can fire state-
+// transition alerts (ok→fail or fail→ok). Returns a map of
+// service → previous ok boolean (null when there are no prior
+// pings yet).
+async function getPreviousOkByService(): Promise<
+  Record<PingService, boolean | null>
+> {
+  const result: Record<PingService, boolean | null> = {
+    anthropic: null,
+    storage: null,
+    stripe: null,
+    resend: null,
+  };
+  try {
+    const admin = createServiceRoleClient();
+    const services: PingService[] = [
+      "anthropic",
+      "storage",
+      "stripe",
+      "resend",
+    ];
+    await Promise.all(
+      services.map(async (svc) => {
+        const { data } = await admin
+          .from("synthetic_pings")
+          .select("ok")
+          .eq("service", svc)
+          .order("ran_at", { ascending: false })
+          .limit(1);
+        const row = (data ?? [])[0] as { ok: boolean } | undefined;
+        result[svc] = row ? row.ok : null;
+      }),
+    );
+  } catch (err) {
+    console.error("[heartbeat] previous-state lookup failed:", err);
+  }
+  return result;
+}
+
+const SERVICE_LABELS: Record<PingService, string> = {
+  anthropic: "Anthropic (analyzer)",
+  storage: "Supabase Storage",
+  stripe: "Stripe",
+  resend: "Resend (email)",
+};
+
 /**
  * Run all four pings in parallel, persist each to synthetic_pings,
- * and return the round-trip summary. Resilient: one ping failing
- * never prevents the others from running.
+ * fire alert emails for state transitions, and return the round-
+ * trip summary. Resilient: one ping failing never prevents the
+ * others from running.
  */
 export async function runSyntheticHeartbeats(): Promise<HeartbeatRunResult> {
   const ran_at = new Date().toISOString();
+
+  // Capture previous state per service BEFORE persisting new pings
+  // so we know if this run represents a transition.
+  const previousOk = await getPreviousOkByService();
+
   const results = await Promise.all([
     pingAnthropic(),
     pingStorage(),
@@ -290,6 +343,28 @@ export async function runSyntheticHeartbeats(): Promise<HeartbeatRunResult> {
   } catch (err) {
     console.error("[heartbeat] persist failed:", err);
   }
+
+  // Alert on transitions (ok→fail, fail→ok) and sustained-failure
+  // reminders. Sent via notifyServiceTransition which handles the
+  // cooldown so a sustained outage doesn't spam the inbox.
+  await Promise.all(
+    results.map((r) =>
+      notifyServiceTransition({
+        alert_key: `synthetic.${r.service}.fail`,
+        service_label: SERVICE_LABELS[r.service],
+        prev_ok: previousOk[r.service],
+        current_ok: r.ok,
+        latency_ms: r.latency_ms,
+        error_message: r.error_message,
+        metadata: { service: r.service, ran_at, ...r.metadata },
+      }).catch((err) => {
+        console.error(
+          `[heartbeat] alert dispatch failed for ${r.service}:`,
+          err,
+        );
+      }),
+    ),
+  );
 
   return { ran_at, results };
 }
