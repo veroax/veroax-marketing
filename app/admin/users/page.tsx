@@ -62,8 +62,31 @@ export default async function AdminUsersPage({
     profilesQuery = profilesQuery.order("created_at", { ascending: false });
   }
 
-  const { data: profilesData, count } = await profilesQuery;
+  const { data: profilesData, error: profilesErr, count } = await profilesQuery;
+  if (profilesErr) {
+    console.error("[admin/users] profiles query failed:", profilesErr);
+  }
   const profiles = (profilesData ?? []) as ProfileRow[];
+
+  // Sanity check: compare service-role visibility against the
+  // user-scoped (RLS) view. If service-role returns 0 but the
+  // signed-in admin can see their own profile through RLS, the
+  // SUPABASE_SERVICE_ROLE_KEY env var on this deployment does not
+  // match NEXT_PUBLIC_SUPABASE_URL. Surface it instead of silently
+  // showing an empty list.
+  let envMismatchHint: string | null = null;
+  if (!profilesErr && profiles.length === 0) {
+    const userScoped = await (await import("@/lib/supabase/server"))
+      .createClient();
+    const { data: selfProfile } = await userScoped
+      .from("profiles")
+      .select("id")
+      .limit(1);
+    if (selfProfile && selfProfile.length > 0) {
+      envMismatchHint =
+        "Service-role query returned 0 profiles, but the user-scoped client can see at least one row. SUPABASE_SERVICE_ROLE_KEY on this deployment likely does not match NEXT_PUBLIC_SUPABASE_URL (different Supabase project, or a stale key after rotation). Fix in Vercel env vars and redeploy.";
+    }
+  }
 
   // Report counts per user. Single query — fetch just the user_id
   // column for every report, bucket. For tens of thousands of reports
@@ -136,6 +159,27 @@ export default async function AdminUsersPage({
           </Link>
         </div>
       </form>
+
+      {profilesErr ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+          <p className="font-semibold mb-1">
+            Profiles query returned an error
+          </p>
+          <p className="font-mono text-xs break-all">
+            {profilesErr.message}
+            {profilesErr.code ? ` (code: ${profilesErr.code})` : ""}
+          </p>
+        </div>
+      ) : null}
+
+      {envMismatchHint ? (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold mb-1">
+            Possible environment-variable mismatch
+          </p>
+          <p>{envMismatchHint}</p>
+        </div>
+      ) : null}
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
