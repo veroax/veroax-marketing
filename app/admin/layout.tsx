@@ -63,11 +63,13 @@ export default async function AdminLayout({
         }}
       >
         <div className="px-6 h-16 flex items-center border-b border-white/5">
-          <Link
-            href="/admin"
-            className="text-white font-bold text-lg tracking-tight"
-          >
-            Veroax
+          <Link href="/admin" aria-label="Veroax admin">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/final/veroax-lockup-dark.svg"
+              alt="Veroax"
+              style={{ height: 26 }}
+            />
           </Link>
         </div>
         <div className="px-6 pt-5 pb-2">
@@ -113,8 +115,16 @@ export default async function AdminLayout({
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="md:hidden h-14 px-4 flex items-center justify-between border-b border-slate-200 bg-white">
-          <Link href="/admin" className="font-bold text-slate-900">
-            Veroax · <span className="text-red-700">Admin</span>
+          <Link href="/admin" aria-label="Veroax admin" className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/final/veroax-lockup-light.svg"
+              alt="Veroax"
+              style={{ height: 22 }}
+            />
+            <span className="text-[10px] font-bold uppercase tracking-widest bg-red-700 text-white px-1.5 py-0.5 rounded">
+              Admin
+            </span>
           </Link>
           <form action={logoutAction}>
             <button

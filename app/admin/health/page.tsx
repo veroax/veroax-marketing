@@ -63,6 +63,11 @@ export default async function AdminHealthPage() {
     slowRes,
     failed24hCountRes,
     success24hCountRes,
+    hourlyAllRes,
+    lastAnthropicRes,
+    lastStripeRes,
+    lastResendRes,
+    lastCronRes,
   ] = await Promise.all([
     admin
       .from("reports")
@@ -106,9 +111,58 @@ export default async function AdminHealthPage() {
       .select("*", { count: "exact", head: true })
       .in("status", ["qa_pending", "qa_approved", "delivered"])
       .gte("analysis_completed_at", since24h),
+    // For the sparkline: every report finished (success or failed)
+    // in the last 24h, with status + completion timestamp so we can
+    // bucket by hour and compute the error rate per bucket.
+    admin
+      .from("reports")
+      .select("status, analysis_completed_at, created_at")
+      .in("status", ["qa_pending", "qa_approved", "delivered", "failed"])
+      .gte("created_at", since24h)
+      .limit(2000),
+    // Connected-service heartbeats. Each query returns the most
+    // recent successful event we can attribute to the service, so
+    // we can render "last seen X minutes ago" cards.
+    admin
+      .from("audit_log")
+      .select("created_at")
+      .in("event_type", ["report.analyzed", "report.updated"])
+      .order("created_at", { ascending: false })
+      .limit(1),
+    admin
+      .from("subscriptions")
+      .select("updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(1),
+    admin
+      .from("email_drafts")
+      .select("sent_at")
+      .not("sent_at", "is", null)
+      .order("sent_at", { ascending: false })
+      .limit(1),
+    admin
+      .from("audit_log")
+      .select("created_at")
+      .eq("event_type", "cron.sweep_ran")
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
   const failed24h = failed24hCountRes.count ?? 0;
   const success24h = success24hCountRes.count ?? 0;
+
+  // Extract last-seen timestamps for the connected-service tiles.
+  const lastAnthropic =
+    (lastAnthropicRes.data?.[0] as { created_at?: string } | undefined)
+      ?.created_at ?? null;
+  const lastStripe =
+    (lastStripeRes.data?.[0] as { updated_at?: string } | undefined)
+      ?.updated_at ?? null;
+  const lastResend =
+    (lastResendRes.data?.[0] as { sent_at?: string } | undefined)?.sent_at ??
+    null;
+  const lastCron =
+    (lastCronRes.data?.[0] as { created_at?: string } | undefined)
+      ?.created_at ?? null;
 
   const stuck = (stuckRes.data ?? []) as Row[];
   const failed = (failedRes.data ?? []) as Row[];
@@ -152,6 +206,45 @@ export default async function AdminHealthPage() {
       : 0;
 
   const activeProblems = stuck.length + failed24h;
+
+  // 24h error-rate sparkline buckets. 24 hourly cells, ending at
+  // "now" so the rightmost bar represents the current hour. Each
+  // bucket counts finished reports (success + failed) so we can
+  // compute a per-hour error rate without dividing by zero in empty
+  // hours (those render as gray placeholders).
+  type Bucket = { hourStartMs: number; total: number; failed: number };
+  const buckets: Bucket[] = [];
+  const nowMs = Date.now();
+  for (let i = 23; i >= 0; i--) {
+    buckets.push({
+      hourStartMs: nowMs - i * 60 * 60 * 1000,
+      total: 0,
+      failed: 0,
+    });
+  }
+  const startWindowMs = nowMs - 24 * 60 * 60 * 1000;
+  type FinishedRow = {
+    status: string;
+    analysis_completed_at: string | null;
+    created_at: string;
+  };
+  for (const row of (hourlyAllRes.data ?? []) as FinishedRow[]) {
+    const tsIso =
+      row.status === "failed"
+        ? row.created_at
+        : row.analysis_completed_at || row.created_at;
+    const ts = new Date(tsIso).getTime();
+    if (!Number.isFinite(ts) || ts < startWindowMs || ts > nowMs) continue;
+    const offsetHours = Math.floor((nowMs - ts) / (60 * 60 * 1000));
+    if (offsetHours < 0 || offsetHours > 23) continue;
+    const idx = 23 - offsetHours; // rightmost = current hour
+    buckets[idx].total += 1;
+    if (row.status === "failed") buckets[idx].failed += 1;
+  }
+  const totalFinished24h = buckets.reduce((acc, b) => acc + b.total, 0);
+  const totalFailed24h = buckets.reduce((acc, b) => acc + b.failed, 0);
+  const errorRate24h =
+    totalFinished24h > 0 ? totalFailed24h / totalFinished24h : 0;
 
   // Owner lookup for everything visible.
   const userIds = Array.from(
@@ -252,6 +345,107 @@ export default async function AdminHealthPage() {
           href="#slow"
         />
       </div>
+
+      {/* 24h error-rate sparkline. Each bar is one hour, leftmost is
+          24h ago, rightmost is "now". Bar height = error rate (0-100%
+          mapped to bar height). Empty hours render as flat gray
+          markers so a quiet stretch is obviously quiet rather than
+          mistakenly read as zero errors. */}
+      <section className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              24h error rate
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Hourly buckets. Bar height is the percent of finished runs
+              that failed in that hour. Trend matters more than any
+              single bar; an upward slope on the right is the signal
+              to investigate.
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-slate-900">
+              {(errorRate24h * 100).toFixed(1)}
+              <span className="text-base font-medium text-slate-500">%</span>
+            </p>
+            <p className="text-[11px] text-slate-500">
+              {totalFailed24h} failed / {totalFinished24h} finished
+            </p>
+          </div>
+        </div>
+        <div className="mt-5">
+          <ErrorRateSparkline buckets={buckets} />
+        </div>
+      </section>
+
+      {/* Connected services. Last-successful timestamp per upstream
+          dependency, mined from existing data so no instrumentation
+          burden is added. Tones derived from per-service freshness
+          thresholds (cron is critical; the others are quieter by
+          their nature). Each tile links somewhere actionable. */}
+      <section className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="mb-4">
+          <h2 className="text-base font-bold text-slate-900">
+            Connected services
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Last-successful signal for each upstream service. If a tile
+            goes red, that service has gone quiet and is the first
+            place to check.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <ServiceTile
+            label="Anthropic"
+            description="Analyzer model calls"
+            timestampIso={lastAnthropic}
+            // Anthropic is our highest-volume external service. We
+            // expect it to fire on every analysis. > 7 days quiet
+            // is a problem if there's any traffic at all.
+            thresholds={{ greenHours: 24 * 7, amberHours: 24 * 14 }}
+          />
+          <ServiceTile
+            label="Stripe webhook"
+            description="Billing event sync"
+            timestampIso={lastStripe}
+            // Stripe webhooks fire on checkout, subscription change,
+            // and renewal. Cadence is monthly + episodic. Quiet
+            // stretches are normal early on.
+            thresholds={{ greenHours: 24 * 14, amberHours: 24 * 30 }}
+          />
+          <ServiceTile
+            label="Resend"
+            description="Client report email send"
+            timestampIso={lastResend}
+            // Mined from email_drafts.sent_at (the via=resend path).
+            // Per-agent send frequency varies a lot, so the green
+            // window is generous.
+            thresholds={{ greenHours: 24 * 7, amberHours: 24 * 21 }}
+          />
+          <ServiceTile
+            label="Sweep cron"
+            description="Stale-analyzing watchdog"
+            timestampIso={lastCron}
+            // Scheduled every 15 min in vercel.json. > 30 min quiet
+            // means the cron is broken and stuck reports will start
+            // piling up.
+            thresholds={{ greenHours: 0.5, amberHours: 1.5 }}
+          />
+          <ExternalLinkTile
+            label="Vercel Analytics"
+            description="Page-load latency + errors"
+            href="https://vercel.com/dashboard"
+            note="Opens Vercel"
+          />
+        </div>
+        <p className="text-[11px] text-slate-500 italic mt-4 leading-relaxed">
+          These tiles are mined from existing data (audit_log,
+          subscriptions, email_drafts). They show last-seen-OK, not
+          live request latency. For request-level performance,
+          Vercel Analytics is the source.
+        </p>
+      </section>
 
       {/* Stuck-analyzing */}
       <section id="stuck" className="bg-white rounded-2xl border border-slate-200 p-6 scroll-mt-6">
@@ -478,6 +672,230 @@ function formatDuration(ms: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}m ${s.toString().padStart(2, "0")}s`;
+}
+
+// Hourly bar sparkline for the 24h error-rate timeseries. Each
+// bucket renders as one bar; bar height encodes failure rate from
+// 0 to 100% (with a 5% minimum so anything > 0 is visible) and bar
+// color encodes severity. Empty hours render as a flat gray
+// baseline tick so quiet stretches look quiet rather than green.
+type Bucket = { hourStartMs: number; total: number; failed: number };
+function ErrorRateSparkline({ buckets }: { buckets: Bucket[] }) {
+  const W = 720;
+  const H = 80;
+  const PAD_X = 0;
+  const PAD_TOP = 6;
+  const PAD_BOT = 18; // room for the x-axis hour markers
+  const innerW = W - PAD_X * 2;
+  const innerH = H - PAD_TOP - PAD_BOT;
+  const gap = 3;
+  const barW = (innerW - gap * (buckets.length - 1)) / buckets.length;
+  const nowMs = Date.now();
+
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label="24-hour error rate, hourly buckets"
+        className="w-full h-auto max-w-full"
+        style={{ minWidth: 320 }}
+      >
+        {/* Baseline */}
+        <line
+          x1={PAD_X}
+          x2={W - PAD_X}
+          y1={H - PAD_BOT}
+          y2={H - PAD_BOT}
+          stroke="#E2E8F0"
+          strokeWidth={1}
+        />
+        {buckets.map((b, i) => {
+          const rate = b.total > 0 ? b.failed / b.total : 0;
+          const hasData = b.total > 0;
+          const barH = hasData
+            ? Math.max(rate > 0 ? 4 : 2, rate * innerH)
+            : 2;
+          const x = PAD_X + i * (barW + gap);
+          const y = H - PAD_BOT - barH;
+          const color = !hasData
+            ? "#CBD5E1" // slate-300, "no data" marker
+            : rate >= 0.2
+              ? "#DC2626" // red-600
+              : rate >= 0.1
+                ? "#F59E0B" // amber-500
+                : rate > 0
+                  ? "#FCD34D" // amber-300
+                  : "#10B981"; // emerald-500
+          const hourDate = new Date(b.hourStartMs);
+          const tooltipLines = [
+            `${hourDate.toLocaleTimeString(undefined, { hour: "numeric" })} • ${b.total} finished`,
+            hasData
+              ? `${b.failed} failed (${(rate * 100).toFixed(0)}%)`
+              : "no runs",
+          ];
+          return (
+            <g key={i}>
+              <rect
+                x={x}
+                y={y}
+                width={barW}
+                height={barH}
+                rx={1.5}
+                fill={color}
+              >
+                <title>{tooltipLines.join(" — ").replace(/ — /g, " · ")}</title>
+              </rect>
+            </g>
+          );
+        })}
+        {/* X-axis ticks: -24h, -18h, -12h, -6h, now. */}
+        {[0, 6, 12, 18, 23].map((tick) => {
+          const idx = tick;
+          const x = PAD_X + idx * (barW + gap) + barW / 2;
+          const hours = 23 - idx;
+          const label =
+            hours === 0
+              ? "now"
+              : hours === 23
+                ? "24h ago"
+                : `-${hours}h`;
+          return (
+            <text
+              key={tick}
+              x={x}
+              y={H - 4}
+              fill="#64748B"
+              fontSize={10}
+              textAnchor="middle"
+              fontFamily="system-ui"
+            >
+              {label}
+            </text>
+          );
+        })}
+        <title>{`Now: ${new Date(nowMs).toLocaleTimeString()}`}</title>
+      </svg>
+    </div>
+  );
+}
+
+// One "service" tile: shows last-OK time + colored freshness dot.
+function ServiceTile({
+  label,
+  description,
+  timestampIso,
+  thresholds,
+}: {
+  label: string;
+  description: string;
+  timestampIso: string | null;
+  thresholds: { greenHours: number; amberHours: number };
+}) {
+  const ageMs = timestampIso
+    ? Date.now() - new Date(timestampIso).getTime()
+    : Number.POSITIVE_INFINITY;
+  const ageHours = ageMs / (60 * 60 * 1000);
+
+  let tone: "green" | "amber" | "red" | "muted" = "muted";
+  let toneLabel = "No data yet";
+  if (timestampIso) {
+    if (ageHours <= thresholds.greenHours) {
+      tone = "green";
+      toneLabel = "Healthy";
+    } else if (ageHours <= thresholds.amberHours) {
+      tone = "amber";
+      toneLabel = "Quiet";
+    } else {
+      tone = "red";
+      toneLabel = "Check this";
+    }
+  }
+  const dotColor =
+    tone === "green"
+      ? "bg-emerald-500"
+      : tone === "amber"
+        ? "bg-amber-500"
+        : tone === "red"
+          ? "bg-red-500"
+          : "bg-slate-300";
+  const borderColor =
+    tone === "red"
+      ? "border-red-300"
+      : tone === "amber"
+        ? "border-amber-300"
+        : tone === "green"
+          ? "border-emerald-200"
+          : "border-slate-200";
+  return (
+    <div
+      className={`bg-white rounded-xl border ${borderColor} p-3 flex flex-col gap-1`}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-block w-2 h-2 rounded-full ${dotColor}`}
+          aria-hidden="true"
+        />
+        <p className="text-sm font-bold text-slate-900 truncate">{label}</p>
+      </div>
+      <p className="text-[11px] text-slate-500">{description}</p>
+      <p className="text-xs text-slate-700 mt-1">
+        {timestampIso ? `Last OK ${formatAgo(ageMs)}` : "No data yet"}
+      </p>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        {toneLabel}
+      </p>
+    </div>
+  );
+}
+
+// External-link tile: opens an outside dashboard in a new tab.
+function ExternalLinkTile({
+  label,
+  description,
+  href,
+  note,
+}: {
+  label: string;
+  description: string;
+  href: string;
+  note: string;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col gap-1 hover:border-slate-400 hover:shadow-sm transition-colors"
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-block w-2 h-2 rounded-full bg-indigo-500"
+          aria-hidden="true"
+        />
+        <p className="text-sm font-bold text-slate-900 truncate">{label}</p>
+      </div>
+      <p className="text-[11px] text-slate-500">{description}</p>
+      <p className="text-xs text-indigo-700 mt-1">{note} ↗</p>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        External link
+      </p>
+    </a>
+  );
+}
+
+function formatAgo(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  const months = Math.floor(d / 30);
+  return `${months}mo ago`;
 }
 
 // Compact status card. Big number, small sublabel, color-coded

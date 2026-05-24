@@ -54,6 +54,22 @@ export async function sweepStaleAnalyzing(opts?: {
     created_at: string;
   }>;
 
+  // Always write a heartbeat audit_log row so the admin health page
+  // can show "cron last fired at X" even when nothing needed sweeping.
+  // This is what proves the scheduler is alive.
+  try {
+    await admin.from("audit_log").insert({
+      user_id: null,
+      event_type: "cron.sweep_ran",
+      metadata: {
+        threshold_minutes: thresholdMinutes,
+        candidate_count: rows.length,
+      },
+    });
+  } catch (err) {
+    console.error("[sweep] heartbeat audit insert failed:", err);
+  }
+
   if (rows.length === 0) {
     return { threshold_minutes: thresholdMinutes, swept_count: 0, swept_ids: [] };
   }
