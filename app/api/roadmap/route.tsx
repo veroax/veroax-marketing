@@ -1,21 +1,39 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { RoadmapPDF } from "@/lib/pdf-render/RoadmapPDF";
 import { NextResponse } from "next/server";
+import { rateLimit, clientIp } from "@/lib/server/rateLimit";
 
-// GET /api/roadmap → renders the founder roadmap PDF on-demand.
+// GET /api/roadmap, renders the founder roadmap PDF on-demand.
 //
-// No auth gate (intentionally) — the roadmap is broad-strokes and
-// safe to share. If we ever bring this in-house only, wrap with the
-// same auth + admin check pattern used by /api/reports/[id]/restart.
+// Intentionally public (no auth gate) so the founder can paste the
+// link in pitch conversations. BUT rate-limited because React-PDF's
+// renderToBuffer is CPU-heavy; if a crawler hits this URL in a loop
+// it would burn Vercel function minutes for nothing.
 //
-// Renders via React-PDF's renderToBuffer using the same pipeline that
-// powers the disclosure reports, so the build environment is already
-// known-good. Edit lib/pdf-render/RoadmapPDF.tsx to add or check off
-// items, then hit /api/roadmap to see the new version.
+// Also cached at the edge for 5 minutes (the roadmap rarely changes,
+// and any change ships via redeploy so a short edge cache is fine).
+// Edit lib/pdf-render/RoadmapPDF.tsx to update items.
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const ip = clientIp(request);
+  const limit = rateLimit({
+    key: ip,
+    scope: "roadmap-pdf",
+    max: 10,
+    windowMs: 60 * 1000,
+  });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests for the roadmap PDF. Try again shortly." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limit.retryAfterSec) },
+      },
+    );
+  }
+
   try {
     const buffer = await renderToBuffer(<RoadmapPDF />);
     return new NextResponse(buffer as unknown as BodyInit, {
@@ -23,7 +41,10 @@ export async function GET() {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": 'inline; filename="veroax-roadmap.pdf"',
-        "Cache-Control": "no-store",
+        // 5-minute edge cache; revalidate every 30 minutes via SWR.
+        // Aggressive enough to make crawlers cheap, short enough that
+        // an edit visible within a deploy cycle.
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=1800",
       },
     });
   } catch (err) {

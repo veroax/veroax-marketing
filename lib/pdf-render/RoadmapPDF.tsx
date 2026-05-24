@@ -327,11 +327,11 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "Pre-launch cleanup — REMOVE before going broadly live",
+    title: "Pre-launch cleanup, REMOVE before going broadly live",
     items: [
       {
-        done: false,
-        text: "Remove DevRerunButton from the report detail page (admin-gated dev convenience). Files: app/dashboard/reports/[id]/_components/DevRerunButton.tsx + app/api/admin/force-rerun/[id]/route.ts + the import + render in page.tsx + the viewerProfile/viewerIsAdmin lookup",
+        done: true,
+        text: "Removed DevRerunButton from the report detail page and the matching /api/admin/force-rerun/[id] route. Admin restarts now go through the regular /api/reports/[id]/restart path which respects the credit gate.",
       },
     ],
   },

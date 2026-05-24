@@ -457,8 +457,8 @@ export async function performAnalysis(
   //   Window reads reports.created_at.
   //
   // If the report has already been marked billable on a previous run
-  // (e.g., admin force-rerun on a completed report), consumption is
-  // skipped — we don't double-charge for re-analysis of the same
+  // (e.g., admin restart on a completed report), consumption is
+  // skipped so we don't double-charge for re-analysis of the same
   // logical report.
   try {
     const { data: existingForBilling } = await admin
