@@ -9,6 +9,8 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { ToggleAdminButton } from "../../_components/ToggleAdminButton";
 import { ToggleVipButton } from "../../_components/ToggleVipButton";
 import { GrantCreditsPanel } from "../../_components/GrantCreditsPanel";
+import { SuspendUserButton } from "../../_components/SuspendUserButton";
+import { DeleteUserButton } from "../../_components/DeleteUserButton";
 import {
   computeProfitabilityForUsers,
   getActiveSubscription,
@@ -33,7 +35,7 @@ export default async function AdminUserDetail({
   const { data: profile } = await admin
     .from("profiles")
     .select(
-      "id, email, full_name, brokerage, dre_license, phone, is_admin, is_vip, vip_granted_at, vip_notes, trial_credits_remaining, report_credits_balance, created_at",
+      "id, email, full_name, brokerage, dre_license, phone, is_admin, is_vip, vip_granted_at, vip_notes, trial_credits_remaining, report_credits_balance, created_at, is_suspended, suspended_at, suspended_reason",
     )
     .eq("id", id)
     .maybeSingle();
@@ -53,6 +55,9 @@ export default async function AdminUserDetail({
     trial_credits_remaining: number | null;
     report_credits_balance: number | null;
     created_at: string | null;
+    is_suspended: boolean | null;
+    suspended_at: string | null;
+    suspended_reason: string | null;
   };
 
   // Their reports — most recent 30, plus aggregate counts by status.
@@ -131,12 +136,48 @@ export default async function AdminUserDetail({
               ★ VIP
             </span>
           ) : null}
+          {profileTyped.is_suspended ? (
+            <span className="text-[10px] font-bold uppercase tracking-wider bg-red-700 text-white px-2 py-0.5 rounded">
+              Suspended
+            </span>
+          ) : null}
         </div>
         <p className="text-sm text-gray-500 mt-1">{profile.email}</p>
         {profileTyped.is_vip && profileTyped.vip_notes ? (
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-1.5 mt-2 inline-block">
             VIP notes: {profileTyped.vip_notes}
           </p>
+        ) : null}
+        {profileTyped.is_suspended ? (
+          <div className="bg-red-50 border-2 border-red-300 rounded-xl px-4 py-3 mt-3 text-sm">
+            <p className="font-bold text-red-900">
+              This user is suspended
+            </p>
+            <p className="text-red-800 mt-1">
+              Their auth login is blocked and any active Stripe
+              subscription has been cancelled.{" "}
+              {profileTyped.suspended_at ? (
+                <>
+                  Suspended on{" "}
+                  {new Date(profileTyped.suspended_at).toLocaleDateString(
+                    undefined,
+                    { dateStyle: "long" },
+                  )}
+                  .
+                </>
+              ) : null}
+            </p>
+            {profileTyped.suspended_reason ? (
+              <p className="text-red-800 mt-1 italic">
+                Reason: {profileTyped.suspended_reason}
+              </p>
+            ) : null}
+            <p className="text-xs text-red-700 mt-2">
+              Click <strong>Unsuspend</strong> in the actions column to
+              restore login. Subscription is NOT auto-restored; user
+              re-subscribes via the pricing page.
+            </p>
+          </div>
         ) : null}
       </div>
 
@@ -192,6 +233,16 @@ export default async function AdminUserDetail({
               userId={profile.id}
               currentIsVip={Boolean(profileTyped.is_vip)}
               userLabel={profile.full_name?.trim() || profile.email}
+            />
+            <SuspendUserButton
+              userId={profile.id}
+              userLabel={profile.full_name?.trim() || profile.email}
+              isSuspended={Boolean(profileTyped.is_suspended)}
+              suspendedReason={profileTyped.suspended_reason}
+            />
+            <DeleteUserButton
+              userId={profile.id}
+              userEmail={profile.email}
             />
             <Link
               href={`/admin/audit?user=${profile.id}`}

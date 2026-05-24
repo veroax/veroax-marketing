@@ -30,6 +30,7 @@ type ProfileRow = {
   brokerage: string | null;
   is_admin: boolean | null;
   is_vip: boolean | null;
+  is_suspended: boolean | null;
   created_at: string | null;
 };
 
@@ -53,7 +54,7 @@ export default async function AdminUsersPage({
   let profilesQuery = admin
     .from("profiles")
     .select(
-      "id, email, full_name, brokerage, is_admin, is_vip, created_at",
+      "id, email, full_name, brokerage, is_admin, is_vip, is_suspended, created_at",
       { count: "exact" },
     )
     .limit(1000);
@@ -333,6 +334,11 @@ export default async function AdminUsersPage({
                     </td>
                     <td className="px-6 py-3.5 text-right">
                       <div className="inline-flex flex-col items-end gap-1">
+                        {p.is_suspended ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-red-700 text-white px-2 py-0.5 rounded">
+                            Suspended
+                          </span>
+                        ) : null}
                         {p.is_admin ? (
                           <span className="text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-800 px-2 py-0.5 rounded">
                             Admin
@@ -343,7 +349,7 @@ export default async function AdminUsersPage({
                             ★ VIP
                           </span>
                         ) : null}
-                        {!p.is_admin && !p.is_vip ? (
+                        {!p.is_admin && !p.is_vip && !p.is_suspended ? (
                           <span className="text-[10px] text-slate-400 uppercase tracking-wider">
                             Agent
                           </span>
