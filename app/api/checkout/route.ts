@@ -20,9 +20,13 @@ export async function GET(request: Request) {
   const plan = url.searchParams.get("plan");
   const billing = url.searchParams.get("billing") ?? "monthly";
 
-  // Resolve the signed-in user's email so we can pre-fill Stripe
-  // checkout. Webhook also uses email to match the resulting
-  // subscription back to the profile row.
+  // Resolve the signed-in user. Required: anonymous checkout creates
+  // an orphan payment because the webhook has no Veroax profile to
+  // attach the subscription to. Unauthenticated callers get bounced
+  // to /signup with a next-param that brings them back here after
+  // email confirmation. Returning users see the same redirect; /signup
+  // has a prominent "Already have an account? Log in" link that
+  // preserves the next-param.
   const supabase = await createClient();
   const {
     data: { user },
@@ -30,6 +34,16 @@ export async function GET(request: Request) {
 
   const secretKey = process.env.STRIPE_SECRET_KEY;
   const origin = getOrigin(request);
+
+  if (!user) {
+    // Preserve the full checkout URL (with plan + billing) so the
+    // post-signup redirect sends the user right back to where they
+    // intended to go.
+    const checkoutPath = `/api/checkout${url.search}`;
+    const signupUrl = new URL("/signup", origin);
+    signupUrl.searchParams.set("next", checkoutPath);
+    return NextResponse.redirect(signupUrl.toString(), { status: 303 });
+  }
 
   // ---------- One-off "Pay per report" mode ----------
   // ?plan=oneoff produces a one-time payment for a single report

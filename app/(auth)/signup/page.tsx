@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { Suspense, useActionState, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { signupAction } from "../actions";
 
 const initialState: { error?: string | null; message?: string } = {};
@@ -45,9 +46,22 @@ function scorePassword(password: string): { tier: 0 | 1 | 2 | 3 | 4; label: stri
 }
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupPageInner />
+    </Suspense>
+  );
+}
+
+function SignupPageInner() {
   const [state, formAction, pending] = useActionState(signupAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
+  // `next` is set when the user got bounced here from /api/checkout
+  // (or any other route that wants them to land somewhere specific
+  // after email confirmation). Sanitized server-side to same-origin.
+  const params = useSearchParams();
+  const next = params.get("next") ?? "";
 
   const strength = scorePassword(password);
 
@@ -65,6 +79,12 @@ export default function SignupPage() {
             />
           </Link>
           <p className="text-indigo-200 text-sm mt-2">Create your account</p>
+          {next.startsWith("/api/checkout") ? (
+            <p className="text-amber-300 text-xs mt-2 max-w-sm mx-auto">
+              After you confirm your email, we&apos;ll take you straight
+              to checkout for the plan you picked.
+            </p>
+          ) : null}
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
@@ -87,6 +107,12 @@ export default function SignupPage() {
             </div>
           ) : (
             <form action={formAction} className="space-y-4">
+              {/* Threads the post-confirmation destination through the
+                  Supabase email link. The signupAction validates this
+                  is a same-origin path before passing it to
+                  emailRedirectTo, so an attacker can't redirect a new
+                  user off-domain by tampering with the URL. */}
+              <input type="hidden" name="next" value={next} />
               <div>
                 <label htmlFor="full_name" className="block text-sm font-medium text-slate-700 mb-1.5">
                   Full name

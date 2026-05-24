@@ -1,7 +1,7 @@
 "use server";
 
 // Server Actions for authentication. Invoked directly from <form action={...}>
-// on signup/login pages — no client-side fetch needed.
+// on signup/login pages, no client-side fetch needed.
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -12,10 +12,23 @@ function trim(formData: FormData, key: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+// Sanitize a redirect-after-auth path so an attacker can't trick a
+// user into being bounced to a third-party site via the next param.
+// Only same-origin relative paths starting with "/" are accepted;
+// anything else falls back to /dashboard.
+function safeNextPath(raw: string, fallback = "/dashboard"): string {
+  if (!raw) return fallback;
+  if (!raw.startsWith("/")) return fallback;
+  if (raw.startsWith("//")) return fallback; // protocol-relative
+  if (raw.startsWith("/\\")) return fallback;
+  return raw;
+}
+
 export async function signupAction(_prev: unknown, formData: FormData) {
   const email = trim(formData, "email").toLowerCase();
   const password = trim(formData, "password");
   const fullName = trim(formData, "full_name");
+  const next = safeNextPath(trim(formData, "next"));
 
   if (!email || !password || !fullName) {
     return { error: "All fields are required." };
@@ -24,13 +37,22 @@ export async function signupAction(_prev: unknown, formData: FormData) {
     return { error: "Password must be at least 8 characters." };
   }
 
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
+  // Encode the destination so Supabase preserves it through its
+  // email-link rewrite. /auth/confirm reads it server-side and
+  // redirects there after exchanging the token.
+  const emailRedirectTo = `${siteUrl}/auth/confirm?next=${encodeURIComponent(
+    next,
+  )}`;
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com"}/auth/confirm`,
+      emailRedirectTo,
     },
   });
 
@@ -40,10 +62,10 @@ export async function signupAction(_prev: unknown, formData: FormData) {
 
   // If Supabase has email confirmation enabled, the user must verify before
   // a session is created. Surface that to the UI; otherwise redirect to
-  // dashboard immediately.
+  // the post-signup destination (next, or /dashboard by default).
   if (data.session) {
     revalidatePath("/", "layout");
-    redirect("/dashboard");
+    redirect(next);
   }
 
   return {
@@ -56,7 +78,7 @@ export async function signupAction(_prev: unknown, formData: FormData) {
 export async function loginAction(_prev: unknown, formData: FormData) {
   const email = trim(formData, "email").toLowerCase();
   const password = trim(formData, "password");
-  const next = trim(formData, "next") || "/dashboard";
+  const next = safeNextPath(trim(formData, "next"));
 
   if (!email || !password) {
     return { error: "Email and password are required." };
