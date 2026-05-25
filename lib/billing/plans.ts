@@ -22,20 +22,30 @@
 //   Pro ($149/mo, 8 reports included, $35 overage): for the busy
 //     solo or 2-3 agent team. Per-report cost works out to $18.60
 //     all-included, a 73% per-unit discount vs. PAYG and the
-//     largest jump in the ladder. This is the "popular" tier.
+//     largest jump in the ladder. This is the "popular" tier for
+//     individual subscribers.
 //
-//   Brokerage ($449/mo list, 30 reports included, $25 overage):
-//     for a brokerage covering its agents centrally. Per-report
-//     cost works out to $14.97 all-included, an 80% per-unit
-//     discount vs. PAYG, plus team seats and white-label. Marketed
-//     as "Custom" on the homepage so we can negotiate per deal.
+//   Team ($449/mo list, 30 reports included, 10 seats, $25 overage):
+//     formerly the "Brokerage" tier; renamed in the 0021 schema
+//     restructure when "Brokerage" graduated to a custom-priced top
+//     tier. Sized for a small office or 4-10 producing agents
+//     pooling a shared report quota. Per-report cost works out to
+//     $14.97 all-included.
+//
+//   Brokerage (custom, site-admin-managed): unlimited teams +
+//     agents, per-brokerage allocation negotiated with the founder
+//     and stored on public.brokerages (agent_seat_limit,
+//     reports_per_month, per_report_overage_cents). NOT self-serve;
+//     no Stripe price; checkout is closed. Marketed as "Contact us"
+//     on the pricing page. Site admin onboards each brokerage by
+//     hand via /admin/brokerages.
 //
 // Break-even math (number of reports per month at which each plan
 // beats PAYG):
 //   Solo beats PAYG at any volume (the $49 plan price is already
 //     less than 1 PAYG charge at $69)
 //   Pro beats Solo from report 5+
-//   Brokerage beats Pro from report 18+
+//   Team beats Pro from report 18+
 //
 // All prices are illustrative; the actual Stripe prices are set in
 // the Stripe dashboard and referenced here by env-var ID. Editing
@@ -43,7 +53,7 @@
 // Update Stripe AND update these numbers together, or the
 // profitability math on /admin/users will be wrong.
 
-export type PlanId = "solo" | "pro" | "brokerage";
+export type PlanId = "solo" | "pro" | "team" | "brokerage";
 export type BillingPeriod = "monthly" | "annual";
 
 export type PlanTier = {
@@ -71,6 +81,11 @@ export type PlanTier = {
   features: string[];
   // Most-popular highlight on the pricing card.
   highlight?: boolean;
+  // Custom-priced tier (no public price; "Contact us" CTA). The
+  // Brokerage tier is the only one that sets this today. Custom
+  // tiers do NOT participate in self-serve Stripe checkout; site
+  // admin sets up the brokerage row + invite by hand.
+  isCustom?: boolean;
 };
 
 export const PLAN_TIERS: PlanTier[] = [
@@ -95,38 +110,58 @@ export const PLAN_TIERS: PlanTier[] = [
   {
     id: "pro",
     label: "Pro",
-    tagline: "For busy solos and small teams.",
+    tagline: "For busy solo agents.",
     reportsIncluded: 8,
     overageUsd: 35,
-    seats: 3,
+    seats: 1,
     priceMonthlyUsd: 149,
     priceAnnualUsd: 1488, // $124/mo on annual; saves $300 vs monthly
     highlight: true,
     features: [
       "8 disclosure analyses / month",
       "$35 per additional report",
-      "3 agent seats included",
+      "Solo seat (no team)",
       "All Solo features",
       "Custom brokerage colors + logo",
       "Priority email support",
     ],
   },
   {
-    id: "brokerage",
-    label: "Brokerage",
-    tagline: "Centralized billing for the whole office.",
+    id: "team",
+    label: "Team",
+    tagline: "Pool a shared monthly quota across 10 agents.",
     reportsIncluded: 30,
     overageUsd: 25,
-    seats: 25,
+    seats: 10,
     priceMonthlyUsd: 449,
-    priceAnnualUsd: 4490, // marketed as "Custom" on the homepage
+    priceAnnualUsd: 4490,
     features: [
-      "30 disclosure analyses / month",
+      "30 disclosure analyses / month, pooled team-wide",
       "$25 per additional report",
-      "25 agent seats included",
+      "Up to 10 agent seats",
+      "Team dashboard with shared report visibility",
+      "Team owner + admin roles, agent invites",
       "All Pro features",
-      "White-label PDF + brokerage-wide dashboard",
-      "Onboarding call + dedicated CSM",
+    ],
+  },
+  {
+    id: "brokerage",
+    label: "Brokerage",
+    tagline:
+      "Unlimited teams and agents under one custom contract.",
+    reportsIncluded: 0,
+    overageUsd: 0,
+    seats: 0,
+    priceMonthlyUsd: 0,
+    priceAnnualUsd: 0,
+    isCustom: true,
+    features: [
+      "Unlimited teams and direct agents",
+      "Per-brokerage allocation (custom seats + reports)",
+      "Brokerage logo + DRE on every PDF cover",
+      "Site-admin onboarding, dedicated CSM",
+      "Custom contract; per-report overage negotiated",
+      "Single point of billing for the whole office",
     ],
   },
 ];
@@ -135,13 +170,25 @@ export const PLAN_TIERS: PlanTier[] = [
 // Missing values gracefully degrade, checkout falls back to the
 // contact section and pricing page shows "contact us" instead of
 // a checkout button.
+//
+// NOTE: the Brokerage tier does NOT appear here because it is not
+// self-serve; checkout for plan=brokerage is rejected upstream.
 export const PRICE_ID_ENV: Record<string, string> = {
   "solo:monthly": "STRIPE_PRICE_SOLO_MONTHLY",
   "solo:annual": "STRIPE_PRICE_SOLO_ANNUAL",
   "pro:monthly": "STRIPE_PRICE_PRO_MONTHLY",
   "pro:annual": "STRIPE_PRICE_PRO_ANNUAL",
-  "brokerage:monthly": "STRIPE_PRICE_BROKERAGE_MONTHLY",
-  "brokerage:annual": "STRIPE_PRICE_BROKERAGE_ANNUAL",
+  "team:monthly": "STRIPE_PRICE_TEAM_MONTHLY",
+  "team:annual": "STRIPE_PRICE_TEAM_ANNUAL",
+};
+
+// Backwards-compat: during the 0021 rename window, allow the old
+// STRIPE_PRICE_BROKERAGE_* env vars to satisfy the "team" tier so
+// the user can update Vercel at their own pace. priceIdFor checks
+// the new name first, then this map as a fallback.
+const LEGACY_PRICE_ID_ENV: Record<string, string> = {
+  "team:monthly": "STRIPE_PRICE_BROKERAGE_MONTHLY",
+  "team:annual": "STRIPE_PRICE_BROKERAGE_ANNUAL",
 };
 
 // Pay-as-you-go single-report purchase price ID. Same env-var
@@ -156,24 +203,40 @@ export const ONEOFF_REPORT_PRICE_USD = 69;
 
 // Resolve plan + billing -> Stripe price ID via env var. Returns
 // null when the env var isn't set (pricing-page UI shows "contact
-// us" in that case rather than 500ing the checkout flow).
+// us" in that case rather than 500ing the checkout flow). The
+// Brokerage tier always returns null because it is not self-serve.
 export function priceIdFor(
   plan: PlanId,
   billing: BillingPeriod,
 ): string | null {
-  const envName = PRICE_ID_ENV[`${plan}:${billing}`];
+  if (plan === "brokerage") return null;
+  const key = `${plan}:${billing}`;
+  const envName = PRICE_ID_ENV[key];
   const id = envName ? process.env[envName] : undefined;
-  return id?.trim() ? id.trim() : null;
+  if (id?.trim()) return id.trim();
+  // Fall through to the legacy env var name during the rename.
+  const legacyEnvName = LEGACY_PRICE_ID_ENV[key];
+  const legacyId = legacyEnvName ? process.env[legacyEnvName] : undefined;
+  return legacyId?.trim() ? legacyId.trim() : null;
 }
 
 // Reverse lookup, when the webhook receives a Stripe event with a
 // price ID, map back to the plan. Used to populate the
-// subscriptions.plan column.
+// subscriptions.plan column. Checks the legacy env vars too so a
+// webhook for an existing brokerage-priced subscription still
+// resolves to plan=team.
 export function planFromPriceId(
   priceId: string,
 ): { plan: PlanId; billing: BillingPeriod } | null {
   for (const key of Object.keys(PRICE_ID_ENV)) {
     const envName = PRICE_ID_ENV[key];
+    if (process.env[envName] === priceId) {
+      const [plan, billing] = key.split(":") as [PlanId, BillingPeriod];
+      return { plan, billing };
+    }
+  }
+  for (const key of Object.keys(LEGACY_PRICE_ID_ENV)) {
+    const envName = LEGACY_PRICE_ID_ENV[key];
     if (process.env[envName] === priceId) {
       const [plan, billing] = key.split(":") as [PlanId, BillingPeriod];
       return { plan, billing };

@@ -42,8 +42,10 @@ export default function PricingPage() {
           </p>
         </div>
 
-        {/* Plan cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 mb-12">
+        {/* Plan cards. The Brokerage tier is custom-priced, so its
+            card swaps the dollar amount for "Custom pricing" and the
+            CTA links to the support mailto. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6 mb-12">
           {PLAN_TIERS.map((tier) => (
             <article
               key={tier.id}
@@ -60,21 +62,34 @@ export default function PricingPage() {
               ) : null}
               <h2 className="text-xl font-bold text-slate-900">{tier.label}</h2>
               <p className="text-sm text-slate-500 mt-1">{tier.tagline}</p>
-              <div className="mt-5">
-                <span className="text-4xl font-bold text-slate-900">
-                  ${tier.priceMonthlyUsd}
-                </span>
-                <span className="text-sm text-slate-500"> /month</span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                or ${tier.priceAnnualUsd}/year ·{" "}
-                {Math.round(
-                  ((tier.priceMonthlyUsd * 12 - tier.priceAnnualUsd) /
-                    (tier.priceMonthlyUsd * 12)) *
-                    100,
-                )}
-                % off
-              </p>
+              {tier.isCustom ? (
+                <div className="mt-5">
+                  <span className="text-2xl font-bold text-slate-900">
+                    Custom pricing
+                  </span>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Per-brokerage contract; site-admin onboarded.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-5">
+                    <span className="text-4xl font-bold text-slate-900">
+                      ${tier.priceMonthlyUsd}
+                    </span>
+                    <span className="text-sm text-slate-500"> /month</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    or ${tier.priceAnnualUsd}/year ·{" "}
+                    {Math.round(
+                      ((tier.priceMonthlyUsd * 12 - tier.priceAnnualUsd) /
+                        (tier.priceMonthlyUsd * 12)) *
+                        100,
+                    )}
+                    % off
+                  </p>
+                </>
+              )}
               <ul className="mt-6 space-y-2.5">
                 {tier.features.map((f, i) => (
                   <li
@@ -87,22 +102,33 @@ export default function PricingPage() {
                 ))}
               </ul>
               <div className="mt-7 space-y-2">
-                <a
-                  href={`/api/checkout?plan=${tier.id}&billing=monthly`}
-                  className={
-                    tier.highlight
-                      ? "block w-full text-center bg-indigo-700 text-white font-semibold py-3 rounded-lg hover:bg-indigo-600"
-                      : "block w-full text-center bg-slate-900 text-white font-semibold py-3 rounded-lg hover:bg-slate-800"
-                  }
-                >
-                  Start {tier.label} — ${tier.priceMonthlyUsd}/mo
-                </a>
-                <a
-                  href={`/api/checkout?plan=${tier.id}&billing=annual`}
-                  className="block w-full text-center bg-white border border-slate-300 text-slate-700 font-semibold py-2.5 rounded-lg text-sm hover:bg-slate-50"
-                >
-                  Annual — save ~17%
-                </a>
+                {tier.isCustom ? (
+                  <a
+                    href="mailto:support@veroax.com?subject=Brokerage%20tier%20inquiry"
+                    className="block w-full text-center bg-slate-900 text-white font-semibold py-3 rounded-lg hover:bg-slate-800"
+                  >
+                    Contact us
+                  </a>
+                ) : (
+                  <>
+                    <a
+                      href={`/api/checkout?plan=${tier.id}&billing=monthly`}
+                      className={
+                        tier.highlight
+                          ? "block w-full text-center bg-indigo-700 text-white font-semibold py-3 rounded-lg hover:bg-indigo-600"
+                          : "block w-full text-center bg-slate-900 text-white font-semibold py-3 rounded-lg hover:bg-slate-800"
+                      }
+                    >
+                      Start {tier.label}, ${tier.priceMonthlyUsd}/mo
+                    </a>
+                    <a
+                      href={`/api/checkout?plan=${tier.id}&billing=annual`}
+                      className="block w-full text-center bg-white border border-slate-300 text-slate-700 font-semibold py-2.5 rounded-lg text-sm hover:bg-slate-50"
+                    >
+                      Annual, save ~17%
+                    </a>
+                  </>
+                )}
               </div>
             </article>
           ))}

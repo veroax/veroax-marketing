@@ -101,7 +101,19 @@ export async function GET(request: Request) {
   }
 
   // ---------- Subscription mode ----------
-  if (!plan || !["solo", "pro", "brokerage"].includes(plan)) {
+  if (!plan || !["solo", "pro", "team"].includes(plan)) {
+    // The "brokerage" tier is custom-priced and NOT self-serve; reject
+    // it explicitly with a hint to contact us. Anything else (e.g.
+    // typo) gets the generic invalid-plan error.
+    if (plan === "brokerage") {
+      return NextResponse.json(
+        {
+          error:
+            "The Brokerage tier is custom-priced. Contact us at support@veroax.com to get set up.",
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json({ error: "Invalid plan." }, { status: 400 });
   }
   if (!["monthly", "annual"].includes(billing)) {
@@ -111,7 +123,7 @@ export async function GET(request: Request) {
   // Single source of truth for plan -> Stripe price id resolution.
   // Lives in lib/billing/plans so the checkout route and any other
   // call site (admin tools, scripts) can never drift.
-  const priceId = priceIdFor(plan as "solo" | "pro" | "brokerage", billing as "monthly" | "annual");
+  const priceId = priceIdFor(plan as "solo" | "pro" | "team", billing as "monthly" | "annual");
 
   // Graceful fallback: if either secret or Price ID is missing on this
   // environment, bounce the user to the pricing page (which renders

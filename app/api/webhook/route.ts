@@ -462,7 +462,7 @@ async function handleSubscriptionUpserted(
 
   const reportsIncluded =
     plan && plan !== "unknown"
-      ? reportsIncludedFor(plan as "solo" | "pro" | "brokerage")
+      ? reportsIncludedFor(plan as "solo" | "pro" | "team" | "brokerage")
       : 0;
 
   // Upsert by stripe_subscription_id so renewals overwrite the same
