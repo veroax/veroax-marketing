@@ -10,7 +10,7 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { getCurrentUserMembership, isOrgAdminRole } from "@/lib/team/membership";
 import { CreateTeamForm } from "./_components/CreateTeamForm";
 import { InviteMemberForm } from "./_components/InviteMemberForm";
@@ -61,9 +61,15 @@ export default async function DashboardTeamPage() {
   const { organization: org, role } = membership;
   const isAdmin = isOrgAdminRole(role);
 
+  // Cross-member queries use the service-role client. The membership
+  // check above already proves this user belongs to this org, so the
+  // elevated read is safe. RLS on organization_members + profiles is
+  // intentionally own-row-only (see migration 0020) to avoid the
+  // recursive-policy trap from migration 0019.
+  const admin = createServiceRoleClient();
+
   // -- Member list --------------------------------------------------
-  // RLS lets a member see every member of their own org.
-  const { data: memberRowsData } = await supabase
+  const { data: memberRowsData } = await admin
     .from("organization_members")
     .select("user_id, role, joined_at")
     .eq("organization_id", org.id);
@@ -73,17 +79,12 @@ export default async function DashboardTeamPage() {
     joined_at: string;
   }>;
 
-  // Resolve profile info for each member in one query. We have to
-  // SELECT explicitly because RLS on profiles permits only own-row
-  // reads by default; cross-member visibility within a team is a
-  // soft "social" requirement and is handled here by reading via
-  // the user-scoped client (RLS may filter; in practice each member
-  // is fetched through Supabase auth-aware lookups). For MVP, we
-  // fall back to user_id when the profile isn't visible.
+  // Resolve profile info for each member in one query via the
+  // service-role client (RLS on profiles is own-row-only by default).
   const userIds = memberRows.map((m) => m.user_id);
   const { data: profilesData } =
     userIds.length > 0
-      ? await supabase
+      ? await admin
           .from("profiles")
           .select("id, email, full_name, is_suspended")
           .in("id", userIds)
@@ -102,9 +103,10 @@ export default async function DashboardTeamPage() {
   }
 
   // -- Pending invites ----------------------------------------------
-  // Only owner/admin can see pending invites (RLS-enforced).
+  // Owner / admin only. Via service-role to keep behavior consistent
+  // with the rest of the cross-org reads on this page.
   const { data: inviteRowsData } = isAdmin
-    ? await supabase
+    ? await admin
         .from("organization_invites")
         .select(
           "id, email, role, invited_by, token, status, expires_at, created_at",
