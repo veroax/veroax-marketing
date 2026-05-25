@@ -207,6 +207,32 @@ async function pingStripe(): Promise<PingResult> {
 // We do NOT send a real email here (would be expensive and spammy).
 // domains.list is a free authenticated read that proves the key is
 // valid and Resend is reachable.
+//
+// One wrinkle: Resend supports "Sending access" restricted API keys,
+// the safer default for production. A send-only key cannot call
+// domains.list and Resend returns an error like:
+//   "This API key is restricted to only send emails"
+// or similar. We treat that specific class of error as a PASS,
+// because the response itself proves:
+//   1. The key is valid (otherwise we'd get a 401 instead)
+//   2. Resend is reachable (we got a structured Resend reply)
+//   3. The key is just scoped tighter, by design
+// Anything else (401, 5xx, network) is still treated as a fail.
+function isRestrictedKeyError(message: string | undefined | null): boolean {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("restricted to only send") ||
+    lower.includes("restricted to only sending") ||
+    // Resend's restricted-key response has historically also shown up
+    // as a generic "missing permissions" / "not authorized for this
+    // resource" style message; match those too so a slight wording
+    // change on Resend's side doesn't reintroduce the red light.
+    lower.includes("not authorized for this resource") ||
+    lower.includes("missing required permission")
+  );
+}
+
 async function pingResend(): Promise<PingResult> {
   try {
     const key = process.env.RESEND_API_KEY;
@@ -222,11 +248,24 @@ async function pingResend(): Promise<PingResult> {
     const resend = new Resend(key);
     const { result, ms } = await timeIt(() => resend.domains.list());
     if (result.error) {
+      const msg = result.error.message;
+      if (isRestrictedKeyError(msg)) {
+        return {
+          service: "resend",
+          ok: true,
+          latency_ms: ms,
+          error_message: null,
+          metadata: {
+            key_scope: "sending_only",
+            note: "Key reached Resend and was identified as a send-only restricted key. That is a pass: the key is valid and Resend is reachable.",
+          },
+        };
+      }
       return {
         service: "resend",
         ok: false,
         latency_ms: ms,
-        error_message: truncate(result.error.message),
+        error_message: truncate(msg),
         metadata: {},
       };
     }
@@ -237,16 +276,30 @@ async function pingResend(): Promise<PingResult> {
       ok: true,
       latency_ms: ms,
       error_message: null,
-      metadata: { domain_count: domainCount },
+      metadata: { key_scope: "full_access", domain_count: domainCount },
     };
   } catch (err) {
+    // Some SDK versions throw instead of returning result.error for
+    // permission denials. Catch the same restricted-key signature
+    // there too.
+    const message = err instanceof Error ? err.message : String(err);
+    if (isRestrictedKeyError(message)) {
+      return {
+        service: "resend",
+        ok: true,
+        latency_ms: null,
+        error_message: null,
+        metadata: {
+          key_scope: "sending_only",
+          note: "Restricted send-only key. Treated as pass.",
+        },
+      };
+    }
     return {
       service: "resend",
       ok: false,
       latency_ms: null,
-      error_message: truncate(
-        err instanceof Error ? err.message : String(err),
-      ),
+      error_message: truncate(message),
       metadata: {},
     };
   }
