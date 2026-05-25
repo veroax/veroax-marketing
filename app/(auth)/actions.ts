@@ -3,9 +3,11 @@
 // Server Actions for authentication. Invoked directly from <form action={...}>
 // on signup/login pages, no client-side fetch needed.
 
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { addContactToMarketingGroup } from "@/lib/integrations/salesandmarketing";
 
 function trim(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -59,6 +61,39 @@ export async function signupAction(_prev: unknown, formData: FormData) {
   if (error) {
     return { error: error.message };
   }
+
+  // Push the new signup into the Sales and Marketing AI group so the
+  // founder can run campaigns against the user list. Runs via after()
+  // so the network call doesn't block the signup response. Failures
+  // are logged but never bubble up to the user; signup completes
+  // regardless of CRM availability. The integration self-disables
+  // when env vars are missing (returns reason='not_configured'), so
+  // this is safe to ship before the founder finishes configuration.
+  const [firstName, ...rest] = fullName.split(" ").filter(Boolean);
+  const lastName = rest.join(" ") || null;
+  after(async () => {
+    try {
+      const result = await addContactToMarketingGroup({
+        email,
+        fullName,
+        firstName: firstName || null,
+        lastName,
+        customFields: {
+          source: "veroax_signup",
+          signup_date: new Date().toISOString().slice(0, 10),
+        },
+      });
+      if (!result.ok && result.reason !== "not_configured") {
+        console.error(
+          "[signup] CRM sync failed:",
+          result.reason,
+          result.detail,
+        );
+      }
+    } catch (err) {
+      console.error("[signup] CRM sync threw:", err);
+    }
+  });
 
   // If Supabase has email confirmation enabled, the user must verify before
   // a session is created. Surface that to the UI; otherwise redirect to
