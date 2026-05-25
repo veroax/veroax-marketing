@@ -8,6 +8,7 @@
 // the rows to those the caller can see. The service-role client is
 // reserved for the mutation routes (/api/team/*).
 
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserMembership, isOrgAdminRole } from "@/lib/team/membership";
@@ -125,14 +126,22 @@ export default async function DashboardTeamPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-900">{org.name}</h1>
-        <p className="text-sm text-slate-600 mt-1">
-          {memberRows.length} member{memberRows.length === 1 ? "" : "s"}
-          {" · "}
-          {org.seat_limit} seat{org.seat_limit === 1 ? "" : "s"} included
-          {role !== "agent" ? null : " · You're an agent on this team"}
-        </p>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{org.name}</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            {memberRows.length} member{memberRows.length === 1 ? "" : "s"}
+            {" · "}
+            {org.seat_limit} seat{org.seat_limit === 1 ? "" : "s"} included
+            {role !== "agent" ? null : " · You're an agent on this team"}
+          </p>
+        </div>
+        <Link
+          href="/dashboard/team/reports"
+          className="bg-white border border-indigo-300 text-indigo-700 font-semibold text-sm px-4 py-2 rounded-lg hover:bg-indigo-50 whitespace-nowrap"
+        >
+          View team reports →
+        </Link>
       </header>
 
       {/* Members table */}

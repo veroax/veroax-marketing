@@ -1,11 +1,147 @@
-# Veroax worksheet, picked up after second autonomous session
+# Veroax worksheet
 
-Generated during two consecutive "I'm taking off for a few hours" runs.
-This is the single document to read when you come back. The "What
-shipped" section captures both runs; "Open items" is filtered to only
-the things that haven't been done yet.
+Single document to read when you come back. Latest session at the
+top; older sessions below.
 
-## Session 3 summary (most recent run)
+---
+
+## NEXT TIME YOU SIGN IN: do this in order
+
+These are the testing + configuration tasks that block beta launch.
+Each is small. They're listed in the order they should be done.
+
+### 1. Apply migration 0019 in Supabase (~30 seconds)
+
+Team-management feature shipped in this session but the schema
+changes have to land first. SQL is in
+`supabase/migrations/0019_organizations.sql`. Paste it into the
+Supabase SQL editor and run. Verify with:
+
+```sql
+select to_regclass('public.organizations') is not null as orgs,
+       to_regclass('public.organization_members') is not null as members,
+       to_regclass('public.organization_invites') is not null as invites,
+       (select count(*) from public._migrations where name = '0019_organizations') as registered;
+```
+
+All four should come back `true` / `1`.
+
+### 2. Test the team MVP end-to-end (~10 minutes)
+
+The seven-step loop, in two browser windows (one for the owner, one
+incognito for the agent):
+
+- [ ] **Owner**: sign up at `/signup` with `michael+brokerage@michaelfielden.com`, verify email, land on dashboard
+- [ ] **Owner**: navigate to `/dashboard/team` → see the empty state with the suggested team name → enter "Test Brokerage" → submit. Page reloads showing you as the owner.
+- [ ] **Owner**: in the Invite a new member form, enter `michael+agent1@michaelfielden.com`, role Agent, send. Pending invite row appears. Email lands in the agent's inbox.
+- [ ] **Agent (incognito)**: open the invite email, click the link → land on `/invite/{token}` → see "Join Test Brokerage" → click "Create an account" → sign up with that exact email → confirm email → land on `/invite/{token}` again → click "Join Test Brokerage" → land on `/dashboard/team` showing you as an agent.
+- [ ] **Owner**: refresh `/dashboard/team`, agent appears in members list. Pending invite gone.
+- [ ] **Agent**: upload a test report (any PDF). Check that the new "Team reports" link is visible on `/dashboard/team` for the owner.
+- [ ] **Owner**: open `/dashboard/team/reports`, see the agent's report with the creator's name on the row. Filter-by-member dropdown should also work.
+
+If any step breaks, paste the error / behavior and I'll dig in.
+
+### 3. Configure Supabase SMTP via Resend (~5 minutes)
+
+Without this, the verification emails for the test above will be
+flaky (Supabase default mailer is rate-limited to 3/hr and often goes
+to spam).
+
+In Supabase: **Authentication → Email Templates → Custom SMTP**.
+Enable Custom SMTP, fill in:
+
+| Field | Value |
+|---|---|
+| Sender email | `support@veroax.com` |
+| Sender name | `Veroax` |
+| Host | `smtp.resend.com` |
+| Port | `465` |
+| Username | `resend` |
+| Password | Your `RESEND_API_KEY` value (copy from Vercel env vars → Reveal) |
+
+Save. Next signup verification email will come from your domain
+instead of `noreply@mail.app.supabase.io`.
+
+### 4. Configure salesandmarketing.ai env vars on Vercel (~3 minutes)
+
+The signup-to-CRM sync is shipped but dormant until these env vars
+are set. Only 3 are required to fire (the 4th is optional):
+
+- `SAM_AI_SECRET_KEY`
+- `SAM_AI_AUTH_TOKEN`
+- `SAM_AI_MEMBER_ID`
+- `SAM_AI_DEFAULT_GROUP_ID` (optional; new signups land ungrouped without it)
+
+The group ID is the one you said you'd come back to. Try inspecting
+the SAM dashboard URL when viewing a group, or email SAM support.
+Redeploy Vercel after setting them.
+
+### 5. Then send your first real beta invite
+
+Once 1-4 are done, the brokerage you've lined up can:
+- Sign up at `/signup`
+- Be made admin or VIP via `/admin/users/[id]` if you want them on free unlimited reports during the beta
+- Create their team at `/dashboard/team`
+- Invite their agents
+
+---
+
+## Session 4 summary (most recent run)
+
+Two heavyweight features shipped:
+
+1. **Pricing reconciliation** (across `lib/billing/plans.ts`,
+   homepage, FAQ). PAYG raised from $25 to $69. Solo annual fixed
+   to $480, Pro annual to $1,488. New `overageUsd` per plan as a
+   first-class field. Pricing rationale comment locked in at top
+   of `plans.ts`. Per-plan per-report cost: Solo $49, Pro $18.60,
+   Brokerage $14.97. PAYG sits above Solo so the ladder rewards a
+   subscription at any volume.
+
+2. **PDF render gate by credit_source**. New report column
+   `credit_source` set on consume. PAYG reports render a stripped
+   Veroax-cobranded cover (no agent logo, no headshot, coral
+   accent, "veroax •" wordmark where the brokerage logo would
+   have been). Subscription / VIP / trial / null get full agent
+   branding. Migration 0017 deployed.
+
+Then five operational + product fixes:
+
+3. **Anonymous-checkout orphan gap closed**: `/api/checkout` now
+   requires auth. Anonymous clicks bounce to
+   `/signup?next=/api/checkout?plan=...`. After email confirm,
+   `/auth/confirm` redirects to the original checkout URL.
+   `safeNextPath()` sanitizes destination on both ends.
+
+4. **Webhook + event subscriptions cleaned**: removed duplicate
+   webhook; added missing `customer.subscription.created` to the
+   surviving endpoint; signing secret matched against Vercel.
+
+5. **Admin suspend + delete user actions**: `/admin/users/[id]`
+   gets two new buttons. Suspend bans auth + cancels Stripe sub
+   (reversible, preserves data). Delete cancels Stripe + deletes
+   storage + cascades to all tables. Both fire alert emails.
+   Anti-fat-finger gate on delete (must type email).
+
+6. **Salesandmarketing.ai signup sync**: new
+   `lib/integrations/salesandmarketing.ts` pushes every new signup
+   to a marketing group via the API. Self-disables when env vars
+   are unset. Phone number captured at signup, persisted to
+   `profiles.phone`, also pushed to the CRM contact.
+
+7. **Team management MVP** (the big one): organizations +
+   organization_members + organization_invites tables, full UI
+   at `/dashboard/team`, invite-by-email flow, `/invite/{token}`
+   acceptance page handling all five lifecycle states (not
+   found / expired / revoked / accepted / happy path).
+   `/dashboard/team/reports` cross-member visibility view with
+   filters by member and status. Reports now stamp
+   `organization_id` on creation so team admins see everything in
+   one place.
+
+---
+
+## Session 3 summary
 
 Six things on your bedtime list, all shipped:
 
