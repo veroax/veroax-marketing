@@ -71,24 +71,44 @@ const plans: Plan[] = [
     badge: "Most Popular",
   },
   {
+    name: "Team",
+    pricing: {
+      monthly: { price: "$449", billed: null, savings: null },
+      annual: { price: "$374", billed: "$4,490 billed annually", savings: "Save $898" },
+    },
+    period: "/month",
+    perReport: "30 reports included, $25 per additional",
+    description: "Pool a shared monthly quota across up to 10 agents on one team.",
+    features: [
+      "30 disclosure reports / month, pooled team-wide",
+      "$25 per additional report",
+      "Up to 10 agent seats",
+      "Team dashboard with shared report visibility",
+      "Team owner + admin roles, agent invites",
+      "All Professional features",
+    ],
+    cta: "Choose Team",
+    highlighted: false,
+    badge: null,
+  },
+  {
     name: "Brokerage",
     pricing: {
-      monthly: { price: "Custom", billed: null, savings: null },
-      annual: { price: "Custom", billed: null, savings: null },
+      monthly: { price: "Contact for details", billed: null, savings: null },
+      annual: { price: "Contact for details", billed: null, savings: null },
     },
     period: "",
-    perReport: "Volume pricing, typically under $15 each",
-    description: "For brokerages and teams that want disclosure analysis as a built-in service.",
+    perReport: "Custom per-brokerage contract",
+    description: "For brokerages with unlimited teams and agents under one custom agreement.",
     features: [
-      "Unlimited reports across the team",
-      "Multi-agent admin dashboard",
-      "White-label branding (broker logo and colors)",
-      "Dedicated success manager",
-      "CRM, dotloop, and Skyslope integrations",
-      "Volume pricing on overages",
-      "Annual contract with quarterly business review",
+      "Unlimited teams and direct agents",
+      "Per-brokerage allocation (custom seats + reports)",
+      "Brokerage logo + DRE on every PDF cover",
+      "Site-admin onboarding, dedicated CSM",
+      "Custom contract; per-report overage negotiated",
+      "Single point of billing for the whole office",
     ],
-    cta: "Talk to sales",
+    cta: "Contact for details",
     highlighted: false,
     badge: null,
   },
@@ -103,7 +123,8 @@ export default function PricingAndContact() {
   function handlePlanSelect(planName: string, period: "monthly" | "annual") {
     let message: string;
     if (planName === "Brokerage") {
-      message = "I'd like to talk to sales about a Brokerage / team plan.";
+      message =
+        "I'd like to talk about a custom Brokerage plan for our office.";
     } else if (planName === "Free trial") {
       message = "I'd like to claim my free DRE-verified disclosure report.\n\nMy California DRE license number is: ";
     } else if (planName === "High volume") {
@@ -262,7 +283,7 @@ export default function PricingAndContact() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 lg:gap-8 items-stretch">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 items-stretch">
             {plans.map((plan) => (
               <div
                 key={plan.name}
@@ -328,9 +349,15 @@ export default function PricingAndContact() {
                     </li>
                   ))}
                 </ul>
-                {plan.name === "Solo" || plan.name === "Professional" ? (
+                {plan.name === "Solo" || plan.name === "Professional" || plan.name === "Team" ? (
                   <a
-                    href={`/api/checkout?plan=${plan.name === "Solo" ? "solo" : "pro"}&billing=${billingPeriod}`}
+                    href={`/api/checkout?plan=${
+                      plan.name === "Solo"
+                        ? "solo"
+                        : plan.name === "Team"
+                          ? "team"
+                          : "pro"
+                    }&billing=${billingPeriod}`}
                     className={`block text-center font-semibold px-6 py-3 rounded-lg transition-colors ${
                       plan.highlighted
                         ? "bg-amber-400 text-indigo-950 hover:bg-amber-300 shadow-lg shadow-amber-400/20"
@@ -359,15 +386,16 @@ export default function PricingAndContact() {
           {/* High-volume upsell */}
           <div className="mt-10 max-w-2xl mx-auto rounded-xl border border-amber-200 bg-amber-50/70 p-5 text-center">
             <p className="text-sm text-amber-900 leading-relaxed">
-              <span className="font-semibold">Running 15+ reports a month?</span>{" "}
+              <span className="font-semibold">Running an entire office?</span>{" "}
               <a
                 href="#contact"
-                onClick={() => handlePlanSelect("High volume", billingPeriod)}
+                onClick={() => handlePlanSelect("Brokerage", billingPeriod)}
                 className="font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-800"
               >
-                Talk to us about a team plan
+                Talk to us about a Brokerage plan
               </a>
-              . Per-report pricing drops meaningfully at higher volume.
+              . Custom allocation for unlimited teams and agents under
+              one contract.
             </p>
           </div>
 
@@ -411,7 +439,7 @@ export default function PricingAndContact() {
           </p>
 
           <p className="text-center text-xs text-gray-400 mt-3 max-w-2xl mx-auto">
-            Pricing in USD. Free trial is one report per California DRE license number. No credit card required. Annual prepay saves two months on Solo and Professional. Brokerage pricing scales with team size and integrations. Contact sales for a tailored quote.
+            Pricing in USD. Free trial is one report per California DRE license number. No credit card required. Annual prepay saves two months on Solo, Professional, and Team. Brokerage pricing is custom; contact sales for a tailored quote.
           </p>
         </div>
       </section>
