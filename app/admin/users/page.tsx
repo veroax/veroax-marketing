@@ -121,10 +121,46 @@ export default async function AdminUsersPage({
   // lifetime numbers here; the per-user detail page shows both
   // lifetime and this-month side-by-side.
   const userIds = profiles.map((p) => p.id);
-  const [planMap, profitMap] = await Promise.all([
+  const [planMap, profitMap, teamMembersRes] = await Promise.all([
     getActiveSubscriptionsForUsers({ userIds }),
     computeProfitabilityForUsers({ userIds, period: "lifetime" }),
+    // Pull the membership rows for the visible cohort and the org
+    // names in a single follow-up query so we can show "Team: X"
+    // alongside the agent's row.
+    admin
+      .from("organization_members")
+      .select("user_id, organization_id, role")
+      .in("user_id", userIds),
   ]);
+
+  type MemberRow = {
+    user_id: string;
+    organization_id: string;
+    role: "owner" | "admin" | "agent";
+  };
+  const memberRowsTyped = (teamMembersRes.data ?? []) as MemberRow[];
+  const orgIds = Array.from(
+    new Set(memberRowsTyped.map((m) => m.organization_id)),
+  );
+  const { data: orgRowsData } =
+    orgIds.length > 0
+      ? await admin
+          .from("organizations")
+          .select("id, name")
+          .in("id", orgIds)
+      : { data: [] as Array<{ id: string; name: string }> };
+  const orgMap = new Map<string, string>();
+  for (const o of (orgRowsData ?? []) as Array<{ id: string; name: string }>) {
+    orgMap.set(o.id, o.name);
+  }
+  const teamByUser = new Map<
+    string,
+    { name: string; role: "owner" | "admin" | "agent" }
+  >();
+  for (const m of memberRowsTyped) {
+    const name = orgMap.get(m.organization_id);
+    if (name) teamByUser.set(m.user_id, { name, role: m.role });
+  }
 
   return (
     <div className="space-y-6">
@@ -270,6 +306,14 @@ export default async function AdminUsersPage({
                         {p.brokerage?.trim() ? (
                           <div className="text-[11px] text-slate-400 mt-0.5 truncate">
                             {p.brokerage}
+                          </div>
+                        ) : null}
+                        {teamByUser.get(p.id) ? (
+                          <div className="text-[11px] text-indigo-700 mt-0.5 truncate font-medium">
+                            Team: {teamByUser.get(p.id)?.name}
+                            <span className="text-slate-400 ml-1 capitalize">
+                              ({teamByUser.get(p.id)?.role})
+                            </span>
                           </div>
                         ) : null}
                       </Link>
