@@ -15,6 +15,7 @@ import { getCurrentUserMembership, isOrgAdminRole } from "@/lib/team/membership"
 import { CreateTeamForm } from "./_components/CreateTeamForm";
 import { InviteMemberForm } from "./_components/InviteMemberForm";
 import { MemberActions } from "./_components/MemberActions";
+import { MemberPasswordResetButton } from "./_components/MemberPasswordResetButton";
 import { RevokeInviteButton } from "./_components/RevokeInviteButton";
 
 export const metadata = {
@@ -203,12 +204,26 @@ export default async function DashboardTeamPage() {
                         {new Date(m.joined_at).toLocaleDateString()}
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <MemberActions
-                          viewerUserId={user.id}
-                          viewerRole={role}
-                          targetUserId={m.user_id}
-                          targetRole={m.role}
-                        />
+                        <div className="inline-flex flex-col items-end gap-1.5">
+                          <MemberActions
+                            viewerUserId={user.id}
+                            viewerRole={role}
+                            targetUserId={m.user_id}
+                            targetRole={m.role}
+                          />
+                          {/* Owner/admin can trigger a Supabase password
+                              reset email to any team member except
+                              themselves. Hidden for agents (they don't
+                              have this power) and for self-rows
+                              (admins reset their own password via
+                              /forgot-password). */}
+                          {isAdmin && m.user_id !== user.id ? (
+                            <MemberPasswordResetButton
+                              userId={m.user_id}
+                              userEmail={profile?.email ?? ""}
+                            />
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   );

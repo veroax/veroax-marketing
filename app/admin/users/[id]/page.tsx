@@ -11,6 +11,7 @@ import { ToggleVipButton } from "../../_components/ToggleVipButton";
 import { GrantCreditsPanel } from "../../_components/GrantCreditsPanel";
 import { SuspendUserButton } from "../../_components/SuspendUserButton";
 import { DeleteUserButton } from "../../_components/DeleteUserButton";
+import { AdminPasswordActions } from "../../_components/AdminPasswordActions";
 import {
   computeProfitabilityForUsers,
   getActiveSubscription,
@@ -239,6 +240,10 @@ export default async function AdminUserDetail({
               userLabel={profile.full_name?.trim() || profile.email}
               isSuspended={Boolean(profileTyped.is_suspended)}
               suspendedReason={profileTyped.suspended_reason}
+            />
+            <AdminPasswordActions
+              userId={profile.id}
+              userEmail={profile.email}
             />
             <DeleteUserButton
               userId={profile.id}

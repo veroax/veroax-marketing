@@ -54,8 +54,17 @@ function LoginForm() {
         disabled={pending}
         className="w-full bg-indigo-950 text-white font-semibold py-3 rounded-lg hover:bg-indigo-900 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? "Signing in..." : "Sign in"}
       </button>
+
+      <p className="text-center pt-2">
+        <Link
+          href="/forgot-password"
+          className="text-xs text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
+        >
+          Forgot your password?
+        </Link>
+      </p>
     </form>
   );
 }
