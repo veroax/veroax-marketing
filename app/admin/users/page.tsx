@@ -124,41 +124,41 @@ export default async function AdminUsersPage({
   const [planMap, profitMap, teamMembersRes] = await Promise.all([
     getActiveSubscriptionsForUsers({ userIds }),
     computeProfitabilityForUsers({ userIds, period: "lifetime" }),
-    // Pull the membership rows for the visible cohort and the org
+    // Pull the membership rows for the visible cohort and the team
     // names in a single follow-up query so we can show "Team: X"
     // alongside the agent's row.
     admin
-      .from("organization_members")
-      .select("user_id, organization_id, role")
+      .from("team_members")
+      .select("user_id, team_id, role")
       .in("user_id", userIds),
   ]);
 
   type MemberRow = {
     user_id: string;
-    organization_id: string;
+    team_id: string;
     role: "owner" | "admin" | "agent";
   };
   const memberRowsTyped = (teamMembersRes.data ?? []) as MemberRow[];
-  const orgIds = Array.from(
-    new Set(memberRowsTyped.map((m) => m.organization_id)),
+  const teamIds = Array.from(
+    new Set(memberRowsTyped.map((m) => m.team_id)),
   );
-  const { data: orgRowsData } =
-    orgIds.length > 0
+  const { data: teamRowsData } =
+    teamIds.length > 0
       ? await admin
-          .from("organizations")
+          .from("teams")
           .select("id, name")
-          .in("id", orgIds)
+          .in("id", teamIds)
       : { data: [] as Array<{ id: string; name: string }> };
-  const orgMap = new Map<string, string>();
-  for (const o of (orgRowsData ?? []) as Array<{ id: string; name: string }>) {
-    orgMap.set(o.id, o.name);
+  const teamMap = new Map<string, string>();
+  for (const t of (teamRowsData ?? []) as Array<{ id: string; name: string }>) {
+    teamMap.set(t.id, t.name);
   }
   const teamByUser = new Map<
     string,
     { name: string; role: "owner" | "admin" | "agent" }
   >();
   for (const m of memberRowsTyped) {
-    const name = orgMap.get(m.organization_id);
+    const name = teamMap.get(m.team_id);
     if (name) teamByUser.set(m.user_id, { name, role: m.role });
   }
 

@@ -29,14 +29,14 @@ export default async function InvitePage({ params }: { params: Params }) {
   // session yet, so RLS would block them otherwise).
   const admin = createServiceRoleClient();
   const { data: inviteRow } = await admin
-    .from("organization_invites")
-    .select("id, organization_id, email, role, status, expires_at")
+    .from("team_invites")
+    .select("id, team_id, email, role, status, expires_at")
     .eq("token", token)
     .maybeSingle();
   const invite = inviteRow as
     | {
         id: string;
-        organization_id: string;
+        team_id: string;
         email: string;
         role: "admin" | "agent";
         status: "pending" | "accepted" | "expired" | "revoked";
@@ -59,20 +59,20 @@ export default async function InvitePage({ params }: { params: Params }) {
     );
   }
 
-  // Fetch org name for display.
-  const { data: orgRow } = await admin
-    .from("organizations")
+  // Fetch team name for display.
+  const { data: teamRow } = await admin
+    .from("teams")
     .select("name")
-    .eq("id", invite.organization_id)
+    .eq("id", invite.team_id)
     .maybeSingle();
-  const orgName = (orgRow as { name?: string } | null)?.name ?? "a team";
+  const teamName = (teamRow as { name?: string } | null)?.name ?? "a team";
 
   // Lifecycle states.
   if (invite.status === "accepted") {
     return (
       <InviteFrame title={`Already accepted`}>
         <p>
-          This invite to <strong>{orgName}</strong> was already accepted.
+          This invite to <strong>{teamName}</strong> was already accepted.
           Sign in to your account at{" "}
           <Link href="/login" className="text-indigo-700 underline">
             /login
@@ -86,7 +86,7 @@ export default async function InvitePage({ params }: { params: Params }) {
     return (
       <InviteFrame title="Invite revoked">
         <p>
-          This invite to <strong>{orgName}</strong> was revoked by a
+          This invite to <strong>{teamName}</strong> was revoked by a
           team admin. Ask them to send a new one if you should still
           have access.
         </p>
@@ -100,7 +100,7 @@ export default async function InvitePage({ params }: { params: Params }) {
     return (
       <InviteFrame title="Invite expired">
         <p>
-          This invite to <strong>{orgName}</strong> has expired. Ask
+          This invite to <strong>{teamName}</strong> has expired. Ask
           the team admin who invited you to send a new one.
         </p>
       </InviteFrame>
@@ -117,9 +117,9 @@ export default async function InvitePage({ params }: { params: Params }) {
   if (!user) {
     const next = `/invite/${token}`;
     return (
-      <InviteFrame title={`Join ${orgName} on Veroax`}>
+      <InviteFrame title={`Join ${teamName} on Veroax`}>
         <p>
-          You have been invited to join <strong>{orgName}</strong> on
+          You have been invited to join <strong>{teamName}</strong> on
           Veroax as a <span className="capitalize">{invite.role}</span>.
         </p>
         <p className="mt-3">
@@ -151,8 +151,8 @@ export default async function InvitePage({ params }: { params: Params }) {
       <InviteFrame title="Sign in as the invited email">
         <p>
           This invite was sent to <strong>{invite.email}</strong>, but
-          you're signed in as <strong>{user.email}</strong>. Sign out
-          and sign in with the invited email to accept.
+          you&apos;re signed in as <strong>{user.email}</strong>. Sign
+          out and sign in with the invited email to accept.
         </p>
         <p className="text-sm text-slate-500 mt-3">
           Or ask the team admin to send a new invite to{" "}
@@ -164,16 +164,16 @@ export default async function InvitePage({ params }: { params: Params }) {
 
   // Already in a team.
   const { data: existingMember } = await admin
-    .from("organization_members")
-    .select("organization_id")
+    .from("team_members")
+    .select("team_id")
     .eq("user_id", user.id)
     .maybeSingle();
   if (existingMember) {
     return (
       <InviteFrame title="Already on a team">
         <p>
-          You're already a member of another Veroax team. Leave that
-          team first (from{" "}
+          You&apos;re already a member of another Veroax team. Leave
+          that team first (from{" "}
           <Link
             href="/dashboard/team"
             className="text-indigo-700 underline"
@@ -189,13 +189,13 @@ export default async function InvitePage({ params }: { params: Params }) {
   // Happy path: signed in, right email, no existing team. Show the
   // accept button (client component handles the POST).
   return (
-    <InviteFrame title={`Join ${orgName}`}>
+    <InviteFrame title={`Join ${teamName}`}>
       <p>
-        You're about to join <strong>{orgName}</strong> on Veroax as a{" "}
-        <span className="capitalize">{invite.role}</span>. The team's
-        owner will be able to see reports you create.
+        You&apos;re about to join <strong>{teamName}</strong> on Veroax
+        as a <span className="capitalize">{invite.role}</span>. The
+        team&apos;s owner will be able to see reports you create.
       </p>
-      <AcceptInviteButton token={token} orgName={orgName} />
+      <AcceptInviteButton token={token} orgName={teamName} />
     </InviteFrame>
   );
 }

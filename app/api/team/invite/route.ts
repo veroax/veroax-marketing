@@ -1,14 +1,14 @@
 // POST /api/team/invite
 //
 // Send an email invite to add a new member to the current user's
-// org. Requires the caller to be an owner or admin of the org.
+// team. Requires the caller to be an owner or admin of the team.
 //
 // Body: { email: string, role?: 'admin' | 'agent' }
 //
-// Creates a row in organization_invites with a random token, then
-// emails the recipient a link to /invite/{token}. The link
-// authenticates the invitee against the token (no Veroax account
-// needed yet) and walks them through signup or sign-in.
+// Creates a row in team_invites with a random token, then emails
+// the recipient a link to /invite/{token}. The link authenticates
+// the invitee against the token (no Veroax account needed yet) and
+// walks them through signup or sign-in.
 
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
@@ -52,14 +52,14 @@ export async function POST(request: Request) {
 
   const admin = createServiceRoleClient();
 
-  // Resolve the inviter's org + role.
+  // Resolve the inviter's team + role.
   const { data: memberRow } = await admin
-    .from("organization_members")
-    .select("organization_id, role")
+    .from("team_members")
+    .select("team_id, role")
     .eq("user_id", user.id)
     .maybeSingle();
   const member = memberRow as
-    | { organization_id: string; role: "owner" | "admin" | "agent" }
+    | { team_id: string; role: "owner" | "admin" | "agent" }
     | null;
   if (!member) {
     return NextResponse.json(
@@ -74,22 +74,22 @@ export async function POST(request: Request) {
     );
   }
 
-  // Reject if the invitee is already a member of the same org.
-  const { data: existingMember } = await admin
+  // Reject if the invitee is already a member of the same team or
+  // any other team (one-team-per-user MVP).
+  const { data: existingProfile } = await admin
     .from("profiles")
     .select("id")
     .eq("email", email)
     .maybeSingle();
-  if (existingMember) {
+  if (existingProfile) {
     const { data: alreadyMember } = await admin
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", (existingMember as { id: string }).id)
+      .from("team_members")
+      .select("team_id")
+      .eq("user_id", (existingProfile as { id: string }).id)
       .maybeSingle();
     if (
       alreadyMember &&
-      (alreadyMember as { organization_id: string }).organization_id ===
-        member.organization_id
+      (alreadyMember as { team_id: string }).team_id === member.team_id
     ) {
       return NextResponse.json(
         { error: "That user is already on your team." },
@@ -108,13 +108,13 @@ export async function POST(request: Request) {
   }
 
   // Generate a fresh token. Schema's partial-unique index on
-  // (org_id, lower(email)) where status='pending' enforces single-
+  // (team_id, lower(email)) where status='pending' enforces single-
   // pending-invite-per-address.
   const token = newInviteToken();
   const { data: inviteRow, error: insErr } = await admin
-    .from("organization_invites")
+    .from("team_invites")
     .insert({
-      organization_id: member.organization_id,
+      team_id: member.team_id,
       email,
       role,
       invited_by: user.id,
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
     .select("id, token")
     .single();
   if (insErr || !inviteRow) {
-    if (insErr?.message?.includes("organization_invites_pending_unique")) {
+    if (insErr?.message?.includes("team_invites_pending_unique")) {
       return NextResponse.json(
         {
           error:
@@ -138,14 +138,14 @@ export async function POST(request: Request) {
     );
   }
 
-  // Fetch the org name for the email body.
-  const { data: orgRow } = await admin
-    .from("organizations")
+  // Fetch the team name for the email body.
+  const { data: teamRow } = await admin
+    .from("teams")
     .select("name")
-    .eq("id", member.organization_id)
+    .eq("id", member.team_id)
     .maybeSingle();
-  const orgName =
-    (orgRow as { name?: string } | null)?.name ?? "your team";
+  const teamName =
+    (teamRow as { name?: string } | null)?.name ?? "your team";
   const inviterName = user.email ?? "Your colleague";
 
   // Send the invite email via Resend. Failure here doesn't undo the
@@ -160,10 +160,10 @@ export async function POST(request: Request) {
       await resend.emails.send({
         from: fromAddress,
         to: email,
-        subject: `You're invited to join ${orgName} on Veroax`,
+        subject: `You're invited to join ${teamName} on Veroax`,
         html: `
-          <p>${escapeHtml(inviterName)} invited you to join <strong>${escapeHtml(orgName)}</strong> on Veroax.</p>
-          <p>Veroax is an AI-assisted disclosure analysis tool for California real estate agents. Joining ${escapeHtml(orgName)} gives you access to the team's shared report quota and lets the team owner see reports you generate.</p>
+          <p>${escapeHtml(inviterName)} invited you to join <strong>${escapeHtml(teamName)}</strong> on Veroax.</p>
+          <p>Veroax is an AI-assisted disclosure analysis tool for California real estate agents. Joining ${escapeHtml(teamName)} gives you access to the team's shared report quota and lets the team owner see reports you generate.</p>
           <p><a href="${acceptUrl}" style="display:inline-block;background:#0F0E2E;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Accept invite</a></p>
           <p style="color:#888;font-size:12px;">Or paste this link into your browser: ${acceptUrl}</p>
           <p style="color:#888;font-size:12px;">This invite expires in 14 days. If you didn't expect this email, you can ignore it.</p>
@@ -181,7 +181,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       event_type: "team.invite_sent",
       metadata: {
-        organization_id: member.organization_id,
+        team_id: member.team_id,
         invitee_email_sha256_16: await emailHash(email),
         role,
       },

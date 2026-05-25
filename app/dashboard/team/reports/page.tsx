@@ -1,13 +1,12 @@
-// Team-wide reports view. Lists every report whose organization_id
-// matches the viewer's team, with the creator's name on each row.
-// Any team member can read this; the whole point of being on a team
-// is shared visibility.
+// Team-wide reports view. Lists every report whose team_id matches
+// the viewer's team, with the creator's name on each row. Any team
+// member can read this; the whole point of being on a team is shared
+// visibility.
 //
-// Reports created BEFORE the agent joined the team (organization_id
-// null) do not appear here. The team feature went live with
-// migration 0019, so only reports created after that point will
-// have an organization_id set. Older personal reports remain on
-// each agent's individual /dashboard.
+// Reports created BEFORE the agent joined the team (team_id null) do
+// not appear here. The team feature went live with migration 0019
+// and was restructured in 0021 (organizations -> teams + brokerages).
+// Older personal reports remain on each agent's individual /dashboard.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -54,7 +53,7 @@ export default async function TeamReportsPage({
   if (!membership) {
     redirect("/dashboard/team");
   }
-  const { organization: org } = membership;
+  const { team: org } = membership;
 
   // Use service-role for cross-member reads. The RLS-aware client
   // would (correctly) hide other members' reports under default
@@ -68,7 +67,7 @@ export default async function TeamReportsPage({
       "id, user_id, status, property_address, client_name, report_name, created_at, archived, failure_reason",
       { count: "exact" },
     )
-    .eq("organization_id", org.id)
+    .eq("team_id", org.id)
     .eq("archived", false)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -81,9 +80,9 @@ export default async function TeamReportsPage({
   // Resolve member profiles in one query for name display + filter
   // dropdown.
   const { data: memberRowsData } = await admin
-    .from("organization_members")
+    .from("team_members")
     .select("user_id, role")
-    .eq("organization_id", org.id);
+    .eq("team_id", org.id);
   const memberRows = (memberRowsData ?? []) as Array<{
     user_id: string;
     role: "owner" | "admin" | "agent";
@@ -122,22 +121,22 @@ export default async function TeamReportsPage({
     admin
       .from("reports")
       .select("*", { count: "exact", head: true })
-      .eq("organization_id", org.id)
+      .eq("team_id", org.id)
       .in("status", ["qa_pending", "qa_approved"]),
     admin
       .from("reports")
       .select("*", { count: "exact", head: true })
-      .eq("organization_id", org.id)
+      .eq("team_id", org.id)
       .eq("status", "analyzing"),
     admin
       .from("reports")
       .select("*", { count: "exact", head: true })
-      .eq("organization_id", org.id)
+      .eq("team_id", org.id)
       .eq("status", "failed"),
     admin
       .from("reports")
       .select("*", { count: "exact", head: true })
-      .eq("organization_id", org.id)
+      .eq("team_id", org.id)
       .eq("status", "delivered"),
   ]);
 

@@ -4,14 +4,14 @@
 //   3. Owner or admin      -> adds InviteMemberForm + pending-invites
 //                             section + member-remove actions
 //
-// All reads via the user-scoped client; RLS on the org tables limits
+// All reads via the user-scoped client; RLS on the team tables limits
 // the rows to those the caller can see. The service-role client is
 // reserved for the mutation routes (/api/team/*).
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { getCurrentUserMembership, isOrgAdminRole } from "@/lib/team/membership";
+import { getCurrentUserMembership, isTeamAdminRole } from "@/lib/team/membership";
 import { CreateTeamForm } from "./_components/CreateTeamForm";
 import { InviteMemberForm } from "./_components/InviteMemberForm";
 import { MemberActions } from "./_components/MemberActions";
@@ -59,21 +59,21 @@ export default async function DashboardTeamPage() {
     );
   }
 
-  const { organization: org, role } = membership;
-  const isAdmin = isOrgAdminRole(role);
+  const { team, role } = membership;
+  const isAdmin = isTeamAdminRole(role);
 
   // Cross-member queries use the service-role client. The membership
-  // check above already proves this user belongs to this org, so the
-  // elevated read is safe. RLS on organization_members + profiles is
-  // intentionally own-row-only (see migration 0020) to avoid the
+  // check above already proves this user belongs to this team, so the
+  // elevated read is safe. RLS on team_members + profiles is
+  // intentionally own-row-only (see migration 0021) to avoid the
   // recursive-policy trap from migration 0019.
   const admin = createServiceRoleClient();
 
   // -- Member list --------------------------------------------------
   const { data: memberRowsData } = await admin
-    .from("organization_members")
+    .from("team_members")
     .select("user_id, role, joined_at")
-    .eq("organization_id", org.id);
+    .eq("team_id", team.id);
   const memberRows = (memberRowsData ?? []) as Array<{
     user_id: string;
     role: "owner" | "admin" | "agent";
@@ -105,14 +105,14 @@ export default async function DashboardTeamPage() {
 
   // -- Pending invites ----------------------------------------------
   // Owner / admin only. Via service-role to keep behavior consistent
-  // with the rest of the cross-org reads on this page.
+  // with the rest of the cross-team reads on this page.
   const { data: inviteRowsData } = isAdmin
     ? await admin
-        .from("organization_invites")
+        .from("team_invites")
         .select(
           "id, email, role, invited_by, token, status, expires_at, created_at",
         )
-        .eq("organization_id", org.id)
+        .eq("team_id", team.id)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
     : { data: null };
@@ -131,11 +131,11 @@ export default async function DashboardTeamPage() {
     <div className="space-y-8">
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{org.name}</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{team.name}</h1>
           <p className="text-sm text-slate-600 mt-1">
             {memberRows.length} member{memberRows.length === 1 ? "" : "s"}
             {" · "}
-            {org.seat_limit} seat{org.seat_limit === 1 ? "" : "s"} included
+            {team.seat_limit} seat{team.seat_limit === 1 ? "" : "s"} included
             {role !== "agent" ? null : " · You're an agent on this team"}
           </p>
         </div>

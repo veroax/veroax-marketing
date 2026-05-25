@@ -26,12 +26,12 @@ export async function POST(
 
   // Caller must be owner/admin of the same team as target.
   const { data: callerRow } = await admin
-    .from("organization_members")
-    .select("organization_id, role")
+    .from("team_members")
+    .select("team_id, role")
     .eq("user_id", user.id)
     .maybeSingle();
   const caller = callerRow as
-    | { organization_id: string; role: "owner" | "admin" | "agent" }
+    | { team_id: string; role: "owner" | "admin" | "agent" }
     | null;
   if (!caller || (caller.role !== "owner" && caller.role !== "admin")) {
     return NextResponse.json(
@@ -41,12 +41,12 @@ export async function POST(
   }
 
   const { data: targetMemberRow } = await admin
-    .from("organization_members")
-    .select("organization_id")
+    .from("team_members")
+    .select("team_id")
     .eq("user_id", targetUserId)
     .maybeSingle();
-  const targetMember = targetMemberRow as { organization_id: string } | null;
-  if (!targetMember || targetMember.organization_id !== caller.organization_id) {
+  const targetMember = targetMemberRow as { team_id: string } | null;
+  if (!targetMember || targetMember.team_id !== caller.team_id) {
     return NextResponse.json(
       { error: "That user is not on your team." },
       { status: 404 },
@@ -84,7 +84,7 @@ export async function POST(
       metadata: {
         actor_user_id: user.id,
         actor_email: user.email,
-        organization_id: caller.organization_id,
+        team_id: caller.team_id,
       },
     });
   } catch (err) {

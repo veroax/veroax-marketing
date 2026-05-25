@@ -1,7 +1,7 @@
 // POST /api/team/members/[userId]/remove
 //
 // Remove a member from the caller's team. Caller must be owner/admin
-// of the same org. An owner cannot be removed; transfer ownership
+// of the same team. An owner cannot be removed; transfer ownership
 // first (a future feature). A user can also remove themself (the
 // "leave team" path).
 
@@ -23,12 +23,12 @@ export async function POST(
 
   // Resolve caller's membership.
   const { data: callerRow } = await admin
-    .from("organization_members")
-    .select("organization_id, role")
+    .from("team_members")
+    .select("team_id, role")
     .eq("user_id", user.id)
     .maybeSingle();
   const caller = callerRow as
-    | { organization_id: string; role: "owner" | "admin" | "agent" }
+    | { team_id: string; role: "owner" | "admin" | "agent" }
     | null;
   if (!caller) {
     return NextResponse.json(
@@ -37,16 +37,16 @@ export async function POST(
     );
   }
 
-  // Resolve target's membership (same org).
+  // Resolve target's membership (same team).
   const { data: targetRow } = await admin
-    .from("organization_members")
-    .select("organization_id, role")
+    .from("team_members")
+    .select("team_id, role")
     .eq("user_id", targetUserId)
     .maybeSingle();
   const target = targetRow as
-    | { organization_id: string; role: "owner" | "admin" | "agent" }
+    | { team_id: string; role: "owner" | "admin" | "agent" }
     | null;
-  if (!target || target.organization_id !== caller.organization_id) {
+  if (!target || target.team_id !== caller.team_id) {
     return NextResponse.json(
       { error: "That user isn't on your team." },
       { status: 404 },
@@ -77,9 +77,9 @@ export async function POST(
   }
 
   const { error: delErr } = await admin
-    .from("organization_members")
+    .from("team_members")
     .delete()
-    .eq("organization_id", caller.organization_id)
+    .eq("team_id", caller.team_id)
     .eq("user_id", targetUserId);
   if (delErr) {
     return NextResponse.json(
@@ -93,7 +93,7 @@ export async function POST(
       user_id: targetUserId,
       event_type: isSelfRemove ? "team.left" : "team.member_removed",
       metadata: {
-        organization_id: caller.organization_id,
+        team_id: caller.team_id,
         actor_user_id: user.id,
         target_role_was: target.role,
       },

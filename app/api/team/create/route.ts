@@ -1,11 +1,15 @@
 // POST /api/team/create
 //
-// Creates a new organization and makes the current user its owner.
-// Enforces one-org-per-user (schema unique index on
-// organization_members.user_id), so calling this while already in
-// a team returns 409.
+// Creates a new standalone team and makes the current user its owner.
+// Enforces one-team-per-user (schema unique index on
+// team_members.user_id), so calling this while already on a team
+// returns 409.
 //
 // Body: { name: string }   the team's display name
+//
+// This route only creates STANDALONE teams (no brokerage parent).
+// Brokerage-scoped team creation goes through /api/brokerage/teams
+// because the seat-limit/billing logic is different.
 
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/require";
@@ -34,8 +38,8 @@ export async function POST(request: Request) {
   // index would catch this on insert, but we want a clean error
   // message instead of a generic constraint violation.
   const { data: existingMembership } = await admin
-    .from("organization_members")
-    .select("organization_id")
+    .from("team_members")
+    .select("team_id")
     .eq("user_id", user.id)
     .maybeSingle();
   if (existingMembership) {
@@ -56,8 +60,8 @@ export async function POST(request: Request) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
 
-  const { data: orgRow, error: orgErr } = await admin
-    .from("organizations")
+  const { data: teamRow, error: teamErr } = await admin
+    .from("teams")
     .insert({
       name,
       slug: slug || null,
@@ -65,37 +69,34 @@ export async function POST(request: Request) {
     })
     .select("id")
     .single();
-  if (orgErr || !orgRow) {
+  if (teamErr || !teamRow) {
     return NextResponse.json(
-      { error: orgErr?.message ?? "Failed to create team." },
+      { error: teamErr?.message ?? "Failed to create team." },
       { status: 500 },
     );
   }
-  const orgId = (orgRow as { id: string }).id;
+  const teamId = (teamRow as { id: string }).id;
 
-  const { error: memberErr } = await admin
-    .from("organization_members")
-    .insert({
-      organization_id: orgId,
-      user_id: user.id,
-      role: "owner",
-    });
+  const { error: memberErr } = await admin.from("team_members").insert({
+    team_id: teamId,
+    user_id: user.id,
+    role: "owner",
+  });
   if (memberErr) {
-    // Roll back the org so we don't leave an orphan row.
-    await admin.from("organizations").delete().eq("id", orgId);
+    // Roll back the team so we don't leave an orphan row.
+    await admin.from("teams").delete().eq("id", teamId);
     return NextResponse.json(
       { error: `Failed to add owner: ${memberErr.message}` },
       { status: 500 },
     );
   }
 
-  // Audit.
   try {
     await admin.from("audit_log").insert({
       user_id: user.id,
       event_type: "team.created",
       metadata: {
-        organization_id: orgId,
+        team_id: teamId,
         name,
       },
     });
@@ -103,5 +104,5 @@ export async function POST(request: Request) {
     console.error("[team/create] audit insert failed:", err);
   }
 
-  return NextResponse.json({ ok: true, organization_id: orgId });
+  return NextResponse.json({ ok: true, team_id: teamId });
 }

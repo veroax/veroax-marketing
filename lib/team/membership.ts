@@ -1,44 +1,59 @@
-// Helpers for the team-management feature. All reads use the
-// caller-supplied client (RLS-respecting for user-facing pages,
-// service-role for admin + API routes).
+// Helpers for the team-management feature, rebuilt on top of the
+// brokerage/team schema introduced in migration 0021.
 //
-// MVP scope:
-//   - getCurrentUserMembership(): returns the org + role for the
-//     signed-in user, or null if they're not in a team
-//   - listOrgMembers(): full member list with profile details
-//   - listOrgPendingInvites(): pending invites for the org
-//   - newInviteToken(): generate a URL-safe random token
+// The schema now has three concepts that USED to all be called
+// "organization":
+//   - brokerages: top-level, custom-priced, site-admin-managed.
+//   - teams: up to 10 members on the Team tier OR a child of a brokerage.
+//   - team_members / brokerage_admins / brokerage_agents: membership rows.
 //
-// One-org-per-user is enforced at the schema level (unique index on
-// organization_members.user_id), so getCurrentUserMembership returns
-// at most one row.
+// This file is the team-facing surface. Brokerage-specific lookups
+// live in lib/brokerage/admin.ts. The two cooperate when a team is
+// part of a brokerage.
+//
+// One-team-per-user is enforced at the schema level (unique index on
+// team_members.user_id), so getCurrentUserMembership returns at most
+// one row.
 
 import { randomBytes } from "node:crypto";
 
-export type OrgRole = "owner" | "admin" | "agent";
+export type TeamRole = "owner" | "admin" | "agent";
+// Backwards-compatible alias. A few callers still import OrgRole.
+export type OrgRole = TeamRole;
 
-export type OrgMembership = {
-  organization: {
+export type TeamMembership = {
+  team: {
     id: string;
     name: string;
     slug: string | null;
     owner_user_id: string;
-    plan_tier: string | null;
+    brokerage_id: string | null;
+    logo_url: string | null;
+    brand_accent_hex: string | null;
     seat_limit: number;
     created_at: string;
   };
-  role: OrgRole;
+  role: TeamRole;
   joined_at: string;
 };
 
-export type OrgMemberWithProfile = {
+// Backwards-compatible alias for the old return shape that exposed
+// the team under the `organization` key.
+export type OrgMembership = {
+  organization: TeamMembership["team"] & { plan_tier: string | null };
+  role: TeamRole;
+  joined_at: string;
+};
+
+export type TeamMemberWithProfile = {
   user_id: string;
-  role: OrgRole;
+  role: TeamRole;
   joined_at: string;
   email: string;
   full_name: string | null;
   is_suspended: boolean | null;
 };
+export type OrgMemberWithProfile = TeamMemberWithProfile;
 
 export type PendingInvite = {
   id: string;
@@ -68,56 +83,51 @@ export function newInviteToken(): string {
 type DbClient = any;
 
 /**
- * Fetch the current user's org membership (org row + role).
- * Returns null when the user is not in any team.
+ * Fetch the current user's team membership (team row + role).
+ * Returns null when the user is not on any team. A user can be a
+ * direct brokerage agent without being on a team; this helper does
+ * NOT cover that case (see lib/brokerage/admin.ts).
  */
 export async function getCurrentUserMembership(
   client: DbClient,
   userId: string,
-): Promise<OrgMembership | null> {
-  // Pull the member row first; its organization_id gives us the org.
+): Promise<TeamMembership | null> {
   const memberRes = await client
-    .from("organization_members")
-    .select("organization_id, role, joined_at")
+    .from("team_members")
+    .select("team_id, role, joined_at")
     .eq("user_id", userId)
     .maybeSingle();
   const memberRow = memberRes.data as
-    | { organization_id: string; role: OrgRole; joined_at: string }
+    | { team_id: string; role: TeamRole; joined_at: string }
     | null;
   if (!memberRow) return null;
 
-  const orgRes = await client
-    .from("organizations")
+  const teamRes = await client
+    .from("teams")
     .select(
-      "id, name, slug, owner_user_id, plan_tier, seat_limit, created_at",
+      "id, name, slug, owner_user_id, brokerage_id, logo_url, brand_accent_hex, seat_limit, created_at",
     )
-    .eq("id", memberRow.organization_id)
+    .eq("id", memberRow.team_id)
     .maybeSingle();
-  const orgRow = orgRes.data as
-    | {
-        id: string;
-        name: string;
-        slug: string | null;
-        owner_user_id: string;
-        plan_tier: string | null;
-        seat_limit: number;
-        created_at: string;
-      }
-    | null;
-  if (!orgRow) return null;
+  const teamRow = teamRes.data as TeamMembership["team"] | null;
+  if (!teamRow) return null;
 
   return {
-    organization: orgRow,
+    team: teamRow,
     role: memberRow.role,
     joined_at: memberRow.joined_at,
   };
 }
 
 /**
- * Roles that have admin-level powers within an org. The current
- * spec is owner + admin; expand if we add more granular roles
- * later.
+ * Roles that have admin-level powers within a team. The current spec
+ * is owner + admin; expand if we add more granular roles later.
  */
-export function isOrgAdminRole(role: OrgRole | null): boolean {
+export function isTeamAdminRole(role: TeamRole | null): boolean {
   return role === "owner" || role === "admin";
 }
+
+// Old name kept around for the small number of callers that still
+// import it (no behavioral difference; team admins are the same set
+// of roles as the old "org admins" were).
+export const isOrgAdminRole = isTeamAdminRole;

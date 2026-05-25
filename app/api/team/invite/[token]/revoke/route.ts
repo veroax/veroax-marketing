@@ -1,6 +1,6 @@
 // POST /api/team/invite/[token]/revoke
 //
-// Revoke a pending invite. Caller must be an owner/admin of the org
+// Revoke a pending invite. Caller must be an owner/admin of the team
 // the invite belongs to. Marks the invite row 'revoked' so the
 // token can no longer be used to accept.
 
@@ -21,14 +21,14 @@ export async function POST(
   const admin = createServiceRoleClient();
 
   const { data: inviteRow } = await admin
-    .from("organization_invites")
-    .select("id, organization_id, status")
+    .from("team_invites")
+    .select("id, team_id, status")
     .eq("token", token)
     .maybeSingle();
   const invite = inviteRow as
     | {
         id: string;
-        organization_id: string;
+        team_id: string;
         status: "pending" | "accepted" | "expired" | "revoked";
       }
     | null;
@@ -39,12 +39,12 @@ export async function POST(
     );
   }
 
-  // Caller must be owner/admin of the same org.
+  // Caller must be owner/admin of the same team.
   const { data: memberRow } = await admin
-    .from("organization_members")
+    .from("team_members")
     .select("role")
     .eq("user_id", user.id)
-    .eq("organization_id", invite.organization_id)
+    .eq("team_id", invite.team_id)
     .maybeSingle();
   const role = (memberRow as { role?: string } | null)?.role;
   if (role !== "owner" && role !== "admin") {
@@ -62,7 +62,7 @@ export async function POST(
   }
 
   await admin
-    .from("organization_invites")
+    .from("team_invites")
     .update({ status: "revoked" })
     .eq("id", invite.id);
 
@@ -71,7 +71,7 @@ export async function POST(
       user_id: user.id,
       event_type: "team.invite_revoked",
       metadata: {
-        organization_id: invite.organization_id,
+        team_id: invite.team_id,
         invite_id: invite.id,
       },
     });

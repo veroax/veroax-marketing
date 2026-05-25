@@ -2,7 +2,7 @@
 //
 // Accept a pending team invite. Caller must be authenticated and
 // must NOT already be a member of another team. Marks the invite
-// row 'accepted' and creates the organization_members row in one
+// row 'accepted' and creates the team_members row in one logical
 // transaction.
 
 import { NextResponse } from "next/server";
@@ -29,14 +29,14 @@ export async function POST(
   const admin = createServiceRoleClient();
 
   const { data: inviteRow } = await admin
-    .from("organization_invites")
-    .select("id, organization_id, email, role, status, expires_at")
+    .from("team_invites")
+    .select("id, team_id, email, role, status, expires_at")
     .eq("token", token)
     .maybeSingle();
   const invite = inviteRow as
     | {
         id: string;
-        organization_id: string;
+        team_id: string;
         email: string;
         role: "admin" | "agent";
         status: "pending" | "accepted" | "expired" | "revoked";
@@ -57,7 +57,7 @@ export async function POST(
   }
   if (new Date(invite.expires_at).getTime() < Date.now()) {
     await admin
-      .from("organization_invites")
+      .from("team_invites")
       .update({ status: "expired" })
       .eq("id", invite.id);
     return NextResponse.json(
@@ -80,10 +80,10 @@ export async function POST(
     );
   }
 
-  // Reject if the user is already in any team (one-org-per-user MVP).
+  // Reject if the user is already in any team (one-team-per-user MVP).
   const { data: existing } = await admin
-    .from("organization_members")
-    .select("organization_id")
+    .from("team_members")
+    .select("team_id")
     .eq("user_id", user.id)
     .maybeSingle();
   if (existing) {
@@ -96,13 +96,11 @@ export async function POST(
     );
   }
 
-  const { error: memberErr } = await admin
-    .from("organization_members")
-    .insert({
-      organization_id: invite.organization_id,
-      user_id: user.id,
-      role: invite.role,
-    });
+  const { error: memberErr } = await admin.from("team_members").insert({
+    team_id: invite.team_id,
+    user_id: user.id,
+    role: invite.role,
+  });
   if (memberErr) {
     return NextResponse.json(
       { error: `Failed to join team: ${memberErr.message}` },
@@ -111,7 +109,7 @@ export async function POST(
   }
 
   await admin
-    .from("organization_invites")
+    .from("team_invites")
     .update({ status: "accepted", accepted_at: new Date().toISOString() })
     .eq("id", invite.id);
 
@@ -120,7 +118,7 @@ export async function POST(
       user_id: user.id,
       event_type: "team.invite_accepted",
       metadata: {
-        organization_id: invite.organization_id,
+        team_id: invite.team_id,
         role: invite.role,
         invite_id: invite.id,
       },
@@ -131,6 +129,6 @@ export async function POST(
 
   return NextResponse.json({
     ok: true,
-    organization_id: invite.organization_id,
+    team_id: invite.team_id,
   });
 }
