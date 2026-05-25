@@ -65,7 +65,7 @@ export default function PricingPage() {
               {tier.isCustom ? (
                 <div className="mt-5">
                   <span className="text-2xl font-bold text-slate-900">
-                    Custom pricing
+                    Contact for details
                   </span>
                   <p className="text-xs text-slate-500 mt-1">
                     Per-brokerage contract; site-admin onboarded.
@@ -107,7 +107,7 @@ export default function PricingPage() {
                     href="mailto:support@veroax.com?subject=Brokerage%20tier%20inquiry"
                     className="block w-full text-center bg-slate-900 text-white font-semibold py-3 rounded-lg hover:bg-slate-800"
                   >
-                    Contact us
+                    Contact for details
                   </a>
                 ) : (
                   <>
