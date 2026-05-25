@@ -68,6 +68,7 @@ export default async function DashboardLayout({
           <NavLink href="/dashboard" label="Reports" />
           <NavLink href="/dashboard/upload" label="New report" />
           <NavLink href="/dashboard/archive" label="Archive" />
+          <NavLink href="/dashboard/team" label="Team" />
           <NavLink href="/dashboard/billing" label="Billing" />
           <NavLink href="/dashboard/settings" label="Settings" />
           {/* Admin link — visible only when profiles.is_admin = true.
