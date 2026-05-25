@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import {
   ReportPDF,
-  type AgentBranding,
   type OriginalFile,
 } from "@/lib/pdf-render/ReportPDF";
+import {
+  resolveReportBranding,
+  type BrokerageBranding,
+  type TeamBranding,
+} from "@/lib/pdf-render/branding";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { ReportData } from "@/lib/anthropic/schema";
 import { looksLikeShareCode } from "@/lib/share/code";
@@ -31,7 +35,7 @@ export async function GET(_req: Request, context: { params: Params }) {
   const { data: report, error } = await admin
     .from("reports")
     .select(
-      "id, user_id, status, property_address, report_name, client_name, report_data, share_code, archived, original_files, created_at, watermarked",
+      "id, user_id, status, property_address, report_name, client_name, report_data, share_code, archived, original_files, created_at, watermarked, brokerage_id, team_id",
     )
     .eq("share_code", code)
     .maybeSingle();
@@ -58,22 +62,57 @@ export async function GET(_req: Request, context: { params: Params }) {
     .eq("id", report.user_id)
     .maybeSingle();
 
+  // Brokerage + team overrides, mirroring /api/reports/[id]/pdf.
+  const reportBrokerageId =
+    (report as { brokerage_id?: string | null }).brokerage_id ?? null;
+  const reportTeamId =
+    (report as { team_id?: string | null }).team_id ?? null;
+  let brokerageBranding: BrokerageBranding | null = null;
+  let teamBranding: TeamBranding | null = null;
+  if (reportBrokerageId) {
+    const { data: brokerageRow } = await admin
+      .from("brokerages")
+      .select("name, dre_license, logo_url, brand_accent_hex")
+      .eq("id", reportBrokerageId)
+      .maybeSingle();
+    brokerageBranding = brokerageRow as BrokerageBranding | null;
+  }
+  if (reportTeamId) {
+    const { data: teamRow } = await admin
+      .from("teams")
+      .select("name, logo_url, brand_accent_hex")
+      .eq("id", reportTeamId)
+      .maybeSingle();
+    teamBranding = teamRow as TeamBranding | null;
+  }
+
   const p = profile as Record<string, unknown> | null;
-  const agent: AgentBranding = {
-    fullName: (p?.full_name as string) ?? null,
-    brokerage: (p?.brokerage as string) ?? null,
-    dreLicense: (p?.dre_license as string) ?? null,
-    brokerageDre: (p?.brokerage_dre as string) ?? null,
-    phone: (p?.phone as string) ?? null,
-    email:
-      ((p?.display_email as string) || (p?.email as string)) ?? null,
-    brokerageLogoUrl: (p?.brokerage_logo_url as string) ?? null,
-    headshotUrl: (p?.headshot_url as string) ?? null,
-    brandAccentHex: (p?.brand_accent_hex as string) ?? null,
-    tagline: (p?.tagline as string) ?? null,
-    websiteUrl: (p?.website_url as string) ?? null,
-    officeAddress: (p?.office_address as string) ?? null,
-  };
+  const agent = resolveReportBranding({
+    profile: p
+      ? {
+          full_name: (p.full_name as string | null) ?? null,
+          brokerage: (p.brokerage as string | null) ?? null,
+          dre_license: (p.dre_license as string | null) ?? null,
+          brokerage_dre: (p.brokerage_dre as string | null) ?? null,
+          phone: (p.phone as string | null) ?? null,
+          display_email:
+            ((p.display_email as string | null) ??
+              (p.email as string | null)) ??
+            null,
+          brokerage_logo_url:
+            (p.brokerage_logo_url as string | null) ?? null,
+          headshot_url: (p.headshot_url as string | null) ?? null,
+          brand_accent_hex:
+            (p.brand_accent_hex as string | null) ?? null,
+          tagline: (p.tagline as string | null) ?? null,
+          website_url: (p.website_url as string | null) ?? null,
+          office_address: (p.office_address as string | null) ?? null,
+        }
+      : null,
+    brokerage: brokerageBranding,
+    team: teamBranding,
+    authEmail: null,
+  });
 
   // Same original_files coercion as /api/reports/[id]/pdf — keep the
   // shape consistent so the renderer doesn't have a code path for
