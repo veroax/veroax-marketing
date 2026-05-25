@@ -4,7 +4,7 @@
 // on signup/login pages, no client-side fetch needed.
 
 import { after } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { addContactToMarketingGroup } from "@/lib/integrations/salesandmarketing";
@@ -26,10 +26,26 @@ function safeNextPath(raw: string, fallback = "/dashboard"): string {
   return raw;
 }
 
+// Light phone-number normalizer: keep the leading "+" if present,
+// strip everything else that isn't a digit. Good enough for storing
+// "(555) 123-4567" as "5551234567" so the SAM API + future SMS sends
+// have a clean E.164-ish string. We do NOT enforce a country code
+// at signup; the agent can fix it later in /dashboard/settings.
+function normalizePhone(raw: string): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const leadingPlus = trimmed.startsWith("+") ? "+" : "";
+  const digits = trimmed.replace(/\D+/g, "");
+  if (!digits) return null;
+  return `${leadingPlus}${digits}`;
+}
+
 export async function signupAction(_prev: unknown, formData: FormData) {
   const email = trim(formData, "email").toLowerCase();
   const password = trim(formData, "password");
   const fullName = trim(formData, "full_name");
+  const phone = normalizePhone(trim(formData, "phone"));
   const next = safeNextPath(trim(formData, "next"));
 
   if (!email || !password || !fullName) {
@@ -62,6 +78,24 @@ export async function signupAction(_prev: unknown, formData: FormData) {
     return { error: error.message };
   }
 
+  // Persist the phone number on the profile so it's available to the
+  // branded PDF render and the dashboard settings page. The profile
+  // row was just created by the handle_new_user trigger; we update
+  // via service-role because at this point there's no session yet
+  // (Supabase email-confirmation mode means data.session is null).
+  // Best-effort: failure here doesn't fail the signup.
+  if (phone && data.user?.id) {
+    try {
+      const admin = createServiceRoleClient();
+      await admin
+        .from("profiles")
+        .update({ phone })
+        .eq("id", data.user.id);
+    } catch (err) {
+      console.error("[signup] profile.phone update failed:", err);
+    }
+  }
+
   // Push the new signup into the Sales and Marketing AI group so the
   // founder can run campaigns against the user list. Runs via after()
   // so the network call doesn't block the signup response. Failures
@@ -78,6 +112,7 @@ export async function signupAction(_prev: unknown, formData: FormData) {
         fullName,
         firstName: firstName || null,
         lastName,
+        phone, // optional; null when the agent didn't provide one
         customFields: {
           source: "veroax_signup",
           signup_date: new Date().toISOString().slice(0, 10),
