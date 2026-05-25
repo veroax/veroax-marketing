@@ -578,6 +578,18 @@ export default function Home() {
                   Help Videos
                 </a>
                 <a
+                  href="/contact"
+                  className="hover:text-white transition-colors"
+                >
+                  Contact
+                </a>
+                <a
+                  href="/investors"
+                  className="hover:text-white transition-colors"
+                >
+                  Investors
+                </a>
+                <a
                   href="/feedback"
                   className="hover:text-white transition-colors text-amber-300 font-semibold"
                 >

@@ -5,8 +5,15 @@
 // All the interactive state on the landing page lives here so the
 // rest of the page (hero, features, how-it-works, stats, footer) can
 // render as a server component and ship zero JS for those sections.
+//
+// The plan cards are derived from PLAN_TIERS (lib/billing/plans.ts)
+// via planTierToHomepagePlan() so the homepage and /pricing read
+// from one source. The adapter expands the homepage's richer shape
+// (monthly/annual price points with savings labels, per-report copy,
+// CTA wording, badge) on top of the lean PLAN_TIERS struct.
 
 import { useState, FormEvent } from "react";
+import { PLAN_TIERS, type PlanTier } from "@/lib/billing/plans";
 
 type PricePoint = {
   price: string;
@@ -15,6 +22,9 @@ type PricePoint = {
 };
 
 type Plan = {
+  // PlanId from PLAN_TIERS, drives checkout-link routing.
+  id: PlanTier["id"];
+  // Display label ("Solo", "Professional", "Team", "Brokerage").
   name: string;
   pricing: { monthly: PricePoint; annual: PricePoint };
   period: string;
@@ -24,95 +34,80 @@ type Plan = {
   cta: string;
   highlighted: boolean;
   badge: string | null;
+  // True when this is the custom-priced Brokerage tier (no checkout).
+  isCustom: boolean;
 };
 
-const plans: Plan[] = [
-  {
-    name: "Solo",
+// Render-friendly USD with thousands separators.
+const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
+
+// Compute the homepage's richer plan shape from a PLAN_TIERS row.
+// Pure function — easy to unit-test if we ever want to.
+function planTierToHomepagePlan(tier: PlanTier): Plan {
+  if (tier.isCustom) {
+    return {
+      id: tier.id,
+      name: tier.label,
+      pricing: {
+        monthly: { price: "Contact for details", billed: null, savings: null },
+        annual: { price: "Contact for details", billed: null, savings: null },
+      },
+      period: "",
+      perReport: "Custom per-brokerage contract",
+      description: tier.tagline,
+      features: tier.features,
+      cta: "Contact for details",
+      highlighted: Boolean(tier.highlight),
+      badge: null,
+      isCustom: true,
+    };
+  }
+
+  // Annual prepay savings vs. paying monthly for 12 months. Rounded
+  // to the nearest dollar and presented as a "Save $X" badge.
+  const monthlyTotal = tier.priceMonthlyUsd * 12;
+  const annualSavings = Math.max(0, monthlyTotal - tier.priceAnnualUsd);
+  const annualMonthlyEquivalent = Math.round(tier.priceAnnualUsd / 12);
+
+  // Per-report copy. The Professional tier traditionally shows the
+  // effective per-report cost when the included quota is fully used,
+  // which is the strongest pricing argument. For the others we just
+  // restate the included + overage to avoid making the math feel
+  // forced ("works out to $14.97 each" sounds promotional in a way
+  // that doesn't fit Solo or Team's positioning).
+  let perReport: string;
+  if (tier.id === "pro") {
+    const effective = (
+      tier.priceMonthlyUsd / tier.reportsIncluded
+    ).toFixed(2);
+    perReport = `${tier.reportsIncluded} reports included, works out to $${effective} each`;
+  } else {
+    perReport = `${tier.reportsIncluded} report${tier.reportsIncluded === 1 ? "" : "s"} included, $${tier.overageUsd} per additional`;
+  }
+
+  return {
+    id: tier.id,
+    name: tier.label,
     pricing: {
-      monthly: { price: "$49", billed: null, savings: null },
-      annual: { price: "$40", billed: "$480 billed annually", savings: "Save $108" },
+      monthly: { price: usd(tier.priceMonthlyUsd), billed: null, savings: null },
+      annual: {
+        price: usd(annualMonthlyEquivalent),
+        billed: `${usd(tier.priceAnnualUsd)} billed annually`,
+        savings: annualSavings > 0 ? `Save ${usd(annualSavings)}` : null,
+      },
     },
     period: "/month",
-    perReport: "1 report included, $59 per additional",
-    description: "For new agents and low-volume solos building a transaction at a time.",
-    features: [
-      "1 disclosure report included monthly",
-      "$59 per additional report",
-      "California disclosures (TDS, SPQ, AVID, NHD, HOA)",
-      "Standard 24-hour turnaround",
-      "Email support",
-      "Month-to-month, cancel anytime",
-    ],
-    cta: "Start with Solo",
-    highlighted: false,
-    badge: null,
-  },
-  {
-    name: "Professional",
-    pricing: {
-      monthly: { price: "$149", billed: null, savings: null },
-      annual: { price: "$124", billed: "$1,488 billed annually", savings: "Save $300" },
-    },
-    period: "/month",
-    perReport: "8 reports included, works out to $18.60 each",
-    description: "For active agents and small teams running multiple deals a month.",
-    features: [
-      "8 disclosure reports included monthly",
-      "$35 per additional report",
-      "All supported states as they launch (CA, TX, FL, WA)",
-      "Priority 12-hour turnaround",
-      "Branded PDF with your logo, photo, and contact details",
-      "Buyer-ready summary email template included",
-      "Phone and email support",
-    ],
-    cta: "Choose Professional",
-    highlighted: true,
-    badge: "Most Popular",
-  },
-  {
-    name: "Team",
-    pricing: {
-      monthly: { price: "$449", billed: null, savings: null },
-      annual: { price: "$374", billed: "$4,490 billed annually", savings: "Save $898" },
-    },
-    period: "/month",
-    perReport: "30 reports included, $25 per additional",
-    description: "Pool a shared monthly quota across up to 10 agents on one team.",
-    features: [
-      "30 disclosure reports / month, pooled team-wide",
-      "$25 per additional report",
-      "Up to 10 agent seats",
-      "Team dashboard with shared report visibility",
-      "Team owner + admin roles, agent invites",
-      "All Professional features",
-    ],
-    cta: "Choose Team",
-    highlighted: false,
-    badge: null,
-  },
-  {
-    name: "Brokerage",
-    pricing: {
-      monthly: { price: "Contact for details", billed: null, savings: null },
-      annual: { price: "Contact for details", billed: null, savings: null },
-    },
-    period: "",
-    perReport: "Custom per-brokerage contract",
-    description: "For brokerages with unlimited teams and agents under one custom agreement.",
-    features: [
-      "Unlimited teams and direct agents",
-      "Per-brokerage allocation (custom seats + reports)",
-      "Brokerage logo + DRE on every PDF cover",
-      "Site-admin onboarding, dedicated CSM",
-      "Custom contract; per-report overage negotiated",
-      "Single point of billing for the whole office",
-    ],
-    cta: "Contact for details",
-    highlighted: false,
-    badge: null,
-  },
-];
+    perReport,
+    description: tier.tagline,
+    features: tier.features,
+    cta: `Choose ${tier.label}`,
+    highlighted: Boolean(tier.highlight),
+    badge: tier.highlight ? "Most Popular" : null,
+    isCustom: false,
+  };
+}
+
+const plans: Plan[] = PLAN_TIERS.map(planTierToHomepagePlan);
 
 export default function PricingAndContact() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
@@ -349,15 +344,14 @@ export default function PricingAndContact() {
                     </li>
                   ))}
                 </ul>
-                {plan.name === "Solo" || plan.name === "Professional" || plan.name === "Team" ? (
+                {plan.isCustom ? (
+                  // Brokerage tier: route to the standalone /contact
+                  // page (richer than the inline general-info form
+                  // and prominently features phone + hours). The
+                  // ?topic=brokerage param drives the page's
+                  // prefilled subject + body.
                   <a
-                    href={`/api/checkout?plan=${
-                      plan.name === "Solo"
-                        ? "solo"
-                        : plan.name === "Team"
-                          ? "team"
-                          : "pro"
-                    }&billing=${billingPeriod}`}
+                    href="/contact?topic=brokerage"
                     className={`block text-center font-semibold px-6 py-3 rounded-lg transition-colors ${
                       plan.highlighted
                         ? "bg-amber-400 text-indigo-950 hover:bg-amber-300 shadow-lg shadow-amber-400/20"
@@ -368,8 +362,7 @@ export default function PricingAndContact() {
                   </a>
                 ) : (
                   <a
-                    href="#contact"
-                    onClick={() => handlePlanSelect(plan.name, billingPeriod)}
+                    href={`/api/checkout?plan=${plan.id}&billing=${billingPeriod}`}
                     className={`block text-center font-semibold px-6 py-3 rounded-lg transition-colors ${
                       plan.highlighted
                         ? "bg-amber-400 text-indigo-950 hover:bg-amber-300 shadow-lg shadow-amber-400/20"
@@ -383,13 +376,15 @@ export default function PricingAndContact() {
             ))}
           </div>
 
-          {/* High-volume upsell */}
+          {/* High-volume upsell. Routes to the dedicated /contact
+              page so brokerage inquiries land on the polished
+              phone-and-hours surface instead of the inline general
+              info form. */}
           <div className="mt-10 max-w-2xl mx-auto rounded-xl border border-amber-200 bg-amber-50/70 p-5 text-center">
             <p className="text-sm text-amber-900 leading-relaxed">
               <span className="font-semibold">Running an entire office?</span>{" "}
               <a
-                href="#contact"
-                onClick={() => handlePlanSelect("Brokerage", billingPeriod)}
+                href="/contact?topic=brokerage"
                 className="font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-800"
               >
                 Talk to us about a Brokerage plan

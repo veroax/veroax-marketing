@@ -109,7 +109,7 @@ export const PLAN_TIERS: PlanTier[] = [
   },
   {
     id: "pro",
-    label: "Pro",
+    label: "Professional",
     tagline: "For busy solo agents.",
     reportsIncluded: 8,
     overageUsd: 35,
@@ -141,7 +141,7 @@ export const PLAN_TIERS: PlanTier[] = [
       "Up to 10 agent seats",
       "Team dashboard with shared report visibility",
       "Team owner + admin roles, agent invites",
-      "All Pro features",
+      "All Professional features",
     ],
   },
   {
