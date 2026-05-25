@@ -10,12 +10,18 @@ export const metadata = {
 export default function PricingPage() {
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header strip — minimal, no nav to match the marketing site
-          pattern. Logo links to home. */}
+      {/* Header strip. Minimal, no nav, to match the marketing-site
+          pattern. Uses the light-variant lockup (dark text on light
+          bg) since the strip itself is white. */}
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="font-bold text-xl text-slate-900">
-            Veroax
+          <Link href="/" aria-label="Veroax">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/final/veroax-lockup-light.svg"
+              alt="Veroax"
+              style={{ height: 32 }}
+            />
           </Link>
           <Link
             href="/login"
