@@ -3,11 +3,16 @@ import { Resend } from "resend";
 import { renderToBuffer } from "@react-pdf/renderer";
 import {
   ReportPDF,
-  type AgentBranding,
   type OriginalFile,
 } from "@/lib/pdf-render/ReportPDF";
+import {
+  resolveReportBranding,
+  type BrokerageBranding,
+  type TeamBranding,
+} from "@/lib/pdf-render/branding";
 import type { ReportData } from "@/lib/anthropic/schema";
 import { requireUser } from "@/lib/auth/require";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
 // POST /api/reports/[id]/email/send
 //
@@ -81,7 +86,7 @@ export async function POST(
   // explicit select gives us a clean 404 path.
   const { data: report, error: reportErr } = await supabase
     .from("reports")
-    .select("id, status, report_data, property_address, report_name, client_name, original_files, watermarked, credit_source")
+    .select("id, status, report_data, property_address, report_name, client_name, original_files, watermarked, credit_source, brokerage_id, team_id")
     .eq("id", reportId)
     .maybeSingle();
   if (reportErr || !report) {
@@ -130,13 +135,20 @@ export async function POST(
   }
 
   // Re-render the PDF for the attachment. Same logic as
-  // /api/reports/[id]/pdf — we don't want to fetch from ourselves
+  // /api/reports/[id]/pdf, we don't want to fetch from ourselves
   // (cookie/auth handoff would be fragile).
   const { data: profile } = await supabase
     .from("profiles")
     .select("full_name, brokerage, dre_license, brokerage_dre, phone, display_email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, office_address")
     .eq("id", user.id)
     .maybeSingle();
+
+  // Pick up the report's brokerage/team attribution to override
+  // agent-level branding on the PDF cover. Mirrors the PDF route.
+  const reportBrokerageId =
+    (report as { brokerage_id?: string | null }).brokerage_id ?? null;
+  const reportTeamId =
+    (report as { team_id?: string | null }).team_id ?? null;
 
   // Same hard requirement as /pdf — name/DRE/brokerage must appear
   // on the cover, so we won't send a report missing any of them.
@@ -153,34 +165,37 @@ export async function POST(
     );
   }
 
-  const displayEmail = (
-    profile as { display_email?: string | null } | null
-  )?.display_email?.trim();
+  // Fetch the brokerage + team rows for branding override. Service-role
+  // because RLS on these tables is own-row-only for the user-facing
+  // path; the agent owns the report, so the elevated lookup is safe.
+  let brokerageBranding: BrokerageBranding | null = null;
+  let teamBranding: TeamBranding | null = null;
+  if (reportBrokerageId || reportTeamId) {
+    const adminClient = createServiceRoleClient();
+    if (reportBrokerageId) {
+      const { data: brokerageRow } = await adminClient
+        .from("brokerages")
+        .select("name, dre_license, logo_url, brand_accent_hex")
+        .eq("id", reportBrokerageId)
+        .maybeSingle();
+      brokerageBranding = brokerageRow as BrokerageBranding | null;
+    }
+    if (reportTeamId) {
+      const { data: teamRow } = await adminClient
+        .from("teams")
+        .select("name, logo_url, brand_accent_hex")
+        .eq("id", reportTeamId)
+        .maybeSingle();
+      teamBranding = teamRow as TeamBranding | null;
+    }
+  }
 
-  const pBrand = profile as {
-    brokerage_dre?: string | null;
-    brokerage_logo_url?: string | null;
-    headshot_url?: string | null;
-    brand_accent_hex?: string | null;
-    tagline?: string | null;
-    website_url?: string | null;
-    office_address?: string | null;
-  } | null;
-
-  const agent: AgentBranding = {
-    fullName: profile?.full_name ?? null,
-    brokerage: profile?.brokerage ?? null,
-    dreLicense: profile?.dre_license ?? null,
-    brokerageDre: pBrand?.brokerage_dre ?? null,
-    phone: profile?.phone ?? null,
-    email: displayEmail || user.email || null,
-    brokerageLogoUrl: pBrand?.brokerage_logo_url ?? null,
-    headshotUrl: pBrand?.headshot_url ?? null,
-    brandAccentHex: pBrand?.brand_accent_hex ?? null,
-    tagline: pBrand?.tagline ?? null,
-    websiteUrl: pBrand?.website_url ?? null,
-    officeAddress: pBrand?.office_address ?? null,
-  };
+  const agent = resolveReportBranding({
+    profile: profile as Parameters<typeof resolveReportBranding>[0]["profile"],
+    brokerage: brokerageBranding,
+    team: teamBranding,
+    authEmail: user.email ?? null,
+  });
 
   const reportData = report.report_data as ReportData;
   const propertyAddress =
@@ -268,7 +283,7 @@ export async function POST(
       to: recipient,
       // Prefer the agent's display email so client replies route to
       // their client-facing address rather than the signup mailbox.
-      replyTo: displayEmail || user.email || undefined,
+      replyTo: agent.email || user.email || undefined,
       subject,
       text: bodyPlain || stripHtml(bodyHtml),
       html: bodyHtml || `<pre>${escapeHtml(bodyPlain)}</pre>`,

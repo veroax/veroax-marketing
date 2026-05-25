@@ -1,10 +1,14 @@
 import { renderToBuffer } from "@react-pdf/renderer";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import {
   ReportPDF,
-  type AgentBranding,
   type OriginalFile,
 } from "@/lib/pdf-render/ReportPDF";
+import {
+  resolveReportBranding,
+  type BrokerageBranding,
+  type TeamBranding,
+} from "@/lib/pdf-render/branding";
 import type { ReportData } from "@/lib/anthropic/schema";
 
 // Streams a downloadable PDF for a finished report. Auth-gated by the
@@ -42,7 +46,7 @@ export async function GET(
 
     const { data: report, error } = await supabase
       .from("reports")
-      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at, watermarked, credit_source")
+      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at, watermarked, credit_source, brokerage_id, team_id")
       .eq("id", reportId)
       .maybeSingle();
     if (error || !report) {
@@ -76,39 +80,44 @@ export async function GET(
       );
     }
 
-    const displayEmail = (
-      profile as { display_email?: string | null } | null
-    )?.display_email?.trim();
+    // Resolve brokerage + team branding overrides from the report's
+    // attribution columns (added in migration 0021). The override
+    // hierarchy lives in lib/pdf-render/branding.ts: team logo/accent
+    // wins, then brokerage logo/accent, then the agent's profile.
+    // Solo + Pro reports have null brokerage_id + team_id; the
+    // resolver falls through cleanly to the agent's profile.
+    const reportBrokerageId =
+      (report as { brokerage_id?: string | null }).brokerage_id ?? null;
+    const reportTeamId =
+      (report as { team_id?: string | null }).team_id ?? null;
+    let brokerageBranding: BrokerageBranding | null = null;
+    let teamBranding: TeamBranding | null = null;
+    if (reportBrokerageId || reportTeamId) {
+      const adminClient = createServiceRoleClient();
+      if (reportBrokerageId) {
+        const { data: brokerageRow } = await adminClient
+          .from("brokerages")
+          .select("name, dre_license, logo_url, brand_accent_hex")
+          .eq("id", reportBrokerageId)
+          .maybeSingle();
+        brokerageBranding = brokerageRow as BrokerageBranding | null;
+      }
+      if (reportTeamId) {
+        const { data: teamRow } = await adminClient
+          .from("teams")
+          .select("name, logo_url, brand_accent_hex")
+          .eq("id", reportTeamId)
+          .maybeSingle();
+        teamBranding = teamRow as TeamBranding | null;
+      }
+    }
 
-    // Pull the branding columns through a typed cast — Supabase's
-    // generated types don't include them until the codegen runs after
-    // migrations 0007 + 0008 are applied to the user's DB.
-    const pBrand = profile as {
-      brokerage_dre?: string | null;
-      brokerage_logo_url?: string | null;
-      headshot_url?: string | null;
-      brand_accent_hex?: string | null;
-      tagline?: string | null;
-      website_url?: string | null;
-      office_address?: string | null;
-    } | null;
-
-    const agent: AgentBranding = {
-      fullName: profile?.full_name ?? null,
-      brokerage: profile?.brokerage ?? null,
-      dreLicense: profile?.dre_license ?? null,
-      brokerageDre: pBrand?.brokerage_dre ?? null,
-      phone: profile?.phone ?? null,
-      // Prefer the display email when the agent has chosen one for
-      // client-facing materials; fall back to the auth email otherwise.
-      email: displayEmail || user.email || null,
-      brokerageLogoUrl: pBrand?.brokerage_logo_url ?? null,
-      headshotUrl: pBrand?.headshot_url ?? null,
-      brandAccentHex: pBrand?.brand_accent_hex ?? null,
-      tagline: pBrand?.tagline ?? null,
-      websiteUrl: pBrand?.website_url ?? null,
-      officeAddress: pBrand?.office_address ?? null,
-    };
+    const agent = resolveReportBranding({
+      profile: profile as Parameters<typeof resolveReportBranding>[0]["profile"],
+      brokerage: brokerageBranding,
+      team: teamBranding,
+      authEmail: user.email ?? null,
+    });
 
     // If a version was requested, swap in the snapshotted data
     // (report_data + original_files) from versions[version_number].
