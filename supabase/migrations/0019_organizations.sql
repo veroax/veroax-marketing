@@ -125,17 +125,23 @@ create policy "org_update_owner"
   using (owner_user_id = auth.uid())
   with check (owner_user_id = auth.uid());
 
--- organization_members: a user can read members of any org they
--- belong to. Inserts / updates / deletes through service-role.
+-- organization_members.
+--
+-- WARNING: the original policy here was recursive (the USING clause
+-- subqueried the same table), which PostgreSQL returns empty for as
+-- a safety measure. Migration 0020 replaces it with a simple
+-- "you can see your own row" policy. If you're applying this file
+-- to a fresh database, run 0020 immediately after.
+--
+-- Cross-member visibility (listing OTHER members of the same org)
+-- happens via the service-role client in /dashboard/team after the
+-- page first verifies the caller belongs to the org via their own
+-- membership row.
 drop policy if exists "members_select_same_org" on public.organization_members;
-create policy "members_select_same_org"
+drop policy if exists "members_select_own" on public.organization_members;
+create policy "members_select_own"
   on public.organization_members for select
-  using (
-    organization_id in (
-      select organization_id from public.organization_members
-      where user_id = auth.uid()
-    )
-  );
+  using (user_id = auth.uid());
 
 -- organization_invites: only the inviting org's owner / admins can
 -- see them (so an agent can't enumerate the team's pending invites).
