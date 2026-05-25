@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useActionState, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signupAction } from "../actions";
+import { formatUsPhone } from "@/lib/format/phone";
 
 const initialState: { error?: string | null; message?: string } = {};
 
@@ -57,6 +58,10 @@ function SignupPageInner() {
   const [state, formAction, pending] = useActionState(signupAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
+  // Phone is controlled so we can auto-format as the user types (the
+  // signup phone field is optional but, when filled, lands in
+  // profiles.phone and on every branded PDF the agent generates).
+  const [phone, setPhone] = useState("");
   // `next` is set when the user got bounced here from /api/checkout
   // (or any other route that wants them to land somewhere specific
   // after email confirmation). Sanitized server-side to same-origin.
@@ -153,6 +158,8 @@ function SignupPageInner() {
                   inputMode="tel"
                   autoComplete="tel"
                   placeholder="(555) 123-4567"
+                  value={phone}
+                  onChange={(e) => setPhone(formatUsPhone(e.target.value))}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
                 <p className="text-[11px] text-gray-500 mt-1">

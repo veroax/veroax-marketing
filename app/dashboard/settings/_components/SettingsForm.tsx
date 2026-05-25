@@ -38,20 +38,11 @@ type Props = {
 // gold so the preview never looks broken.
 const DEFAULT_ACCENT = "#C9A84C";
 
-// Format a US phone number as the agent types: "4155550100" →
-// "(415) 555-0100". Accepts any input shape (strips non-digits) so
-// pasted "415-555-0100" or "+1 415 555 0100" normalize cleanly.
-// Caps at 10 digits — extension numbers can be appended manually
-// in a free-form field, but the formatted display stops at NPA-NXX-XXXX.
-function formatPhone(input: string): string {
-  const digits = input.replace(/\D/g, "").slice(0, 10);
-  if (digits.length === 0) return "";
-  if (digits.length <= 3) return `(${digits}`;
-  if (digits.length <= 6) {
-    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-  }
-  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
-}
+// Phone-formatting helper used to live here. Extracted to
+// lib/format/phone.ts so the signup form and any other phone input
+// can reuse the same logic. Kept as a local alias so the existing
+// call sites below don't need to change.
+import { formatUsPhone as formatPhone } from "@/lib/format/phone";
 
 export function SettingsForm({ email, userId, initial }: Props) {
   const [state, formAction, pending] = useActionState<
