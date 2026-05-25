@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserBrokerageContext } from "@/lib/brokerage/admin";
 import { logoutAction } from "../(auth)/actions";
 
 // Cascades to every page under /dashboard. Authenticated app
@@ -44,6 +45,15 @@ export default async function DashboardLayout({
     (profile as { is_admin?: boolean } | null)?.is_admin,
   );
 
+  // The Brokerage nav link appears only for users with a brokerage
+  // relationship (admin role, direct agent, or via a team under the
+  // brokerage). Solo agents and team-only users do not see it.
+  const brokerageContext = await getCurrentUserBrokerageContext(
+    supabase,
+    user.id,
+  );
+  const showBrokerageLink = brokerageContext !== null;
+
   const displayName =
     profile?.full_name?.trim() || user.email?.split("@")[0] || "Agent";
 
@@ -69,6 +79,9 @@ export default async function DashboardLayout({
           <NavLink href="/dashboard/upload" label="New report" />
           <NavLink href="/dashboard/archive" label="Archive" />
           <NavLink href="/dashboard/team" label="Team" />
+          {showBrokerageLink ? (
+            <NavLink href="/dashboard/brokerage" label="Brokerage" />
+          ) : null}
           <NavLink href="/dashboard/billing" label="Billing" />
           <NavLink href="/dashboard/settings" label="Settings" />
           {/* Admin link — visible only when profiles.is_admin = true.
