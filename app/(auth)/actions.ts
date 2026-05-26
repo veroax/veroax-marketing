@@ -4,10 +4,13 @@
 // on signup/login pages, no client-side fetch needed.
 
 import { after } from "next/server";
+import { headers } from "next/headers";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { addContactToMarketingGroup } from "@/lib/integrations/salesandmarketing";
+import { sendWelcomeEmail } from "@/lib/email/welcomeEmail";
+import { sendAdminSignupNotification } from "@/lib/email/adminSignupNotification";
 
 function trim(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -64,6 +67,17 @@ export async function signupAction(_prev: unknown, formData: FormData) {
     next,
   )}`;
 
+  // Capture request metadata for the admin notification email so the
+  // founder can spot spam patterns (same IP signing up repeatedly,
+  // weird user-agents, etc.). Pulled before the Supabase call so the
+  // notification works even when signup fails.
+  const reqHeaders = await headers();
+  const ipAddress =
+    reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    reqHeaders.get("x-real-ip") ??
+    null;
+  const userAgent = reqHeaders.get("user-agent") ?? null;
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -75,6 +89,24 @@ export async function signupAction(_prev: unknown, formData: FormData) {
   });
 
   if (error) {
+    // Notify admin of failed signup attempt (duplicate email, weak
+    // password rejected server-side, etc.). after() so the
+    // notification doesn't slow down the response to the user.
+    after(async () => {
+      try {
+        await sendAdminSignupNotification({
+          status: "error",
+          email,
+          fullName,
+          phone,
+          errorMessage: error.message,
+          ipAddress,
+          userAgent,
+        });
+      } catch (err) {
+        console.error("[signup] admin failure notify threw:", err);
+      }
+    });
     return { error: error.message };
   }
 
@@ -95,6 +127,35 @@ export async function signupAction(_prev: unknown, formData: FormData) {
       console.error("[signup] profile.phone update failed:", err);
     }
   }
+
+  // Welcome email + admin notification, both via after() so the user's
+  // signup response is not blocked on email delivery. Failures are
+  // logged but never bubble up; signup completes either way.
+  after(async () => {
+    try {
+      const result = await sendWelcomeEmail({ email, fullName });
+      if (!result.ok) {
+        console.error("[signup] welcome email failed:", result.error);
+      }
+    } catch (err) {
+      console.error("[signup] welcome email threw:", err);
+    }
+  });
+
+  after(async () => {
+    try {
+      await sendAdminSignupNotification({
+        status: "ok",
+        email,
+        fullName,
+        phone,
+        ipAddress,
+        userAgent,
+      });
+    } catch (err) {
+      console.error("[signup] admin notify threw:", err);
+    }
+  });
 
   // Push the new signup into the Sales and Marketing AI group so the
   // founder can run campaigns against the user list. Runs via after()
