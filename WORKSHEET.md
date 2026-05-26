@@ -31,9 +31,9 @@ All four should come back `true` / `1`.
 The seven-step loop, in two browser windows (one for the owner, one
 incognito for the agent):
 
-- [ ] **Owner**: sign up at `/signup` with `michael+brokerage@michaelfielden.com`, verify email, land on dashboard
+- [ ] **Owner**: sign up at `/signup` with `michael+brokerage@veroax.com`, verify email, land on dashboard
 - [ ] **Owner**: navigate to `/dashboard/team` → see the empty state with the suggested team name → enter "Test Brokerage" → submit. Page reloads showing you as the owner.
-- [ ] **Owner**: in the Invite a new member form, enter `michael+agent1@michaelfielden.com`, role Agent, send. Pending invite row appears. Email lands in the agent's inbox.
+- [ ] **Owner**: in the Invite a new member form, enter `michael+agent1@veroax.com`, role Agent, send. Pending invite row appears. Email lands in the agent's inbox.
 - [ ] **Agent (incognito)**: open the invite email, click the link → land on `/invite/{token}` → see "Join Test Brokerage" → click "Create an account" → sign up with that exact email → confirm email → land on `/invite/{token}` again → click "Join Test Brokerage" → land on `/dashboard/team` showing you as an agent.
 - [ ] **Owner**: refresh `/dashboard/team`, agent appears in members list. Pending invite gone.
 - [ ] **Agent**: upload a test report (any PDF). Check that the new "Team reports" link is visible on `/dashboard/team` for the owner.
