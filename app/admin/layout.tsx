@@ -87,6 +87,7 @@ export default async function AdminLayout({
           <NavLink href="/admin/audit" label="Audit log" />
           <NavLink href="/admin/report-errors" label="Error inbox" />
           <NavLink href="/admin/health" label="System health" />
+          <NavLink href="/admin/integrations" label="Integrations" />
           <NavLink href="/admin/docs/billing-setup" label="Billing setup doc" />
         </nav>
         <div className="px-6 py-4 border-t border-white/5">
