@@ -12,6 +12,8 @@ import { GrantCreditsPanel } from "../../_components/GrantCreditsPanel";
 import { SuspendUserButton } from "../../_components/SuspendUserButton";
 import { DeleteUserButton } from "../../_components/DeleteUserButton";
 import { AdminPasswordActions } from "../../_components/AdminPasswordActions";
+import { DreRecheckButton } from "../../_components/DreRecheckButton";
+import { DreVerificationPill } from "@/app/_components/DreVerificationPill";
 import {
   computeProfitabilityForUsers,
   getActiveSubscription,
@@ -36,7 +38,7 @@ export default async function AdminUserDetail({
   const { data: profile } = await admin
     .from("profiles")
     .select(
-      "id, email, full_name, brokerage, dre_license, phone, is_admin, is_vip, vip_granted_at, vip_notes, trial_credits_remaining, report_credits_balance, created_at, is_suspended, suspended_at, suspended_reason",
+      "id, email, full_name, brokerage, dre_license, phone, is_admin, is_vip, vip_granted_at, vip_notes, trial_credits_remaining, report_credits_balance, created_at, is_suspended, suspended_at, suspended_reason, dre_verification_status, dre_verified_at, dre_verification_checked_at, dre_verification_method, dre_verification_response",
     )
     .eq("id", id)
     .maybeSingle();
@@ -59,6 +61,28 @@ export default async function AdminUserDetail({
     is_suspended: boolean | null;
     suspended_at: string | null;
     suspended_reason: string | null;
+    dre_verification_status:
+      | "verified"
+      | "mismatch"
+      | "inactive"
+      | "expired"
+      | "suspended"
+      | "revoked"
+      | "not_found"
+      | "error"
+      | "pending"
+      | null;
+    dre_verified_at: string | null;
+    dre_verification_checked_at: string | null;
+    dre_verification_method: string | null;
+    dre_verification_response: {
+      remote_status?: string | null;
+      remote_name?: string | null;
+      remote_license_type?: string | null;
+      remote_expiration?: string | null;
+      remote_responsible_broker?: string | null;
+      error_message?: string | null;
+    } | null;
   };
 
   // Their reports — most recent 30, plus aggregate counts by status.
@@ -258,6 +282,82 @@ export default async function AdminUserDetail({
           </div>
         </div>
       </div>
+
+      {/* DRE verification card. Always rendered when the user has a
+          license on file so the founder can see remote status + name
+          + expiration alongside any mismatch reason, plus a button to
+          re-run the check on demand. */}
+      {profile.dre_license ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <div>
+              <h2 className="text-xs font-bold tracking-widest text-slate-700 uppercase">
+                DRE verification
+              </h2>
+              <div className="mt-2">
+                <DreVerificationPill
+                  status={profileTyped.dre_verification_status}
+                  showDescription
+                />
+              </div>
+            </div>
+            <DreRecheckButton
+              userId={profile.id}
+              licenseId={profile.dre_license}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <KeyValue label="License #" value={profile.dre_license} />
+            <KeyValue
+              label="License type"
+              value={
+                profileTyped.dre_verification_response?.remote_license_type ??
+                null
+              }
+            />
+            <KeyValue
+              label="DRE name on file"
+              value={profileTyped.dre_verification_response?.remote_name ?? null}
+            />
+            <KeyValue
+              label="DRE status"
+              value={
+                profileTyped.dre_verification_response?.remote_status ?? null
+              }
+            />
+            <KeyValue
+              label="Expiration"
+              value={
+                profileTyped.dre_verification_response?.remote_expiration ?? null
+              }
+            />
+            <KeyValue
+              label="Responsible broker"
+              value={
+                profileTyped.dre_verification_response
+                  ?.remote_responsible_broker ?? null
+              }
+            />
+          </div>
+
+          {profileTyped.dre_verification_response?.error_message ? (
+            <p className="mt-4 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded px-3 py-2 leading-relaxed">
+              <strong>Check note:</strong>{" "}
+              {profileTyped.dre_verification_response.error_message}
+            </p>
+          ) : null}
+
+          <p className="mt-4 text-[11px] text-slate-500">
+            {profileTyped.dre_verification_checked_at
+              ? `Last checked ${new Date(profileTyped.dre_verification_checked_at).toLocaleString()}`
+              : "Never checked. Trigger a recheck or have the user save settings."}
+            {profileTyped.dre_verified_at
+              ? `, verified at ${new Date(profileTyped.dre_verified_at).toLocaleString()}.`
+              : "."}
+          </p>
+        </div>
+      ) : null}
 
       {/* Subscription + profitability summary. Sits above credits so
           the founder reads "who is this person paying us as" first,
@@ -536,4 +636,25 @@ function statusTone(status: string): string {
     default:
       return "bg-slate-200 text-slate-700";
   }
+}
+
+function KeyValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+        {label}
+      </p>
+      <p className="text-sm text-slate-900 font-medium mt-0.5 break-words">
+        {value && value.trim() ? value : (
+          <span className="text-slate-400 italic">not set</span>
+        )}
+      </p>
+    </div>
+  );
 }

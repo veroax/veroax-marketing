@@ -16,12 +16,16 @@ import {
   formatUsdCents,
   marginLabel,
 } from "@/lib/billing/profitability";
+import {
+  DreVerificationPill,
+  type DreStatusEnum,
+} from "@/app/_components/DreVerificationPill";
 
 export const metadata = {
   title: "Users, Admin",
 };
 
-type SearchParams = Promise<{ q?: string; sort?: string }>;
+type SearchParams = Promise<{ q?: string; sort?: string; dre?: string }>;
 
 type ProfileRow = {
   id: string;
@@ -32,6 +36,7 @@ type ProfileRow = {
   is_vip: boolean | null;
   is_suspended: boolean | null;
   created_at: string | null;
+  dre_verification_status: DreStatusEnum;
 };
 
 export default async function AdminUsersPage({
@@ -42,19 +47,24 @@ export default async function AdminUsersPage({
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const sort = sp.sort === "role" ? "role" : "recent";
+  // dre=unverified -> only show users whose DRE status is anything
+  // other than 'verified' (or null = never checked). dre=verified ->
+  // only show verified. Anything else = no filter.
+  const dreFilter =
+    sp.dre === "unverified" || sp.dre === "verified" ? sp.dre : null;
 
   const admin = createServiceRoleClient();
 
   // Per-user report counts via a single aggregation query. The
   // simplest path here is one query that pulls user_id + count of
-  // reports — but Supabase's PostgREST aggregate support is limited,
+  // reports, but Supabase's PostgREST aggregate support is limited,
   // so we fetch report rows light and bucket in code. Cap at 1000
   // users for now — the list view starts to need pagination beyond
   // that anyway.
   let profilesQuery = admin
     .from("profiles")
     .select(
-      "id, email, full_name, brokerage, is_admin, is_vip, is_suspended, created_at",
+      "id, email, full_name, brokerage, is_admin, is_vip, is_suspended, created_at, dre_verification_status",
       { count: "exact" },
     )
     .limit(1000);
@@ -63,6 +73,19 @@ export default async function AdminUsersPage({
     const pattern = `%${q.replace(/[%_]/g, "\\$&")}%`;
     profilesQuery = profilesQuery.or(
       `email.ilike.${pattern},full_name.ilike.${pattern}`,
+    );
+  }
+
+  if (dreFilter === "verified") {
+    profilesQuery = profilesQuery.eq("dre_verification_status", "verified");
+  } else if (dreFilter === "unverified") {
+    // Anything not verified: null (never checked) OR any non-verified
+    // status. The .or() supports this via dre_verification_status.is.null
+    // combined with .neq.verified, but PostgREST's filter grammar is
+    // easier here with a single 'neq verified' since nulls are
+    // included by neq (Postgres semantics).
+    profilesQuery = profilesQuery.or(
+      "dre_verification_status.is.null,dre_verification_status.neq.verified",
     );
   }
 
@@ -217,6 +240,33 @@ export default async function AdminUsersPage({
         </div>
       </form>
 
+      {/* DRE verification filter row. Three buckets: All, Verified,
+          Unverified-or-pending. Small toolbar so the founder can
+          drill into accounts that still need review. */}
+      <div className="flex items-center gap-3 text-xs">
+        <span className="font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
+          DRE filter
+        </span>
+        <Link
+          href={`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}${q && sort !== "recent" ? `&sort=${sort}` : sort !== "recent" && !q ? `?sort=${sort}` : ""}`}
+          className={`underline underline-offset-2 ${dreFilter === null ? "text-slate-900 font-semibold" : "text-slate-500"}`}
+        >
+          All
+        </Link>
+        <Link
+          href={`/admin/users?dre=verified${q ? `&q=${encodeURIComponent(q)}` : ""}${sort !== "recent" ? `&sort=${sort}` : ""}`}
+          className={`underline underline-offset-2 ${dreFilter === "verified" ? "text-emerald-700 font-semibold" : "text-slate-500"}`}
+        >
+          Verified only
+        </Link>
+        <Link
+          href={`/admin/users?dre=unverified${q ? `&q=${encodeURIComponent(q)}` : ""}${sort !== "recent" ? `&sort=${sort}` : ""}`}
+          className={`underline underline-offset-2 ${dreFilter === "unverified" ? "text-amber-700 font-semibold" : "text-slate-500"}`}
+        >
+          Needs review
+        </Link>
+      </div>
+
       {profilesErr ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
           <p className="font-semibold mb-1">
@@ -316,6 +366,11 @@ export default async function AdminUsersPage({
                             </span>
                           </div>
                         ) : null}
+                        <div className="mt-1.5">
+                          <DreVerificationPill
+                            status={p.dre_verification_status}
+                          />
+                        </div>
                       </Link>
                     </td>
                     <td className="px-6 py-3.5 text-sm">

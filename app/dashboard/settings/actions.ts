@@ -6,7 +6,13 @@
 // report immediately after — no analyze rerun needed.
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { after } from "next/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import {
+  verifyDreLicense,
+  persistDreResult,
+  shouldRecheckDre,
+} from "@/lib/server/dreVerify";
 
 function trim(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -164,6 +170,62 @@ export async function updateProfileAction(
   // "complete your profile" banner reads dre_license + brokerage) and
   // any report-detail page that renders agent info.
   revalidatePath("/dashboard", "layout");
+
+  // -------- DRE verification (best-effort, async) ----------------
+  // Fire-and-forget against the CA DRE public license lookup. Runs
+  // AFTER the response is sent so the save button stays snappy. We
+  // skip the lookup when the cached check is fresh (<24h old) AND
+  // neither the license number nor full name has changed since.
+  after(async () => {
+    try {
+      const admin = createServiceRoleClient();
+      const { data: existing } = await admin
+        .from("profiles")
+        .select(
+          "dre_verification_status, dre_verification_checked_at, dre_verification_response, full_name, dre_license",
+        )
+        .eq("id", user.id)
+        .maybeSingle();
+      const existingRow = existing as
+        | {
+            dre_verification_status: string | null;
+            dre_verification_checked_at: string | null;
+            dre_verification_response: {
+              license_id?: string | null;
+            } | null;
+            full_name: string | null;
+            dre_license: string | null;
+          }
+        | null;
+
+      const previousLicense =
+        existingRow?.dre_verification_response?.license_id ?? null;
+      const licenseChanged =
+        (previousLicense ?? "").replace(/\D/g, "") !==
+        dreLicense.replace(/\D/g, "");
+      const nameChanged = (existingRow?.full_name ?? "") !== fullName;
+      const stale = shouldRecheckDre(
+        existingRow?.dre_verification_status as
+          | Parameters<typeof shouldRecheckDre>[0]
+          | null,
+        existingRow?.dre_verification_checked_at ?? null,
+      );
+
+      if (!licenseChanged && !nameChanged && !stale) {
+        return; // cached result is fresh, skip the network call
+      }
+
+      const result = await verifyDreLicense({
+        licenseId: dreLicense,
+        agentFullName: fullName,
+      });
+      await persistDreResult(admin, user.id, result);
+    } catch (err) {
+      // Verification is best-effort; never let a DRE outage break
+      // settings save.
+      console.error("[settings] dre verification failed:", err);
+    }
+  });
 
   return { ok: true };
 }
