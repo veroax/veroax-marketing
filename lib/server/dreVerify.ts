@@ -54,6 +54,9 @@ export type DreLookupResult = {
   // Free-form error description when status === 'error'.
   error_message: string | null;
   checked_at: string;
+  // HTML excerpts around expected labels, populated only on parser
+  // failures so we can debug without re-running the check.
+  debug_snippets?: Record<string, string | null>;
 };
 
 const DRE_ENDPOINT = "https://www2.dre.ca.gov/PublicASP/pplinfo.asp?start=1";
@@ -85,23 +88,53 @@ function stripHtml(s: string): string {
     .trim();
 }
 
-// Pull a labeled value out of the DRE response. The DRE renders rows
-// as `<strong>Label:</strong> ... <td>...<font>VALUE<br></font></td>`.
-// We tolerate slight markup drift by matching loosely.
+// Pull a labeled value out of the DRE response.
+//
+// The DRE renders rows in this rough shape, with case + whitespace
+// variations:
+//
+//   <tr>
+//     <td><font ...><strong>Label:</strong><font><br/></td>
+//     <td><font ...>VALUE<br/><br/></font></td>
+//   </tr>
+//
+// Previous parser required a specific <font[^>]*> right before the
+// value, which broke on rows where the inner font tag was absent or
+// shaped differently. The new parser is simpler: find the labeled
+// <strong>, then capture the ENTIRE next <td>...</td> as the value
+// cell, then strip its HTML. Works regardless of whether the value
+// cell wraps its content in <font>, <span>, or nothing.
+//
+// Labels can be optionally wrapped in an <A href="...">...</A>
+// (License Status and Comment link to glossary pages on the DRE
+// site), so we tolerate the wrapper around the label text.
 function extractField(html: string, label: string): string | null {
-  // Match the label inside the strong, then capture everything until
-  // the next `<br/>` or `<br>` after the value.
   const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  // The DRE wraps the label in a hyperlink for some fields (License
-  // Status, Comment), so accept an optional <A ...> wrapper.
   const re = new RegExp(
-    `<strong>\\s*(?:<A[^>]*>)?\\s*${escapedLabel}\\s*:\\s*(?:</A>)?\\s*</strong>[\\s\\S]*?<td[^>]*>[\\s\\S]*?<font[^>]*>([\\s\\S]*?)<br`,
+    `<strong>\\s*(?:<a[^>]*>)?\\s*${escapedLabel}\\s*:\\s*(?:</a>)?\\s*</strong>` +
+      `[\\s\\S]*?</td>\\s*<td[^>]*>([\\s\\S]*?)</td>`,
     "i",
   );
   const m = html.match(re);
   if (!m) return null;
   const val = stripHtml(m[1]);
   return val.length > 0 ? val : null;
+}
+
+// Last-ditch: pull a small snippet of HTML around where the labeled
+// field should be, so the persisted error trail tells us exactly
+// what the parser saw on a failed run. Truncated to keep the
+// dre_verification_response JSON column small.
+function snippetAroundLabel(
+  html: string,
+  label: string,
+  windowChars = 600,
+): string | null {
+  const idx = html.toLowerCase().indexOf(label.toLowerCase());
+  if (idx < 0) return null;
+  const start = Math.max(0, idx - 100);
+  const end = Math.min(html.length, idx + windowChars);
+  return html.slice(start, end).replace(/\s+/g, " ").trim();
 }
 
 // Fuzzy name match between the DRE's "Last, First Middle" string and
@@ -280,16 +313,40 @@ export async function verifyDreLicense({
 
   // Parse the labeled fields. Any of these can legitimately be null
   // (the DRE shows different field sets for brokers vs. salespeople
-  // for example), so we keep them all optional.
-  const remoteStatus = extractField(html, "License Status");
-  const remoteName = extractField(html, "Name");
-  const remoteLicenseType = extractField(html, "License Type");
-  const remoteExpiration = extractField(html, "Expiration Date");
-  const remoteResponsibleBroker = extractField(html, "Responsible Broker");
+  // for example), so we keep them all optional. Try a couple of
+  // label aliases per field; the DRE has historically used both
+  // "Name" and "Licensee Name", both "License Status" and "Status",
+  // etc.
+  const tryLabels = (
+    labels: string[],
+  ): string | null => {
+    for (const label of labels) {
+      const v = extractField(html, label);
+      if (v) return v;
+    }
+    return null;
+  };
+
+  const remoteStatus = tryLabels(["License Status", "Status"]);
+  const remoteName = tryLabels(["Name", "Licensee Name"]);
+  const remoteLicenseType = tryLabels(["License Type"]);
+  const remoteExpiration = tryLabels(["Expiration Date"]);
+  const remoteResponsibleBroker = tryLabels([
+    "Responsible Broker",
+    "Employing Broker",
+  ]);
 
   if (!remoteStatus || !remoteName) {
     // Got the success marker but couldn't pull the canonical fields.
-    // Treat as error so we don't silently approve.
+    // Treat as error so we don't silently approve. Capture HTML
+    // snippets around where the parser expected the fields so we can
+    // diagnose without re-asking the user to reproduce.
+    const debugSnippets: Record<string, string | null> = {
+      around_license_status: snippetAroundLabel(html, "License Status"),
+      around_name: snippetAroundLabel(html, "Name"),
+      around_status: snippetAroundLabel(html, "Status"),
+      around_licensee_name: snippetAroundLabel(html, "Licensee Name"),
+    };
     return {
       status: "error",
       license_id: cleanId,
@@ -302,6 +359,7 @@ export async function verifyDreLicense({
       error_message:
         "DRE response missing required fields (License Status / Name). Site format may have changed.",
       checked_at: checkedAt,
+      debug_snippets: debugSnippets,
     };
   }
 
@@ -403,6 +461,12 @@ export async function persistDreResult(
         remote_responsible_broker: result.remote_responsible_broker,
         fetched_ok: result.fetched_ok,
         error_message: result.error_message,
+        // Populated only when the scraper hit an unexpected response
+        // shape; lets us debug parser drift without bothering the
+        // user to reproduce.
+        ...(result.debug_snippets
+          ? { debug_snippets: result.debug_snippets }
+          : {}),
       },
     };
     if (result.status === "verified") {
