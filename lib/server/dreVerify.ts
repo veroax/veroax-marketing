@@ -110,8 +110,20 @@ function stripHtml(s: string): string {
 // site), so we tolerate the wrapper around the label text.
 function extractField(html: string, label: string): string | null {
   const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Two real DRE shapes we have to handle, both inside a <strong>:
+  //
+  //   Plain:        <strong>Name:</strong>
+  //   Wrapped link: <strong><A HREF="...">License Status</A>:</strong>
+  //
+  // In the wrapped-link variant the closing </A> sits BEFORE the
+  // colon. Earlier versions of this regex placed (?:</a>)? AFTER the
+  // colon, which never matched the wrapped form and caused the
+  // 'Site format may have changed' false-positive in prod. The new
+  // pattern accepts the optional </a> either side of the colon, and
+  // makes the colon itself optional (defensive: some future label
+  // variant might drop it).
   const re = new RegExp(
-    `<strong>\\s*(?:<a[^>]*>)?\\s*${escapedLabel}\\s*:\\s*(?:</a>)?\\s*</strong>` +
+    `<strong>\\s*(?:<a[^>]*>)?\\s*${escapedLabel}\\s*(?:</a>)?\\s*:?\\s*(?:</a>)?\\s*</strong>` +
       `[\\s\\S]*?</td>\\s*<td[^>]*>([\\s\\S]*?)</td>`,
     "i",
   );
@@ -125,15 +137,25 @@ function extractField(html: string, label: string): string | null {
 // field should be, so the persisted error trail tells us exactly
 // what the parser saw on a failed run. Truncated to keep the
 // dre_verification_response JSON column small.
+//
+// Targets the actual <strong>...Label</strong> form, not a raw
+// substring search; a previous version searched bare 'name' and got
+// fooled by <meta name="..."> tags way earlier in the document.
 function snippetAroundLabel(
   html: string,
   label: string,
   windowChars = 600,
 ): string | null {
-  const idx = html.toLowerCase().indexOf(label.toLowerCase());
-  if (idx < 0) return null;
-  const start = Math.max(0, idx - 100);
-  const end = Math.min(html.length, idx + windowChars);
+  // Find the labeled <strong>, tolerant of the optional <A> wrap.
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const labelRe = new RegExp(
+    `<strong>[^<]*?(?:<a[^>]*>)?\\s*${escapedLabel}`,
+    "i",
+  );
+  const m = html.match(labelRe);
+  if (!m || m.index === undefined) return null;
+  const start = Math.max(0, m.index - 100);
+  const end = Math.min(html.length, m.index + windowChars);
   return html.slice(start, end).replace(/\s+/g, " ").trim();
 }
 
