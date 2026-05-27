@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
-  <!-- v3-01b Coral monochrome. Same lockup as v3-01 but the dot
-       is the same coral as the wordmark. Cleaner at small sizes and
-       does not split attention between two colors. -->
-  <text x="4" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="34" fill="#E85D75">veroax</text>
-  <circle cx="130" cy="29" r="4" fill="#E85D75"/>
-</svg>

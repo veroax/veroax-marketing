@@ -36,7 +36,6 @@ export default function robots(): MetadataRoute.Robots {
           "/forgot-password",
           "/login",
           "/signup",
-          "/brand/",
         ],
       },
       // Block AI training crawlers from scraping the marketing site

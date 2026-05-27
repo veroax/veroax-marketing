@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
-  <!-- v2-09 Diamond container. Rotated square (a diamond) holds a
-       solid filled V silhouette. The diamond shape is rare in
-       financial/SaaS branding, which gives the mark immediate
-       distinctiveness. Reads as precise, premium, and geometric. -->
-  <path d="M 23 2 L 44 23 L 23 44 L 2 23 Z" fill="#191970"/>
-  <path d="M 14 16 L 19 16 L 23 28 L 27 16 L 32 16 L 25 34 L 21 34 Z" fill="#D4B85C"/>
-  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="34" fill="#191970">Veroax</text>
-</svg>

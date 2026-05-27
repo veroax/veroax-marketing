@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 140" role="img" aria-label="Veroax">
-  <!-- 08 · Stacked. Mark centered on top, wordmark below. Better
-       for square or near-square contexts: business cards, social
-       posts, the PDF cover page header where horizontal real
-       estate is tight. -->
-  <rect x="70" y="0" width="60" height="60" rx="14" fill="#191970"/>
-  <path d="M 86 28 L 97 43 L 118 17" stroke="#C9A84C" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <text x="100" y="120" text-anchor="middle" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="38" fill="#191970">Veroax</text>
-</svg>

@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
-  <!-- v3-06 Sun over peak. A teal semi-circle (sun) rising behind a
-       coral triangular peak (mountain or roof). Optimistic, California
-       sunrise feel. Two complementary colors give the mark visual
-       energy without crowding it. -->
-  <circle cx="23" cy="32" r="14" fill="#3FB8AF"/>
-  <path d="M 6 42 L 23 12 L 40 42 Z" fill="#E85D75"/>
-  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="34" fill="#2D3748">Veroax</text>
-</svg>

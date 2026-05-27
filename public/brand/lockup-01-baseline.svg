@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 296 60" role="img" aria-label="Veroax">
-  <!-- 01 · Baseline. Navy rounded square, gold V-check, navy wordmark. -->
-  <rect x="0" y="0" width="60" height="60" rx="14" fill="#191970"/>
-  <path d="M 16 28 L 27 43 L 48 17" stroke="#C9A84C" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <text x="78" y="42" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="38" fill="#191970">Veroax</text>
-</svg>

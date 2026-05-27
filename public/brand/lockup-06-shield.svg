@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 296 60" role="img" aria-label="Veroax">
-  <!-- 06 · Shield mark. Heraldic shape suggests trust, protection,
-       and verification. Reads as traditional / institutional;
-       leans real-estate and compliance-friendly. The V/check sits
-       centered in the shield. -->
-  <path d="M 30 1 L 56 6 L 56 32 C 56 46, 44 56, 30 59 C 16 56, 4 46, 4 32 L 4 6 Z" fill="#191970"/>
-  <path d="M 16 28 L 27 41 L 46 17" stroke="#C9A84C" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <text x="78" y="42" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="38" fill="#191970">Veroax</text>
-</svg>

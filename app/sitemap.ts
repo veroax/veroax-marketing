@@ -13,7 +13,6 @@
 //                    not crawl)
 //   - /checkout/*   (post-payment transient pages)
 //   - /forgot-password, /(auth)/login, /(auth)/signup
-//   - /brand/*      (internal brand-explore pages, not for prospects)
 
 import type { MetadataRoute } from "next";
 import { listPosts } from "@/lib/blog/posts";

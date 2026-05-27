@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
-  <!-- v1 refined · A. Box scaled down so its height aligns optically
-       with the wordmark caps. Gold lifted slightly from #C9A84C to
-       #D4B85C — a subtle warm-up that's hard to spot in isolation
-       but reads more golden side-by-side. -->
-  <rect x="2" y="2" width="42" height="42" rx="10" fill="#191970"/>
-  <path d="M 13 21 L 21 31 L 34 13" stroke="#D4B85C" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="34" fill="#191970">Veroax</text>
-</svg>

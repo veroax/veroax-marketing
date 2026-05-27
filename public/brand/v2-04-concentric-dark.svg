@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 46" role="img" aria-label="Veroax">
-  <rect width="230" height="46" fill="#0F0E2E"/>
-  <rect x="2" y="2" width="42" height="42" rx="10" fill="none" stroke="#D4B85C" stroke-width="3"/>
-  <rect x="11" y="11" width="24" height="24" rx="5" fill="none" stroke="#D4B85C" stroke-width="3"/>
-  <rect x="18" y="18" width="10" height="10" rx="2" fill="#D4B85C"/>
-  <text x="56" y="33" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="34" fill="#FFFFFF">Veroax</text>
-</svg>

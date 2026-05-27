@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 60" role="img" aria-label="Veroax">
-  <!-- Two-tone wordmark tuned for dark backgrounds (the dashboard
-       sidebar, the marketing footer, the cover-page chrome).
-       "Vero" reads white for contrast; "ax" keeps the brand gold. -->
-  <text x="0" y="42" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="38" fill="#FFFFFF">Vero</text>
-  <text x="108" y="42" font-family="Geist, Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="38" fill="#C9A84C">ax</text>
-</svg>
