@@ -54,11 +54,15 @@ create trigger set_tasks_updated_at
   before update on public.tasks
   for each row execute function public.set_updated_at();
 
--- RLS: site-admin only, enforced at the route level via
--- service-role client + requireAdmin guard. We don't enable RLS so
--- the service-role client reads without policy gymnastics. The
--- table is not exposed to user-scoped queries.
-alter table public.tasks disable row level security;
+-- RLS ENABLED with no policies. Result:
+--   - anon key: blocked
+--   - authenticated key: blocked
+--   - service-role key (used by /admin/tasks routes): bypasses RLS,
+--     works as expected
+-- All admin reads + writes go through requireAdmin + service-role,
+-- so enabling RLS adds zero friction while giving us defense-in-depth
+-- against a leaked anon key or a future misconfiguration.
+alter table public.tasks enable row level security;
 
 -- Migration registration.
 insert into public._migrations(name) values ('0024_tasks')
