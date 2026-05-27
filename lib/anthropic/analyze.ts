@@ -292,6 +292,7 @@ export async function analyzeDisclosurePackage(
       const subResults = await Promise.all(
         subBatches.map(async (batch, i) => {
           await input.onPassStarted?.(group, i + 1, subBatches.length);
+          // First pass: extract findings.
           const r = await analyzeFocusedPass(
             batch,
             group,
@@ -301,19 +302,69 @@ export async function analyzeDisclosurePackage(
             input.listingText ?? null,
             liveMarketBlock,
           );
-          await input.onPassCompleted?.(group, i + 1, subBatches.length, r.usage);
-          return {
+          // Second pass: verify the first pass's output against the
+          // same documents. Returns a delta FocusedAnalysis with
+          // ONLY the findings the first pass missed (or an empty
+          // findings array if the first pass was complete). The
+          // synthesizer flat-maps findings across all passes, so the
+          // delta entries are picked up automatically. See
+          // FOCUSED_VERIFY_SUFFIX above for what the verifier is
+          // told to look for.
+          const v = await verifyFocusedAnalysis({
+            documents: batch,
             group,
-            sub_index: i + 1,
-            sub_total: subBatches.length,
-            document_count: batch.length,
-            analysis: r.analysis,
-            input_tokens: r.usage.input_tokens,
-            output_tokens: r.usage.output_tokens,
+            mode,
+            propertyAddressHint: input.propertyAddressHint,
+            updateContext: input.updateContext ?? null,
+            listingText: input.listingText ?? null,
+            liveMarketBlock,
+            originalAnalysis: r.analysis,
+          }).catch((err) => {
+            // Verifier failures are non-fatal. The first pass's
+            // output is what we'd have shipped without the verifier,
+            // so on failure we just keep going with that.
+            console.warn(
+              `[verify] ${group} sub-batch ${i + 1}/${subBatches.length} failed; using first-pass output as-is:`,
+              err instanceof Error ? err.message : err,
+            );
+            return {
+              analysis: { findings: [] } as unknown as FocusedAnalysis,
+              usage: { input_tokens: 0, output_tokens: 0 },
+            };
+          });
+          const combinedUsage = {
+            input_tokens: r.usage.input_tokens + v.usage.input_tokens,
+            output_tokens: r.usage.output_tokens + v.usage.output_tokens,
           };
+          await input.onPassCompleted?.(group, i + 1, subBatches.length, combinedUsage);
+          // Return both as TWO pass entries. The synthesizer doesn't
+          // distinguish first-pass from verifier-delta entries; it
+          // just flat-maps findings across all of them.
+          return [
+            {
+              group,
+              sub_index: i + 1,
+              sub_total: subBatches.length,
+              document_count: batch.length,
+              analysis: r.analysis,
+              input_tokens: r.usage.input_tokens,
+              output_tokens: r.usage.output_tokens,
+            },
+            {
+              group,
+              sub_index: i + 1,
+              sub_total: subBatches.length,
+              document_count: 0,
+              analysis: v.analysis,
+              input_tokens: v.usage.input_tokens,
+              output_tokens: v.usage.output_tokens,
+            },
+          ];
         }),
       );
-      return subResults;
+      // subBatches.map returned an array of [first, verify] tuples.
+      // Flatten so the consumer sees a flat list of pass entries.
+      return subResults.flat();
     });
 
   const all = (await Promise.all(groupPromises)).flat();
@@ -787,6 +838,239 @@ async function analyzeFocusedPass(
 }
 
 // ============================================================================
+// Verification pass: re-runs each focused group with the first-pass output
+// in context, asking Claude to find what was missed or got wrong.
+//
+// Why this exists: the 1544 San Antonio St report shipped without any of
+// these findings that ARE in the source documents:
+//   - 2024 Able WDO inspection Item 10A water staining on water heater
+//     closet ceiling (cowork flagged as Critical roof leak)
+//   - Asbestos disclosed in TDS Question 1 Item C (cowork flagged as
+//     Critical hazard)
+//   - Missing underlying 01/06/2026 Horizon WDO inspection report
+//     (cowork flagged as moderate diligence item)
+//   - County mismatch on signed TDS / SPQ (Santa Clara listed; property
+//     is San Mateo)
+//
+// The first focused pass over the seller-disclosures and inspections
+// groups failed to surface these. A single pass is a high-recall
+// challenge for a 60-to-100-page CA disclosure package; the verifier
+// pass is a second look that asks specifically about commonly-missed
+// item categories with the first pass's output as context.
+//
+// Cost: roughly doubles the per-report Claude bill (a second
+// focused-style call per sub-batch). The founder explicitly authorized
+// this for accuracy.
+//
+// Future optimization (separate TODO at /admin/tasks): a lighter
+// "structured verifier" that only re-checks the structured fields
+// (property_facts, finding counts) without re-attaching the full
+// document set. ~25% of the cost of the current full verifier.
+// ============================================================================
+
+// System-prompt suffix appended to the focused-group instructions
+// when running in verify mode. The user message includes the prior
+// FocusedAnalysis as JSON context so Claude knows what it's verifying.
+const FOCUSED_VERIFY_SUFFIX = `
+
+==========================================
+VERIFICATION PASS, READ THIS CAREFULLY
+==========================================
+
+This is the SECOND pass through these documents. A previous pass produced the JSON analysis shown in the user message under "PREVIOUS PASS OUTPUT". Your job NOW is NOT to re-list what the previous pass already caught. Your job is to find what it MISSED.
+
+Specifically scan for these commonly-missed item categories (each one is grounded in a real disclosure-package miss we've seen in production):
+
+1. WATER STAINING / LEAK INDICATORS in Wood-Destroying Organism (WDO) inspections. Inspectors often note "water stains on ceiling could indicate leakage through roof covering" or "water stains at bottom of kitchen cabinet" as Section II items. If the seller's TDS or SPQ does NOT cross-reference these and they have no documented remediation, surface them as Critical (active water intrusion) or High (unresolved diligence item) findings.
+
+2. ASBESTOS / LEAD-PAINT DISCLOSURES on the TDS and SPQ. Look at TDS Question 1 (substances/materials/products on the property) for asbestos, lead-based paint, formaldehyde, radon, MTBE, methamphetamine, or other hazardous materials disclosed by the seller. Look at the home inspector's narrative for HVAC/duct insulation notes mentioning "material that may contain asbestos fiber." These are pre-1981 building items often surfaced by the inspector even when the seller's check-box is "no."
+
+3. MISSING REFERENCED DOCUMENTS. Completion notices, inspection summaries, or HOA minutes sometimes reference an underlying document by date or title (e.g., "WDO inspection report dated 01/06/2026"). If the underlying document is NOT in the package's document inventory, surface this as a moderate diligence item, the buyer can't evaluate the recommendation without seeing what it was based on.
+
+4. CROSS-DOCUMENT INCONSISTENCIES. Compare the county / city / address / APN on the signed TDS, signed SPQ, NHD report, Preliminary Title, and MLS printout. Mismatches (especially the wrong county on a signed seller form) need correction before close. Surface as a moderate finding.
+
+5. INSURANCE / LENDER FLAGS the first pass undercounted: FPE panels, knob-and-tube, polybutylene plumbing, aluminum branch wiring, ungrounded outlets in living spaces. The first pass should have caught the obvious ones; check whether subtler signals (e.g., a panel photo description, a pipe material note buried in a plumbing section) were missed.
+
+6. HOA RESERVE ADEQUACY JUDGMENT. Most first passes pull the reserve cash balance correctly but fail to contextualize it against building age, recent / upcoming capital projects, and segregated-fund status. A small total cash balance ($30K-$50K) is NOT "healthy" for a 50+-year-old building that just absorbed a six-figure capital assessment. If the previous pass flagged reserves as healthy or did not flag them at all, AND the building age + recent capital history suggests undercapitalization, surface a moderate-to-high finding.
+
+7. ALWAYS-CRITICAL RULES MISSED. Re-check the standard CA always-critical list: FPE / Zinsco / Federal Pacific panels, knob-and-tube, aluminum branch wiring, polybutylene, galvanized supply, polybutylene drain, lead service line, sewer lateral non-compliance for ordinance cities (Berkeley, Albany, etc.), Section I termite findings active, unpermitted additions disclosed in seller forms.
+
+OUTPUT CONVENTION:
+- Submit a FocusedAnalysis via submit_focused_analysis as usual.
+- findings array should contain ONLY the items the previous pass missed. If the previous pass was complete, return an empty findings array, that is the correct answer when nothing's missing.
+- DO NOT re-list findings already present in the previous pass.
+- property_facts: only populate fields you found the previous pass got wrong; leave the rest blank.
+- For each new finding, set source to a clean citation (document name and page when known).
+- Keep severity calibrated: do not inflate moderate items to critical; do not deflate genuine critical items to "moderate" because you want the report to look clean.
+
+If you genuinely find nothing the previous pass missed, return findings = [] and property_facts = {}. An empty verifier pass means the original analysis was complete, which is a valid + valuable result.`;
+
+async function verifyFocusedAnalysis({
+  documents,
+  group,
+  mode,
+  propertyAddressHint,
+  updateContext,
+  listingText,
+  liveMarketBlock,
+  originalAnalysis,
+}: {
+  documents: Document[];
+  group: PassGroup;
+  mode: "pdf" | "text";
+  propertyAddressHint?: string | null;
+  updateContext?: UpdateContext | null;
+  listingText?: string | null;
+  liveMarketBlock?: string | null;
+  originalAnalysis: FocusedAnalysis;
+}): Promise<{
+  analysis: FocusedAnalysis;
+  usage: { input_tokens: number; output_tokens: number };
+}> {
+  const client = getAnthropicClient();
+  const content: Anthropic.Messages.ContentBlockParam[] = [];
+
+  // Authoritative listing block, same as the first pass for the
+  // seller_disclosures group. The verifier needs the same context the
+  // first pass had to evaluate what was missed.
+  if (group === "seller_disclosures" && listingText && listingText.trim()) {
+    content.push({
+      type: "text",
+      text:
+        `===== AUTHORITATIVE LISTING DATA (agent-provided MLS printout) =====\n` +
+        `${listingText.trim()}\n` +
+        `===== END AUTHORITATIVE LISTING DATA =====`,
+    });
+  }
+
+  // Re-attach the same documents the first pass saw. The verifier
+  // needs to see the source material directly to find what the first
+  // pass missed; an output-only verifier would only catch internal
+  // contradictions and miss the missing-findings class of bug, which
+  // is the bigger gap.
+  for (const doc of documents) {
+    const isNewer =
+      updateContext &&
+      doc.addedAt &&
+      doc.addedAt > updateContext.originalAnalysisDate;
+    const noticeLine = isNewer
+      ? ` (Added on ${doc.addedAt}, NEWER than the original analysis on ${updateContext!.originalAnalysisDate})`
+      : "";
+    if (mode === "pdf" && doc.pdfBase64) {
+      content.push({
+        type: "text",
+        text: `===== BEGIN DOCUMENT: ${doc.filename} (${doc.pages} pages)${noticeLine} =====`,
+      });
+      content.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: doc.pdfBase64,
+        },
+        title: doc.filename,
+      });
+      content.push({
+        type: "text",
+        text: `===== END DOCUMENT (${doc.filename}) =====`,
+      });
+    } else {
+      const body = doc.text
+        ? doc.text
+        : `[No text could be extracted from this PDF (likely a scan without OCR). Use other documents in this group when forming findings.]`;
+      content.push({
+        type: "text",
+        text:
+          `===== BEGIN DOCUMENT =====\n` +
+          `Filename: ${doc.filename}\n` +
+          `Pages: ${doc.pages}\n` +
+          (noticeLine ? `${noticeLine.trimStart()}\n` : "") +
+          `\n` +
+          `${body}\n\n` +
+          `===== END DOCUMENT (${doc.filename}) =====`,
+      });
+    }
+  }
+
+  // PREVIOUS PASS OUTPUT, the context that turns this into a verifier
+  // call. We pass the original findings + property_facts as JSON.
+  // The verifier prompt explicitly tells Claude to ONLY return what's
+  // missing.
+  content.push({
+    type: "text",
+    text:
+      `===== PREVIOUS PASS OUTPUT (do not re-list these) =====\n` +
+      JSON.stringify(
+        {
+          property_facts: originalAnalysis.property_facts ?? {},
+          findings: originalAnalysis.findings ?? [],
+          permit_compliance: originalAnalysis.permit_compliance ?? null,
+          environmental_hazards: originalAnalysis.environmental_hazards ?? null,
+          hoa_facts: originalAnalysis.hoa_facts ?? null,
+        },
+        null,
+        2,
+      ) +
+      `\n===== END PREVIOUS PASS OUTPUT =====\n\n` +
+      `This is a VERIFICATION pass. Find what the previous pass missed, NOT what it already caught. Return ONLY the deltas via the submit_focused_analysis tool.` +
+      (propertyAddressHint
+        ? `\n\nProperty address hint from the agent: ${propertyAddressHint}`
+        : ""),
+  });
+
+  // Regional cost reference (same as the first pass, so cost
+  // estimates on new findings land in the same ballpark).
+  const marketBlock =
+    liveMarketBlock && liveMarketBlock.trim()
+      ? liveMarketBlock.trim()
+      : formatMarketReferenceForPrompt(
+          selectMarketReference(propertyAddressHint ?? null),
+        );
+
+  const systemPrompt =
+    `${FOCUSED_SYSTEM_BASE}\n\n${FOCUSED_GROUP_INSTRUCTIONS[group]}\n\n${marketBlock}` +
+    FOCUSED_VERIFY_SUFFIX;
+
+  const response = await callWithRateLimitRetry(() =>
+    client.messages.create({
+      model: ANALYSIS_MODEL,
+      max_tokens: 8000,
+      temperature: 0,
+      system: systemPrompt,
+      tools: [FOCUSED_TOOL_SCHEMA],
+      tool_choice: { type: "tool", name: FOCUSED_TOOL_SCHEMA.name },
+      messages: [{ role: "user", content }],
+    }),
+  );
+
+  const toolUse = response.content.find(
+    (c): c is Anthropic.Messages.ToolUseBlock => c.type === "tool_use",
+  );
+  if (!toolUse) {
+    // Verifier failed to produce a tool_use. Return an empty delta
+    // rather than throwing, the first-pass result still stands.
+    console.warn(
+      `[verify] ${group}: verifier did not return tool_use; treating as empty delta. stop_reason=${response.stop_reason}`,
+    );
+    return {
+      analysis: { findings: [] } as unknown as FocusedAnalysis,
+      usage: {
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+      },
+    };
+  }
+
+  return {
+    analysis: toolUse.input as FocusedAnalysis,
+    usage: {
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+    },
+  };
+}
+
+// ============================================================================
 // Code-based synthesis, combines focused-pass outputs into ReportData.
 // Replaces the Claude-driven synthesis that was hanging in production.
 // ============================================================================
@@ -803,14 +1087,23 @@ function synthesizeReportInCode(
 ): ReportData {
   // Aggregate findings (treat permit_compliance findings separately so
   // they end up in the permit section, not double-counted).
-  const allFindings: Finding[] = [];
+  //
+  // Now that the verification pass runs after each focused pass and
+  // can also produce findings, the same underlying issue can land in
+  // both the first-pass and verifier-delta arrays. The verifier is
+  // told to return ONLY new findings, but in practice Claude
+  // occasionally re-states an item it spotted in the original output.
+  // Dedupe by a normalized title key, keeping the earlier-seen entry
+  // (the first pass's wording is typically more complete).
+  const rawAllFindings: Finding[] = [];
   const permitFindings: Finding[] = [];
   for (const f of focused) {
-    if (Array.isArray(f.findings)) allFindings.push(...f.findings);
+    if (Array.isArray(f.findings)) rawAllFindings.push(...f.findings);
     if (Array.isArray(f.permit_compliance?.findings)) {
       permitFindings.push(...(f.permit_compliance!.findings ?? []));
     }
   }
+  const allFindings = dedupeFindings(rawAllFindings);
 
   // If this is an update, tag every finding whose `source` cites a
   // filename added in this update. The PDF / dashboard can then
@@ -1431,6 +1724,70 @@ function dedupeStrings(arr: string[]): string[] {
     }
   }
   return result;
+}
+
+// Dedupe a flat findings array by normalized title key. Used to
+// collapse cases where the verifier pass re-listed an item the first
+// pass already produced. We keep the FIRST entry seen (typically the
+// first pass's, which has fuller narrative fields populated). When
+// titles are not exact matches but share a strong-enough subject
+// signal (first two non-stopword tokens), they are also collapsed,
+// the verifier sometimes reworded a title slightly.
+function dedupeFindings(findings: Finding[]): Finding[] {
+  const seen = new Set<string>();
+  const result: Finding[] = [];
+  for (const f of findings) {
+    const norm = normalizeFindingTitle(f.title);
+    if (!norm) {
+      result.push(f);
+      continue;
+    }
+    if (seen.has(norm)) continue;
+    seen.add(norm);
+    result.push(f);
+  }
+  return result;
+}
+
+function normalizeFindingTitle(raw: string | null | undefined): string {
+  if (!raw) return "";
+  // Strip punctuation, lowercase, drop stopwords, take the first 4
+  // signal tokens. Two findings with the same first 4 signal tokens
+  // are almost certainly the same issue worded slightly differently.
+  const stopwords = new Set([
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "of",
+    "for",
+    "in",
+    "on",
+    "at",
+    "to",
+    "with",
+    "from",
+    "by",
+    "is",
+    "are",
+    "be",
+    "this",
+    "that",
+    "may",
+    "could",
+    "should",
+    "must",
+    "possible",
+    "potential",
+    "likely",
+  ]);
+  const tokens = raw
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 1 && !stopwords.has(t));
+  return tokens.slice(0, 4).join(" ");
 }
 
 // Identify findings that just describe what the listing already says ,
