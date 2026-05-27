@@ -1,6 +1,7 @@
 "use server";
 
-import { Resend } from "resend";
+import { sendTransactional } from "@/lib/email/sender";
+import { SUPPORT } from "@/lib/site";
 
 // Server action that delivers a feedback message to support@veroax.com
 // via the existing Resend integration. Same shape as the contact-form
@@ -32,27 +33,18 @@ export async function submitFeedbackAction(
     return { error: "Message is too short to be useful. Add a bit more." };
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return {
-      error:
-        "Email sending isn't configured on this deployment. Email support@veroax.com directly.",
-    };
-  }
-
-  const resend = new Resend(apiKey);
-  try {
-    const { error } = await resend.emails.send({
-      from: "Veroax Feedback <feedback@veroax.com>",
-      to: "support@veroax.com",
-      replyTo: email,
-      subject: `Feedback from ${name}${reportId ? ` (report ${reportId.slice(0, 8)})` : ""}`,
-      text:
-        `Name: ${name}\n` +
-        `Email: ${email}\n` +
-        (reportId ? `Report ID: ${reportId}\n` : "") +
-        `\n---\n\n${message}`,
-      html: `
+  // replyTo override: support staff want to reply directly to the
+  // user who submitted feedback. The From: stays as noreply@.
+  const result = await sendTransactional({
+    to: SUPPORT.email,
+    replyTo: email,
+    subject: `Feedback from ${name}${reportId ? ` (report ${reportId.slice(0, 8)})` : ""}`,
+    text:
+      `Name: ${name}\n` +
+      `Email: ${email}\n` +
+      (reportId ? `Report ID: ${reportId}\n` : "") +
+      `\n---\n\n${message}`,
+    html: `
         <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;line-height:1.55;max-width:560px;">
           <p><strong>Name:</strong> ${escapeHtml(name)}</p>
           <p><strong>Email:</strong> <a href="mailto:${encodeURIComponent(email)}">${escapeHtml(email)}</a></p>
@@ -61,13 +53,15 @@ export async function submitFeedbackAction(
           <p style="white-space:pre-wrap;">${escapeHtml(message)}</p>
         </div>
       `,
-    });
-    if (error) {
-      return { error: `Could not send feedback: ${error.message}` };
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Send failed.";
-    return { error: message };
+  });
+
+  if (result.skipped) {
+    return {
+      error: `Email sending isn't configured on this deployment. Email ${SUPPORT.email} directly.`,
+    };
+  }
+  if (!result.ok) {
+    return { error: `Could not send feedback: ${result.error ?? "unknown error"}` };
   }
 
   return { ok: true };

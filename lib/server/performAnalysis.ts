@@ -4,7 +4,7 @@
 // the concurrency lock, and then call performAnalysis inside next/server's
 // after() block so the heavy work outlives the HTTP response.
 
-import { Resend } from "resend";
+import { sendTransactional } from "@/lib/email/sender";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   analyzeDisclosurePackage,
@@ -534,10 +534,6 @@ async function sendReportReadyEmail(params: {
   propertyAddress: string;
   report: ReportData;
 }): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return;
-
-  const resend = new Resend(apiKey);
   const reportUrl = `${SITE_URL}/dashboard/reports/${params.reportId}`;
   const rating = params.report.overall_rating?.label ?? "Unrated";
   const criticalCount = params.report.critical_findings?.length ?? 0;
@@ -571,8 +567,7 @@ async function sendReportReadyEmail(params: {
       ? `[${rating}] Veroax report: ${params.propertyAddress}`
       : `Veroax report ready: ${params.propertyAddress}`;
 
-  await resend.emails.send({
-    from: "Veroax Reports <contact@veroax.com>",
+  await sendTransactional({
     to: params.to,
     subject,
     text: buildReportReadyPlainText({

@@ -15,7 +15,7 @@
 //     because those are noise; the user hasn't actually attempted a
 //     real signup yet.
 
-import { Resend } from "resend";
+import { sendTransactional } from "@/lib/email/sender";
 
 export type AdminSignupNotificationParams = {
   status: "ok" | "error";
@@ -41,11 +41,6 @@ function escapeHtml(s: string): string {
 export async function sendAdminSignupNotification(
   params: AdminSignupNotificationParams,
 ): Promise<{ ok: boolean; error?: string }> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return { ok: false, error: "RESEND_API_KEY not configured" };
-  }
-
   const {
     status,
     email,
@@ -93,24 +88,19 @@ export async function sendAdminSignupNotification(
     timestamp,
   });
 
-  const resend = new Resend(apiKey);
-  try {
-    const { error } = await resend.emails.send({
-      from:
-        process.env.SUPPORT_FROM_EMAIL || "Veroax Alerts <alerts@veroax.com>",
-      to: ADMIN_EMAIL,
-      subject,
-      text,
-      html,
-    });
-    if (error) {
-      return { ok: false, error: error.message };
-    }
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Send failed";
-    return { ok: false, error: message };
+  const result = await sendTransactional({
+    to: ADMIN_EMAIL,
+    subject,
+    text,
+    html,
+  });
+  if (result.skipped) {
+    return { ok: false, error: "RESEND_API_KEY not configured" };
   }
+  if (!result.ok) {
+    return { ok: false, error: result.error ?? "Send failed" };
+  }
+  return { ok: true };
 }
 
 type RenderArgs = {

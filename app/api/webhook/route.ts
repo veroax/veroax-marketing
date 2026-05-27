@@ -1,6 +1,6 @@
 import Stripe from "stripe";
-import { Resend } from "resend";
 import { NextResponse } from "next/server";
+import { sendTransactional } from "@/lib/email/sender";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   planFromPriceId,
@@ -115,13 +115,6 @@ function describeEvent(event: Stripe.Event): {
 }
 
 async function notify(event: Stripe.Event): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.log(`[webhook] ${event.type} (no RESEND_API_KEY, skipping email)`);
-    return;
-  }
-
-  const resend = new Resend(apiKey);
   const { subject, summary, details } = describeEvent(event);
 
   const detailsHtml = Object.entries(details)
@@ -131,8 +124,7 @@ async function notify(event: Stripe.Event): Promise<void> {
     )
     .join("");
 
-  await resend.emails.send({
-    from: "Veroax Billing <contact@veroax.com>",
+  const result = await sendTransactional({
     to: NOTIFY_TO,
     subject,
     text: `${summary}\n\n${Object.entries(details)
@@ -149,6 +141,9 @@ async function notify(event: Stripe.Event): Promise<void> {
       </div>
     `,
   });
+  if (result.skipped) {
+    console.log(`[webhook] ${event.type} (no RESEND_API_KEY, skipping email)`);
+  }
 }
 
 export async function POST(request: Request) {

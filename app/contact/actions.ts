@@ -5,8 +5,7 @@
 // topic + phone number + best-time-to-call so sales can pick up
 // where the agent left off without a back-and-forth round trip.
 
-import { Resend } from "resend";
-
+import { sendTransactional } from "@/lib/email/sender";
 import { SUPPORT } from "@/lib/site";
 export type ContactActionState = {
   ok?: boolean;
@@ -54,32 +53,24 @@ export async function submitContactAction(
     return { error: "Message is too long. Trim it to under 5,000 characters." };
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return {
-      error:
-        `Email sending is not configured on this deployment. Email ${SUPPORT.email} directly, or call ${SUPPORT.phone}.`,
-    };
-  }
-
   const topicLabel = TOPIC_LABELS[topic] ?? "Sales question";
 
-  const resend = new Resend(apiKey);
-  try {
-    const { error } = await resend.emails.send({
-      from: "Veroax Contact <contact@veroax.com>",
-      to: "support@veroax.com",
-      replyTo: email,
-      subject: `${topicLabel} from ${name}`,
-      text:
-        `Topic: ${topicLabel}\n` +
-        `Name: ${name}\n` +
-        `Email: ${email}\n` +
-        (phone ? `Phone: ${phone}\n` : "") +
-        (company ? `Company / brokerage: ${company}\n` : "") +
-        (bestTime ? `Best time to call: ${bestTime}\n` : "") +
-        `\n---\n\n${message}`,
-      html: `
+  // replyTo override: support staff want to hit Reply and answer the
+  // user directly, not bounce inside support@. The From: stays as the
+  // canonical noreply@ sender.
+  const result = await sendTransactional({
+    to: SUPPORT.email,
+    replyTo: email,
+    subject: `${topicLabel} from ${name}`,
+    text:
+      `Topic: ${topicLabel}\n` +
+      `Name: ${name}\n` +
+      `Email: ${email}\n` +
+      (phone ? `Phone: ${phone}\n` : "") +
+      (company ? `Company / brokerage: ${company}\n` : "") +
+      (bestTime ? `Best time to call: ${bestTime}\n` : "") +
+      `\n---\n\n${message}`,
+    html: `
         <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;line-height:1.55;max-width:560px;">
           <p style="background:#fef3c7;color:#92400e;padding:6px 10px;border-radius:6px;display:inline-block;margin-top:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">
             ${escapeHtml(topicLabel)}
@@ -93,13 +84,15 @@ export async function submitContactAction(
           <p style="white-space:pre-wrap;">${escapeHtml(message)}</p>
         </div>
       `,
-    });
-    if (error) {
-      return { error: `Could not send: ${error.message}` };
-    }
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : "Send failed.";
-    return { error: errorMessage };
+  });
+
+  if (result.skipped) {
+    return {
+      error: `Email sending is not configured on this deployment. Email ${SUPPORT.email} directly, or call ${SUPPORT.phone}.`,
+    };
+  }
+  if (!result.ok) {
+    return { error: `Could not send: ${result.error ?? "unknown error"}` };
   }
 
   return { ok: true };

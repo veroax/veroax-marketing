@@ -10,7 +10,7 @@
 // brokerage; null means direct brokerage agent (no team).
 
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
+import { sendTransactional } from "@/lib/email/sender";
 import { requireUser } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { newInviteToken } from "@/lib/team/membership";
@@ -142,32 +142,29 @@ export async function POST(
     );
   }
 
-  // Send the email.
-  const resendKey = process.env.RESEND_API_KEY;
-  if (resendKey) {
-    try {
-      const resend = new Resend(resendKey);
-      const fromAddress =
-        process.env.SUPPORT_FROM_EMAIL || "Veroax <support@veroax.com>";
-      const acceptUrl = `${SITE_URL}/invite/brokerage/${token}`;
-      await resend.emails.send({
-        from: fromAddress,
-        to: email,
-        subject: `Invitation to join ${brokerage.name} on Veroax`,
-        html: `
+  // Send the email. The invite row is already created, so a send
+  // failure (or a missing RESEND_API_KEY in dev) is logged but does
+  // not block the admin's request.
+  const acceptUrl = `${SITE_URL}/invite/brokerage/${token}`;
+  const inviteResult = await sendTransactional({
+    to: email,
+    subject: `Invitation to join ${brokerage.name} on Veroax`,
+    html: `
           <p>You've been invited to join <strong>${escapeHtml(brokerage.name)}</strong> on Veroax as <strong>${escapeHtml(role)}</strong>.</p>
           <p>Veroax is an AI-assisted disclosure analysis tool for California real estate agents. Joining ${escapeHtml(brokerage.name)} gives you access to the brokerage's shared report quota and unified branding.</p>
           <p><a href="${acceptUrl}" style="display:inline-block;background:#0F0E2E;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Accept invitation</a></p>
           <p style="color:#888;font-size:12px;">Or paste this link into your browser: ${acceptUrl}</p>
           <p style="color:#888;font-size:12px;">This invite expires in 14 days.</p>
         `,
-      });
-    } catch (err) {
-      console.error("[admin/brokerages/invite] resend send failed:", err);
-    }
-  } else {
+  });
+  if (inviteResult.skipped) {
     console.warn(
       "[admin/brokerages/invite] RESEND_API_KEY missing; invite row was created but no email sent.",
+    );
+  } else if (!inviteResult.ok) {
+    console.error(
+      "[admin/brokerages/invite] resend send failed:",
+      inviteResult.error,
     );
   }
 

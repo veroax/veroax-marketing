@@ -1,13 +1,18 @@
-import { Resend } from "resend";
 import { NextResponse } from "next/server";
+import { sendTransactional } from "@/lib/email/sender";
+import { SUPPORT } from "@/lib/site";
 
 // Diagnostic endpoint: sends a single test email via Resend so we can
 // verify the email path in isolation from Stripe webhooks. Returns
-// the full Resend response (including any error) so misconfigurations
-// surface in plain HTTP without needing log access.
+// the Resend message ID (or error) so misconfigurations surface in
+// plain HTTP without needing log access.
 //
 // Auth: requires ?key=<EMAIL_TEST_KEY> matching the env var of the
 // same name, so this endpoint isn't a free email-blast vector.
+//
+// Goes through sendTransactional so the From: and Reply-To: match
+// the rest of the app. If verification is broken on the canonical
+// noreply@ sender, this is the first place it'll show up.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const provided = url.searchParams.get("key");
@@ -23,32 +28,24 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "RESEND_API_KEY not configured." },
-      { status: 500 },
-    );
-  }
-
-  const resend = new Resend(apiKey);
-  const { data, error } = await resend.emails.send({
-    from: "Veroax Diagnostic <contact@veroax.com>",
-    to: "support@veroax.com",
+  const result = await sendTransactional({
+    to: SUPPORT.email,
     subject: "Veroax email diagnostic, please ignore",
     text: "If you received this, the Resend email pipeline is working.",
     html: "<p>If you received this, the Resend email pipeline is working.</p>",
   });
 
-  if (error) {
+  if (result.skipped) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: { name: error.name, message: error.message },
-      },
+      { error: "RESEND_API_KEY not configured." },
       { status: 500 },
     );
   }
-
-  return NextResponse.json({ ok: true, id: data?.id });
+  if (!result.ok) {
+    return NextResponse.json(
+      { ok: false, error: result.error },
+      { status: 500 },
+    );
+  }
+  return NextResponse.json({ ok: true, id: result.id });
 }

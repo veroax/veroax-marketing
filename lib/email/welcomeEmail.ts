@@ -16,7 +16,7 @@
 //   - Amber CTA button (matches the homepage)
 //   - Plain-text fallback for clients that don't render HTML
 
-import { Resend } from "resend";
+import { sendTransactional } from "@/lib/email/sender";
 import { SUPPORT } from "@/lib/site";
 
 export type WelcomeEmailParams = {
@@ -48,34 +48,25 @@ export async function sendWelcomeEmail({
   email,
   fullName,
 }: WelcomeEmailParams): Promise<{ ok: boolean; error?: string }> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return { ok: false, error: "RESEND_API_KEY not configured" };
-  }
-
   const firstName = (fullName.split(" ")[0] ?? "").trim() || "there";
   const safeName = escapeHtml(firstName);
 
   const html = buildHtml(safeName);
   const text = buildPlainText(firstName);
 
-  const resend = new Resend(apiKey);
-  try {
-    const { error } = await resend.emails.send({
-      from: process.env.SUPPORT_FROM_EMAIL || "Veroax <hello@veroax.com>",
-      to: email,
-      subject: "Welcome to Veroax",
-      text,
-      html,
-    });
-    if (error) {
-      return { ok: false, error: error.message };
-    }
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Send failed";
-    return { ok: false, error: message };
+  const result = await sendTransactional({
+    to: email,
+    subject: "Welcome to Veroax",
+    text,
+    html,
+  });
+  if (result.skipped) {
+    return { ok: false, error: "RESEND_API_KEY not configured" };
   }
+  if (!result.ok) {
+    return { ok: false, error: result.error ?? "Send failed" };
+  }
+  return { ok: true };
 }
 
 function buildHtml(safeFirstName: string): string {

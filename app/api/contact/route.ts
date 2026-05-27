@@ -1,5 +1,6 @@
-import { Resend } from "resend";
 import { NextResponse } from "next/server";
+import { sendTransactional } from "@/lib/email/sender";
+import { SUPPORT } from "@/lib/site";
 import { rateLimit, clientIp } from "@/lib/server/rateLimit";
 
 // Public contact form endpoint. Anonymous and unauthenticated by
@@ -86,22 +87,14 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!process.env.RESEND_API_KEY) {
-    console.error("[contact] RESEND_API_KEY missing");
-    return NextResponse.json(
-      { error: "Email sender is not configured. Please email support directly." },
-      { status: 503 },
-    );
-  }
-
-  const resend = new Resend(process.env.RESEND_API_KEY);
   const safeName = escapeHtml(name);
   const safeEmail = escapeHtml(email);
   const safeMessageHtml = escapeHtml(message).replace(/\n/g, "<br />");
 
-  const { error } = await resend.emails.send({
-    from: "Veroax Contact Form <contact@veroax.com>",
-    to: "support@veroax.com",
+  // replyTo override: support staff want to reply directly to the
+  // user. The From: stays as the canonical noreply@ sender.
+  const result = await sendTransactional({
+    to: SUPPORT.email,
     replyTo: email,
     subject: `New message from ${name.slice(0, 80)}`,
     text: `Name: ${name}\nEmail: ${email}\nFrom IP: ${ip}\n\n${message}`,
@@ -114,9 +107,19 @@ export async function POST(request: Request) {
     `,
   });
 
-  if (error) {
-    console.error("[contact] resend send failed:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (result.skipped) {
+    console.error("[contact] RESEND_API_KEY missing");
+    return NextResponse.json(
+      { error: "Email sender is not configured. Please email support directly." },
+      { status: 503 },
+    );
+  }
+  if (!result.ok) {
+    console.error("[contact] resend send failed:", result.error);
+    return NextResponse.json(
+      { error: result.error ?? "Send failed" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ success: true });

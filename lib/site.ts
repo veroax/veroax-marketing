@@ -8,11 +8,12 @@
 // Now: edit SUPPORT here, every surface picks it up on the next
 // render or rebuild.
 //
-// SCOPE NOTE: this does NOT consolidate the email 'from:' addresses
-// used when Veroax sends mail via Resend (hello@, alerts@, contact@,
-// feedback@, noreply@). Those are a separate consolidation, handled
-// by a different task in /admin/tasks. SUPPORT.email below is the
-// inbound address customers contact us at, not the outbound one.
+// SCOPE NOTE: the outbound 'From:' address used by Veroax's
+// transactional email lives in lib/email/sender.ts as
+// TRANSACTIONAL_FROM (a single noreply@ sender across the whole app).
+// SUPPORT.email below is the INBOUND address, also wired into
+// TRANSACTIONAL_REPLY_TO so every reply hitting Reply lands here for
+// ticketing.
 
 export const SUPPORT = {
   // Display form for the phone, formatted as US customers expect.

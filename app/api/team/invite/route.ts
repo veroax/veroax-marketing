@@ -11,7 +11,7 @@
 // walks them through signup or sign-in.
 
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
+import { sendTransactional } from "@/lib/email/sender";
 import { requireUser } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { newInviteToken } from "@/lib/team/membership";
@@ -149,31 +149,26 @@ export async function POST(request: Request) {
   const inviterName = user.email ?? "Your colleague";
 
   // Send the invite email via Resend. Failure here doesn't undo the
-  // invite row; an admin can resend later.
-  const resendKey = process.env.RESEND_API_KEY;
-  if (resendKey) {
-    try {
-      const resend = new Resend(resendKey);
-      const fromAddress =
-        process.env.SUPPORT_FROM_EMAIL || "Veroax <support@veroax.com>";
-      const acceptUrl = `${SITE_URL}/invite/${token}`;
-      await resend.emails.send({
-        from: fromAddress,
-        to: email,
-        subject: `You're invited to join ${teamName} on Veroax`,
-        html: `
+  // invite row; an admin can resend later. sendTransactional swallows
+  // both API-level errors and missing-key conditions internally.
+  const acceptUrl = `${SITE_URL}/invite/${token}`;
+  const inviteResult = await sendTransactional({
+    to: email,
+    subject: `You're invited to join ${teamName} on Veroax`,
+    html: `
           <p>${escapeHtml(inviterName)} invited you to join <strong>${escapeHtml(teamName)}</strong> on Veroax.</p>
           <p>Veroax is an AI-assisted disclosure analysis tool for California real estate agents. Joining ${escapeHtml(teamName)} gives you access to the team's shared report quota and lets the team owner see reports you generate.</p>
           <p><a href="${acceptUrl}" style="display:inline-block;background:#0F0E2E;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Accept invite</a></p>
           <p style="color:#888;font-size:12px;">Or paste this link into your browser: ${acceptUrl}</p>
           <p style="color:#888;font-size:12px;">This invite expires in 14 days. If you didn't expect this email, you can ignore it.</p>
         `,
-      });
-    } catch (err) {
-      console.error("[team/invite] resend send failed:", err);
-    }
-  } else {
-    console.warn("[team/invite] RESEND_API_KEY missing; invite was created but no email was sent.");
+  });
+  if (inviteResult.skipped) {
+    console.warn(
+      "[team/invite] RESEND_API_KEY missing; invite was created but no email was sent.",
+    );
+  } else if (!inviteResult.ok) {
+    console.error("[team/invite] resend send failed:", inviteResult.error);
   }
 
   try {

@@ -12,7 +12,8 @@
 // there. The form contract on the client stays the same.
 
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
+import { sendTransactional } from "@/lib/email/sender";
+import { SUPPORT } from "@/lib/site";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -85,24 +86,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.error("[blog-subscribe] RESEND_API_KEY missing");
-    return NextResponse.json(
-      { error: "Subscribe is not configured on this deployment yet." },
-      { status: 503 },
-    );
-  }
-
-  const resend = new Resend(apiKey);
-  const fromAddress =
-    process.env.SUPPORT_FROM_EMAIL || "Veroax <support@veroax.com>";
-
   try {
     // 1) Notify support of the new subscriber.
-    await resend.emails.send({
-      from: fromAddress,
-      to: "support@veroax.com",
+    const adminResult = await sendTransactional({
+      to: SUPPORT.email,
       subject: `New blog subscriber: ${email}`,
       html: `
         <p>A new Veroax blog subscriber:</p>
@@ -115,11 +102,20 @@ export async function POST(request: Request) {
         </p>
       `,
     });
+    if (adminResult.skipped) {
+      console.error("[blog-subscribe] RESEND_API_KEY missing");
+      return NextResponse.json(
+        { error: "Subscribe is not configured on this deployment yet." },
+        { status: 503 },
+      );
+    }
+    if (!adminResult.ok) {
+      throw new Error(adminResult.error ?? "Subscribe send failed");
+    }
 
     // 2) Send a friendly acknowledgement back to the subscriber so
     //    they know the form worked.
-    await resend.emails.send({
-      from: fromAddress,
+    await sendTransactional({
       to: email,
       subject: "You are on the Veroax blog list",
       html: `
@@ -133,7 +129,7 @@ export async function POST(request: Request) {
           If you have a topic you want us to cover, just reply to this
           email. A real person reads every reply.
         </p>
-        <p>Veroax<br/>support@veroax.com</p>
+        <p>Veroax<br/>${SUPPORT.email}</p>
       `,
     });
 

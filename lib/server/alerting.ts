@@ -23,7 +23,7 @@
 //     founder still gets paged on day one without having to
 //     remember a new env var.
 
-import { Resend } from "resend";
+import { sendTransactional } from "@/lib/email/sender";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export type AlertSeverity = "critical" | "warning" | "info";
@@ -179,12 +179,6 @@ export async function notifyAlert(input: AlertInput): Promise<AlertResult> {
     return { sent: false, reason: "no_recipient" };
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.error("[alerting] RESEND_API_KEY missing, can't send");
-    return { sent: false, reason: "no_resend_key" };
-  }
-
   // Cooldown only applies to firing alerts. Recovery emails always
   // send so the founder knows the incident is over.
   if (status === "firing") {
@@ -201,8 +195,6 @@ export async function notifyAlert(input: AlertInput): Promise<AlertResult> {
     }
   }
 
-  const fromAddress =
-    process.env.SUPPORT_FROM_EMAIL || "Veroax alerts <alerts@veroax.com>";
   const subjectPrefix =
     status === "recovered"
       ? "[Veroax recovered]"
@@ -211,34 +203,26 @@ export async function notifyAlert(input: AlertInput): Promise<AlertResult> {
         : "[Veroax alert]";
   const fullSubject = `${subjectPrefix} ${input.subject}`;
 
-  try {
-    const resend = new Resend(apiKey);
-    const sendResult = await resend.emails.send({
-      from: fromAddress,
-      to: recipients,
-      subject: fullSubject,
-      html: renderEmailHtml({
-        severity,
-        status,
-        subject: input.subject,
-        body: input.body,
-        metadata,
-      }),
-    });
-    if (sendResult.error) {
-      console.error("[alerting] resend send failed:", sendResult.error);
-      return {
-        sent: false,
-        reason: "send_failed",
-        detail: sendResult.error.message,
-      };
-    }
-  } catch (err) {
-    console.error("[alerting] send threw:", err);
+  const sendResult = await sendTransactional({
+    to: recipients,
+    subject: fullSubject,
+    html: renderEmailHtml({
+      severity,
+      status,
+      subject: input.subject,
+      body: input.body,
+      metadata,
+    }),
+  });
+  if (sendResult.skipped) {
+    console.error("[alerting] RESEND_API_KEY missing, can't send");
+    return { sent: false, reason: "no_resend_key" };
+  }
+  if (!sendResult.ok) {
     return {
       sent: false,
       reason: "send_failed",
-      detail: err instanceof Error ? err.message : String(err),
+      detail: sendResult.error ?? "unknown error",
     };
   }
 

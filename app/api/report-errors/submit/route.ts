@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { Resend } from "resend";
+import { sendTransactional } from "@/lib/email/sender";
+import { SUPPORT } from "@/lib/site";
 import { rateLimit, clientIp } from "@/lib/server/rateLimit";
 
 // POST /api/report-errors/submit
@@ -117,32 +118,24 @@ export async function POST(request: Request) {
   }
 
   // Notify support immediately so the admin can react. Failure here
-  // shouldn't fail the user's submission.
-  try {
-    const resendKey = process.env.RESEND_API_KEY;
-    if (resendKey) {
-      const resend = new Resend(resendKey);
-      const reportLink = reportId
-        ? `${SITE_URL}/dashboard/reports/${reportId}`
-        : "(no report ID)";
-      const adminLink = `${SITE_URL}/admin/report-errors`;
-      await resend.emails.send({
-        from: "Veroax Feedback <contact@veroax.com>",
-        to: "support@veroax.com",
-        subject: `Report error submitted: ${categories.join(", ") || "(no categories)"}`,
-        text:
-          `A report-error submission just came in.\n\n` +
-          `Submitter: ${email}${phone ? ` · ${phone}` : ""}\n` +
-          (userId ? `Veroax user_id: ${userId}\n` : "Anonymous submitter\n") +
-          `Report: ${reportLink}\n` +
-          `Categories: ${categories.join(", ") || "(none)"}\n\n` +
-          (message ? `Message:\n${message}\n\n` : "") +
-          `Review + grant credit: ${adminLink}`,
-      });
-    }
-  } catch (err) {
-    console.error("[report-errors] notify failed:", err);
-  }
+  // shouldn't fail the user's submission, sendTransactional already
+  // swallows + logs internally.
+  const reportLink = reportId
+    ? `${SITE_URL}/dashboard/reports/${reportId}`
+    : "(no report ID)";
+  const adminLink = `${SITE_URL}/admin/report-errors`;
+  await sendTransactional({
+    to: SUPPORT.email,
+    subject: `Report error submitted: ${categories.join(", ") || "(no categories)"}`,
+    text:
+      `A report-error submission just came in.\n\n` +
+      `Submitter: ${email}${phone ? ` · ${phone}` : ""}\n` +
+      (userId ? `Veroax user_id: ${userId}\n` : "Anonymous submitter\n") +
+      `Report: ${reportLink}\n` +
+      `Categories: ${categories.join(", ") || "(none)"}\n\n` +
+      (message ? `Message:\n${message}\n\n` : "") +
+      `Review + grant credit: ${adminLink}`,
+  });
 
   return NextResponse.json({
     ok: true,
