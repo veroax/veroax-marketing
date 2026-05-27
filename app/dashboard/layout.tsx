@@ -127,6 +127,25 @@ export default async function DashboardLayout({
           >
             Send feedback →
           </a>
+          {/* Legal links. Muted so they sit quietly under the
+              primary support contacts but still reachable from
+              every authenticated page without having to bounce
+              back to the marketing footer. */}
+          <p className="mt-3 text-[10px] text-indigo-300">
+            <Link
+              href="/terms"
+              className="hover:text-white transition-colors"
+            >
+              Terms
+            </Link>
+            <span className="mx-1.5 text-indigo-500">·</span>
+            <Link
+              href="/privacy"
+              className="hover:text-white transition-colors"
+            >
+              Privacy
+            </Link>
+          </p>
         </div>
         <div className="px-6 py-4 border-t border-white/5">
           <p className="text-xs text-indigo-200 mb-1">Signed in as</p>
@@ -188,6 +207,14 @@ export default async function DashboardLayout({
               className="text-amber-700 hover:text-amber-900"
             >
               Feedback
+            </Link>
+            <span className="text-slate-300">·</span>
+            <Link href="/terms" className="hover:text-slate-900">
+              Terms
+            </Link>
+            <span className="text-slate-300">·</span>
+            <Link href="/privacy" className="hover:text-slate-900">
+              Privacy
             </Link>
           </div>
         </header>
