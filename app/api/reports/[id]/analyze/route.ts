@@ -34,7 +34,7 @@ export async function POST(
   const { data: report, error: reportErr } = await supabase
     .from("reports")
     .select(
-      "id, user_id, status, property_address, source_file_path, analysis_started_at",
+      "id, user_id, status, property_address, source_file_path, analysis_started_at, listing_url, listing_text",
     )
     .eq("id", reportId)
     .single();
@@ -95,6 +95,10 @@ export async function POST(
           id: report.id,
           property_address: report.property_address,
           source_file_path: report.source_file_path,
+          listing_url:
+            (report as { listing_url?: string | null }).listing_url ?? null,
+          listing_text:
+            (report as { listing_text?: string | null }).listing_text ?? null,
         },
       });
     } catch (err) {

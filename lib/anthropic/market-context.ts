@@ -25,6 +25,13 @@ type MarketContextInput = {
   bathrooms: number | null;
   squareFeet: number | null;
   listPrice: number | null;
+  // Agent-provided Zillow / MLS / Redfin / Realtor.com URL for the
+  // subject property. When present, the fetcher's user prompt
+  // explicitly tells Claude to visit this URL first via web_search,
+  // grounding the market context in the actual listing rather than
+  // letting it guess from search-result strings. Null when the agent
+  // didn't enter a URL on the upload form.
+  listingUrl: string | null;
 };
 
 // Anthropic's structured-output tool schema for the market_context
@@ -184,6 +191,12 @@ function buildUserPrompt(i: MarketContextInput): string {
   if (bedBath.length > 0) lines.push(`- Configuration: ${bedBath.join(" / ")}`);
   if (i.listPrice != null) lines.push(`- List price: $${i.listPrice.toLocaleString()}`);
   if (i.marketRegion) lines.push(`- Market region: ${i.marketRegion}`);
+  if (i.listingUrl) {
+    lines.push(`- Authoritative listing URL: ${i.listingUrl}`);
+    lines.push(
+      `  IMPORTANT: web_search must visit this URL FIRST. Its list price, days-on-market, MLS number, and recent activity are the source of truth for the subject property. Use the URL's "similar homes" / "comps" panels as starting points for your comparable_units list.`,
+    );
+  }
   lines.push("");
   lines.push(
     "Research the market context for this specific unit. Use web search to find current mortgage rates, the segment's median price and days-on-market, and at least 3 real comparable sales (within-complex or adjacent buildings). Then submit your findings via the submit_market_context tool.",

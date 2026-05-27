@@ -20,6 +20,7 @@ import {
   formatMarketReferenceForPrompt,
 } from "@/lib/cost-reference/california-markets";
 import { fetchMarketContext } from "./market-context";
+import { fetchLiveCostReference } from "./cost-reference-fetch";
 
 // ============================================================================
 // Multi-pass disclosure analysis
@@ -168,6 +169,24 @@ export type UpdateContext = {
 export type AnalyzeInput = {
   groups: Record<PassGroup, Document[]>;
   propertyAddressHint?: string | null;
+  // Agent-provided Zillow / MLS / Redfin / Realtor.com URL for the
+  // subject property. Passed through to the market-context fetcher as
+  // an authoritative starting point for web_search. When present,
+  // market-context's web_search opens this URL FIRST so the comp
+  // selection + DOM + list price come from the actual listing rather
+  // than from whatever search-result strings Claude finds. Null when
+  // the agent didn't enter a URL on the upload form.
+  listingUrl?: string | null;
+  // Extracted text from the MLS-printout PDF the agent optionally
+  // attached on the upload form. When present, this is injected at the
+  // TOP of the seller_disclosures focused pass as authoritative
+  // listing data, the seller's MLS sheet is the canonical source for
+  // list_price, days_on_market, mls_number, list_date, parking, and
+  // zestimate. Without this, the analyzer was guessing those facts
+  // from whatever document it saw a number in first (which produced
+  // the wrong $1,178,000 / DOM=2 on the 1544 San Antonio St report,
+  // pulled from a seller-form signature date and a stale price).
+  listingText?: string | null;
   updateContext?: UpdateContext | null;
   onPassStarted?: (group: PassGroup, subIndex: number, subTotal: number) => Promise<void>;
   onPassCompleted?: (
@@ -217,6 +236,30 @@ export async function analyzeDisclosurePackage(
     output_tokens: number;
   }> = [];
 
+  // Live regional cost reference, web-searched at run start, scoped
+  // to the subject property's California market. Matches the cowork
+  // pattern of "build a regional cost reference library via web
+  // search at the start of each run." Replaces (when successful) the
+  // hardcoded biweekly-refresh table for THIS analysis. The
+  // function has its own hard outer timeout (180s) so it can't blow
+  // the budget; failure returns null and the focused passes fall
+  // back to the hardcoded reference.
+  //
+  // We run this sequentially BEFORE focused passes start because
+  // every focused pass consumes the reference in its system prompt.
+  // The wall-clock cost is roughly 30 to 90 seconds in the happy
+  // path, well inside the 800s analyze.maxDuration budget.
+  const liveCost = await fetchLiveCostReference({
+    propertyAddressHint: input.propertyAddressHint ?? null,
+    marketRegion: null,
+  });
+  const liveMarketBlock = liveCost?.prompt_block ?? null;
+  if (liveCost) {
+    console.log(
+      `[analyze] live cost reference fetched: region="${liveCost.region_label}" sources=${liveCost.sources.length}`,
+    );
+  }
+
   // For each group that has documents, run focused pass(es). Groups can
   // run in parallel.
   //
@@ -255,6 +298,8 @@ export async function analyzeDisclosurePackage(
             mode,
             input.propertyAddressHint,
             input.updateContext ?? null,
+            input.listingText ?? null,
+            liveMarketBlock,
           );
           await input.onPassCompleted?.(group, i + 1, subBatches.length, r.usage);
           return {
@@ -287,6 +332,7 @@ export async function analyzeDisclosurePackage(
     bathrooms: facts.bathrooms ?? null,
     squareFeet: facts.square_feet ?? null,
     listPrice: facts.list_price ?? null,
+    listingUrl: input.listingUrl ?? null,
   }).catch(() => null);
 
   // Synthesis pass, deterministic code, not a Claude call.
@@ -550,12 +596,45 @@ async function analyzeFocusedPass(
   mode: "pdf" | "text",
   propertyAddressHint?: string | null,
   updateContext?: UpdateContext | null,
+  // MLS-printout text extracted at finalize time. Only injected on
+  // the seller_disclosures group (where property_facts come from);
+  // ignored on other groups so we don't waste tokens. Null when the
+  // agent didn't attach an MLS PDF.
+  listingText?: string | null,
+  // Live cost-reference block (web-search-fetched at run start),
+  // replaces the hardcoded California reference when present. Falls
+  // back to the hardcoded table when null. Identical shape to
+  // formatMarketReferenceForPrompt output.
+  liveMarketBlock?: string | null,
 ): Promise<{
   analysis: FocusedAnalysis;
   usage: { input_tokens: number; output_tokens: number };
 }> {
   const client = getAnthropicClient();
   const content: Anthropic.Messages.ContentBlockParam[] = [];
+
+  // Authoritative listing block, prepended for the seller_disclosures
+  // group only. The MLS printout's list price, DOM, MLS#, list date,
+  // parking, and zestimate beat whatever Claude might infer from a
+  // seller-form signature date or a stale number elsewhere in the
+  // package. Other groups (inspections, hoa, hazards) don't need
+  // this block, their property_facts inferences are typically wrong
+  // anyway (an HOA reserve study shouldn't be naming the list price).
+  if (group === "seller_disclosures" && listingText && listingText.trim()) {
+    content.push({
+      type: "text",
+      text:
+        `===== AUTHORITATIVE LISTING DATA (agent-provided MLS printout) =====\n` +
+        `The following is the agent's attached MLS / listing printout for ` +
+        `the subject property. When populating property_facts, USE THIS ` +
+        `BLOCK as the source of truth for list_price, days_on_market, ` +
+        `mls_number, list_date, list_status, parking, zestimate, and ` +
+        `hoa_dues_monthly. If any other document in this package shows a ` +
+        `different number for those fields, the MLS printout below wins.\n\n` +
+        `${listingText.trim()}\n\n` +
+        `===== END AUTHORITATIVE LISTING DATA =====`,
+    });
+  }
 
   for (const doc of documents) {
     // Stamp newer-than-original docs so Claude knows the temporal
@@ -639,14 +718,22 @@ async function analyzeFocusedPass(
       updateNotice,
   });
 
-  // Regional cost reference: pick the best-match California market
-  // for this report's property and inject the baseline labor + repair
-  // ranges so Claude's cost estimates land in defensible territory
-  // for the actual region (not a generic Bay Area default applied to
-  // a Fresno listing). See lib/cost-reference/california-markets.ts
-  // for sources + refresh cadence (biweekly target).
-  const marketRef = selectMarketReference(propertyAddressHint ?? null);
-  const marketBlock = formatMarketReferenceForPrompt(marketRef);
+  // Regional cost reference. Preference order:
+  //   1. liveMarketBlock (web-search-fetched at run start, scoped to
+  //      the actual property's market). Matches the cowork pattern of
+  //      "build a regional cost reference library via web search at
+  //      the start of each run."
+  //   2. Hardcoded California reference (lib/cost-reference/california-
+  //      markets.ts), refreshed biweekly. The fallback when the
+  //      web-search fetch failed or timed out, AND the baseline that
+  //      gets injected when there is no propertyAddressHint to scope
+  //      against.
+  const marketBlock =
+    liveMarketBlock && liveMarketBlock.trim()
+      ? liveMarketBlock.trim()
+      : formatMarketReferenceForPrompt(
+          selectMarketReference(propertyAddressHint ?? null),
+        );
 
   const systemPrompt = `${FOCUSED_SYSTEM_BASE}\n\n${FOCUSED_GROUP_INSTRUCTIONS[group]}\n\n${marketBlock}`;
 

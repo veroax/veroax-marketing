@@ -44,7 +44,7 @@ export async function POST(
 
   const { data: report, error: reportErr } = await supabase
     .from("reports")
-    .select("id, user_id, status, property_address, source_file_path, created_at, report_data, original_files, update_count, analysis_started_at")
+    .select("id, user_id, status, property_address, source_file_path, created_at, report_data, original_files, update_count, analysis_started_at, listing_url, listing_text")
     .eq("id", reportId)
     .single();
   if (reportErr || !report) {
@@ -248,6 +248,10 @@ export async function POST(
           id: report.id,
           property_address: report.property_address,
           source_file_path: report.source_file_path ?? folder,
+          listing_url:
+            (report as { listing_url?: string | null }).listing_url ?? null,
+          listing_text:
+            (report as { listing_text?: string | null }).listing_text ?? null,
         },
         // We don't pass updateContext here, there are no new added
         // files, just fewer existing ones. The analyzer reads

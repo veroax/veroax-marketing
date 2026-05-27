@@ -49,6 +49,18 @@ export type PerformAnalysisInput = {
     id: string;
     property_address: string | null;
     source_file_path: string | null;
+    // Agent-entered Zillow / MLS / Redfin / Realtor.com URL from the
+    // upload form. Plumbed into market-context as an authoritative
+    // listing URL for web_search to visit. Null when the agent didn't
+    // enter one.
+    listing_url?: string | null;
+    // Pre-extracted text from the agent's optional MLS-printout PDF
+    // attachment (captured at /finalize time). Plumbed into the
+    // seller_disclosures focused pass as authoritative listing data
+    // so property_facts (list_price, days_on_market, mls_number,
+    // list_date, parking, zestimate) come from the MLS sheet rather
+    // than being guessed from random other documents.
+    listing_text?: string | null;
   };
   // When set, signals re-analysis triggered by added documents.
   // analyzeDisclosurePackage uses this to date-tag findings and
@@ -341,6 +353,8 @@ export async function performAnalysis(
   const result = await analyzeDisclosurePackage({
     groups,
     propertyAddressHint: report.property_address,
+    listingUrl: report.listing_url ?? null,
+    listingText: report.listing_text ?? null,
     updateContext,
     onPassStarted: async (group, subIndex, subTotal) => {
       await admin.from("audit_log").insert({
