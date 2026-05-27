@@ -46,15 +46,19 @@ export default async function AdminIntegrationsPage() {
             </p>
           </div>
           {config.google_analytics_id ? (
+            // GA dashboards live at /a{accountId}p{propertyId}/...,
+            // which are numeric IDs, not the Measurement ID we store
+            // here. Rather than ask the admin for a second config
+            // value, link to the GA home and let Google's own
+            // property picker pick the right one based on the
+            // signed-in account.
             <a
-              href={`https://analytics.google.com/analytics/web/#/p${encodeURIComponent(
-                config.google_analytics_id,
-              )}/reports/dashboard`}
+              href="https://analytics.google.com/"
               target="_blank"
               rel="noreferrer"
               className="text-xs text-indigo-700 hover:text-indigo-900 underline underline-offset-2 whitespace-nowrap"
             >
-              Open GA dashboard →
+              Open Google Analytics →
             </a>
           ) : null}
         </div>
