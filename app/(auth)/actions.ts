@@ -29,19 +29,33 @@ function safeNextPath(raw: string, fallback = "/dashboard"): string {
   return raw;
 }
 
-// Light phone-number normalizer: keep the leading "+" if present,
-// strip everything else that isn't a digit. Good enough for storing
-// "(555) 123-4567" as "5551234567" so the SAM API + future SMS sends
-// have a clean E.164-ish string. We do NOT enforce a country code
-// at signup; the agent can fix it later in /dashboard/settings.
+// Phone-number normalizer that produces an E.164-ish string suitable
+// for the SAM AI CRM, future SMS sends, and any downstream call to a
+// US-aware telco API.
+//
+// Behavior:
+//   - Empty / whitespace input -> null
+//   - Caller typed a leading '+': preserve their country code as-is.
+//     "+44 7700 900123" -> "+447700900123"
+//   - 10 digits, no leading '+': assume US, prepend "+1".
+//     "(415) 555-0100" -> "+14155550100"
+//   - 11 digits starting with '1', no leading '+': assume US with the
+//     country code already typed without the plus, prepend just "+".
+//     "1-415-555-0100" -> "+14155550100"
+//   - Anything else (rare): return the bare digits. Better to round-
+//     trip a string the user will recognize than to silently drop
+//     their input. The agent can fix it later in /dashboard/settings.
 function normalizePhone(raw: string): string | null {
   if (!raw) return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;
-  const leadingPlus = trimmed.startsWith("+") ? "+" : "";
+  const hadLeadingPlus = trimmed.startsWith("+");
   const digits = trimmed.replace(/\D+/g, "");
   if (!digits) return null;
-  return `${leadingPlus}${digits}`;
+  if (hadLeadingPlus) return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return digits;
 }
 
 export async function signupAction(_prev: unknown, formData: FormData) {
@@ -128,67 +142,77 @@ export async function signupAction(_prev: unknown, formData: FormData) {
     }
   }
 
-  // Welcome email + admin notification, both via after() so the user's
-  // signup response is not blocked on email delivery. Failures are
-  // logged but never bubble up; signup completes either way.
-  after(async () => {
-    try {
-      const result = await sendWelcomeEmail({ email, fullName });
-      if (!result.ok) {
-        console.error("[signup] welcome email failed:", result.error);
-      }
-    } catch (err) {
-      console.error("[signup] welcome email threw:", err);
-    }
-  });
-
-  after(async () => {
-    try {
-      await sendAdminSignupNotification({
-        status: "ok",
-        email,
-        fullName,
-        phone,
-        ipAddress,
-        userAgent,
-      });
-    } catch (err) {
-      console.error("[signup] admin notify threw:", err);
-    }
-  });
-
-  // Push the new signup into the Sales and Marketing AI group so the
-  // founder can run campaigns against the user list. Runs via after()
-  // so the network call doesn't block the signup response. Failures
-  // are logged but never bubble up to the user; signup completes
-  // regardless of CRM availability. The integration self-disables
-  // when env vars are missing (returns reason='not_configured'), so
-  // this is safe to ship before the founder finishes configuration.
+  // Background work after the user has been signed up: welcome email,
+  // admin notification, CRM sync. All three are independent + best-
+  // effort; one failing must not prevent the others from running, and
+  // none of them block the signup response.
+  //
+  // Wrapped in a single after() with Promise.allSettled so the three
+  // fan out in parallel within a single background-work budget rather
+  // than queuing three separate after() callbacks. Each task has its
+  // own try/catch that logs failures via console.error so partial
+  // failures stay observable in Vercel logs.
   const [firstName, ...rest] = fullName.split(" ").filter(Boolean);
   const lastName = rest.join(" ") || null;
+
   after(async () => {
-    try {
-      const result = await addContactToMarketingGroup({
-        email,
-        fullName,
-        firstName: firstName || null,
-        lastName,
-        phone, // optional; null when the agent didn't provide one
-        customFields: {
-          source: "veroax_signup",
-          signup_date: new Date().toISOString().slice(0, 10),
-        },
-      });
-      if (!result.ok && result.reason !== "not_configured") {
-        console.error(
-          "[signup] CRM sync failed:",
-          result.reason,
-          result.detail,
-        );
-      }
-    } catch (err) {
-      console.error("[signup] CRM sync threw:", err);
-    }
+    await Promise.allSettled([
+      // Welcome email.
+      (async () => {
+        try {
+          const result = await sendWelcomeEmail({ email, fullName });
+          if (!result.ok) {
+            console.error("[signup] welcome email failed:", result.error);
+          }
+        } catch (err) {
+          console.error("[signup] welcome email threw:", err);
+        }
+      })(),
+      // Admin notification of successful signup.
+      (async () => {
+        try {
+          await sendAdminSignupNotification({
+            status: "ok",
+            email,
+            fullName,
+            phone,
+            ipAddress,
+            userAgent,
+          });
+        } catch (err) {
+          console.error("[signup] admin notify threw:", err);
+        }
+      })(),
+      // Push the new signup into the Sales and Marketing AI group so
+      // the founder can run campaigns against the user list. The
+      // integration self-disables when env vars are missing (returns
+      // reason='not_configured'), so this is safe to ship before
+      // configuration is complete.
+      (async () => {
+        try {
+          const result = await addContactToMarketingGroup({
+            email,
+            fullName,
+            firstName: firstName || null,
+            lastName,
+            phone, // optional; null when the agent didn't provide one
+            customFields: {
+              source: "veroax_signup",
+              signup_date: new Date().toISOString().slice(0, 10),
+            },
+          });
+          if (!result.ok && result.reason !== "not_configured") {
+            console.error(
+              "[signup] CRM sync failed:",
+              result.reason,
+              result.detail,
+            );
+          }
+        } catch (err) {
+          console.error("[signup] CRM sync threw:", err);
+        }
+      })(),
+    ]);
   });
 
   // If Supabase has email confirmation enabled, the user must verify before
