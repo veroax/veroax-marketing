@@ -48,15 +48,30 @@ export async function getSiteConfig(
       .select("google_analytics_id, notes, updated_at")
       .eq("id", SITE_CONFIG_ID)
       .maybeSingle();
-    if (error || !data) {
-      // Migration not applied yet, or DB hiccup; cache the default
-      // briefly so we don't re-hit the DB on every render.
+
+    if (error) {
+      // Real DB error: connection blip, timeout, RLS denial, etc.
+      // Do NOT cache the default; the next call should retry against
+      // a hopefully-recovered DB. Caching here used to leave the
+      // site without GA tracking for up to 60s after the DB came
+      // back, because the empty default would persist past the
+      // recovery moment.
+      console.error("[siteConfig] db error, not caching:", error.message);
+      return defaultConfig;
+    }
+
+    if (!data) {
+      // No row found. Legitimate empty state (e.g., migration 0023
+      // applied but the seed row got removed). Cache the default so
+      // we don't hammer the DB on every render asking the same
+      // question.
       cached = {
         value: defaultConfig,
         expiresAt: now + SITE_CONFIG_CACHE_MS,
       };
       return defaultConfig;
     }
+
     const value = data as SiteConfig;
     cached = {
       value,
@@ -64,7 +79,10 @@ export async function getSiteConfig(
     };
     return value;
   } catch (err) {
-    console.error("[siteConfig] read failed:", err);
+    // Uncaught exception: client construction failed, env vars
+    // missing, fetch threw. Log + return default without caching so
+    // a transient client-side issue does not stick.
+    console.error("[siteConfig] read threw:", err);
     return defaultConfig;
   }
 }
