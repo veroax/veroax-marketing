@@ -28,6 +28,7 @@ type Task = {
   id: string;
   title: string;
   body: string | null;
+  claude_prompt: string | null;
   category: "now" | "beta" | "launch" | "deferred" | "polish";
   owner: "you" | "me" | "either";
   sort_order: number;
@@ -78,7 +79,7 @@ export default async function AdminTasksPage() {
   const { data, error } = await admin
     .from("tasks")
     .select(
-      "id, title, body, category, owner, sort_order, is_done, completed_at, completed_by, created_at",
+      "id, title, body, claude_prompt, category, owner, sort_order, is_done, completed_at, completed_by, created_at",
     )
     .order("category", { ascending: true })
     .order("sort_order", { ascending: true });

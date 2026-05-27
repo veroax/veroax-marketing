@@ -11,6 +11,7 @@ const VALID_OWNERS = ["you", "me", "either"];
 type Body = {
   title?: string;
   body?: string | null;
+  claude_prompt?: string | null;
   category?: string;
   owner?: string;
   sort_order?: number;
@@ -58,6 +59,12 @@ export async function PATCH(
     update.body =
       typeof body.body === "string" && body.body.trim()
         ? body.body.trim().slice(0, 10_000)
+        : null;
+  }
+  if ("claude_prompt" in body) {
+    update.claude_prompt =
+      typeof body.claude_prompt === "string" && body.claude_prompt.trim()
+        ? body.claude_prompt.trim().slice(0, 20_000)
         : null;
   }
   if (body.category && VALID_CATEGORIES.includes(body.category)) {

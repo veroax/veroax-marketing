@@ -14,6 +14,7 @@ type Task = {
   id: string;
   title: string;
   body: string | null;
+  claude_prompt: string | null;
   category: "now" | "beta" | "launch" | "deferred" | "polish";
   owner: "you" | "me" | "either";
   is_done: boolean;
@@ -138,17 +139,78 @@ function TaskRow({
       </div>
 
       {/* Expanded body */}
-      {expanded && task.body ? (
-        <div className="px-4 pb-4 pl-11">
-          <div
-            className="prose prose-sm max-w-none text-slate-700"
-            dangerouslySetInnerHTML={{
-              __html: renderMarkdown(task.body),
-            }}
-          />
+      {expanded && (task.body || task.claude_prompt) ? (
+        <div className="px-4 pb-4 pl-11 space-y-3">
+          {task.body ? (
+            <div
+              className="prose prose-sm max-w-none text-slate-700"
+              dangerouslySetInnerHTML={{
+                __html: renderMarkdown(task.body),
+              }}
+            />
+          ) : null}
+          {task.claude_prompt ? (
+            <CopyPromptBlock prompt={task.claude_prompt} />
+          ) : null}
         </div>
       ) : null}
     </li>
+  );
+}
+
+// Block surfaced on every Claude-assigned task with a saved prompt.
+// Click "Copy prompt" -> the prompt lands in the system clipboard.
+// User pastes into any fresh Claude session (Claude Code, Claude.ai,
+// etc.) and that session has enough context to do the work without
+// re-reading this thread.
+function CopyPromptBlock({ prompt }: { prompt: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "error">("idle");
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setState("copied");
+      setTimeout(() => setState("idle"), 2500);
+    } catch {
+      // Fallback: select the textarea for manual copy.
+      setState("error");
+      setTimeout(() => setState("idle"), 4000);
+    }
+  }
+
+  return (
+    <div className="border border-indigo-200 bg-indigo-50/40 rounded-lg p-3">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <p className="text-[10px] font-bold tracking-widest text-indigo-900 uppercase">
+          Prompt to start Claude on this task
+        </p>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className={
+            state === "copied"
+              ? "text-xs font-semibold bg-emerald-600 text-white px-3 py-1 rounded transition-colors"
+              : state === "error"
+                ? "text-xs font-semibold bg-red-100 text-red-700 px-3 py-1 rounded"
+                : "text-xs font-semibold bg-indigo-700 text-white px-3 py-1 rounded hover:bg-indigo-600 transition-colors"
+          }
+        >
+          {state === "copied"
+            ? "Copied!"
+            : state === "error"
+              ? "Copy failed, select below"
+              : "Copy prompt"}
+        </button>
+      </div>
+      <pre className="text-[11px] leading-relaxed whitespace-pre-wrap break-words text-slate-700 max-h-48 overflow-y-auto bg-white border border-indigo-100 rounded p-2 font-mono">
+        {prompt}
+      </pre>
+      <p className="text-[10px] text-indigo-700 mt-2 italic">
+        Paste into a fresh Claude session (Claude Code, Claude.ai,
+        etc.). The prompt is self-contained and assumes no prior
+        context.
+      </p>
+    </div>
   );
 }
 

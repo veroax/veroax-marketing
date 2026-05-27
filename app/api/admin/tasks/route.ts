@@ -10,6 +10,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 type Body = {
   title?: string;
   body?: string | null;
+  claude_prompt?: string | null;
   category?: string;
   owner?: string;
   sort_order?: number;
@@ -43,6 +44,10 @@ export async function POST(request: Request) {
   const detail =
     typeof body.body === "string" && body.body.trim()
       ? body.body.trim().slice(0, 10_000)
+      : null;
+  const claudePrompt =
+    typeof body.claude_prompt === "string" && body.claude_prompt.trim()
+      ? body.claude_prompt.trim().slice(0, 20_000)
       : null;
   const category =
     typeof body.category === "string" && VALID_CATEGORIES.includes(body.category)
@@ -95,6 +100,7 @@ export async function POST(request: Request) {
     .insert({
       title,
       body: detail,
+      claude_prompt: claudePrompt,
       category,
       owner,
       sort_order: sortOrder,

@@ -11,6 +11,7 @@ export function NewTaskForm() {
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [claudePrompt, setClaudePrompt] = useState("");
   const [category, setCategory] = useState<
     "now" | "beta" | "launch" | "deferred" | "polish"
   >("now");
@@ -30,6 +31,7 @@ export function NewTaskForm() {
       body: JSON.stringify({
         title: title.trim(),
         body: body.trim() || null,
+        claude_prompt: claudePrompt.trim() || null,
         category,
         owner,
       }),
@@ -45,6 +47,7 @@ export function NewTaskForm() {
     }
     setTitle("");
     setBody("");
+    setClaudePrompt("");
     startTransition(() => router.refresh());
   }
 
@@ -64,6 +67,13 @@ export function NewTaskForm() {
         placeholder="Optional detail. Supports markdown."
         rows={3}
         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+      />
+      <textarea
+        value={claudePrompt}
+        onChange={(e) => setClaudePrompt(e.target.value)}
+        placeholder="Optional prompt for Claude (only relevant for owner=Claude). Self-contained: include file paths, code snippets, and the desired change. Will be exposed as a 'Copy prompt' button on the task row."
+        rows={4}
+        className="w-full px-3 py-2 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono bg-indigo-50/30"
       />
       <div className="flex flex-wrap items-center gap-3">
         <label className="block">
