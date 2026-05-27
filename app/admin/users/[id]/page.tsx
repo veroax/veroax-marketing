@@ -12,6 +12,7 @@ import { GrantCreditsPanel } from "../../_components/GrantCreditsPanel";
 import { SuspendUserButton } from "../../_components/SuspendUserButton";
 import { DeleteUserButton } from "../../_components/DeleteUserButton";
 import { AdminPasswordActions } from "../../_components/AdminPasswordActions";
+import { AdminArchiveActions } from "../../_components/AdminArchiveActions";
 import { DreRecheckButton } from "../../_components/DreRecheckButton";
 import { DreVerificationPill } from "@/app/_components/DreVerificationPill";
 import {
@@ -38,7 +39,7 @@ export default async function AdminUserDetail({
   const { data: profile } = await admin
     .from("profiles")
     .select(
-      "id, email, full_name, brokerage, dre_license, phone, is_admin, is_vip, vip_granted_at, vip_notes, trial_credits_remaining, report_credits_balance, created_at, is_suspended, suspended_at, suspended_reason, dre_verification_status, dre_verified_at, dre_verification_checked_at, dre_verification_method, dre_verification_response",
+      "id, email, full_name, brokerage, dre_license, phone, is_admin, is_vip, vip_granted_at, vip_notes, trial_credits_remaining, report_credits_balance, created_at, is_suspended, suspended_at, suspended_reason, dre_verification_status, dre_verified_at, dre_verification_checked_at, dre_verification_method, dre_verification_response, archived_at, archived_scope",
     )
     .eq("id", id)
     .maybeSingle();
@@ -83,6 +84,8 @@ export default async function AdminUserDetail({
       remote_responsible_broker?: string | null;
       error_message?: string | null;
     } | null;
+    archived_at: string | null;
+    archived_scope: "brokerage" | "site" | null;
   };
 
   // Their reports, most recent 30, plus aggregate counts by status.
@@ -268,6 +271,12 @@ export default async function AdminUserDetail({
             <AdminPasswordActions
               userId={profile.id}
               userEmail={profile.email}
+            />
+            <AdminArchiveActions
+              userId={profile.id}
+              userEmail={profile.email}
+              isArchived={Boolean(profileTyped.archived_at)}
+              archivedScope={profileTyped.archived_scope}
             />
             <DeleteUserButton
               userId={profile.id}

@@ -25,7 +25,12 @@ export const metadata = {
   title: "Users, Admin",
 };
 
-type SearchParams = Promise<{ q?: string; sort?: string; dre?: string }>;
+type SearchParams = Promise<{
+  q?: string;
+  sort?: string;
+  dre?: string;
+  archived?: string;
+}>;
 
 type ProfileRow = {
   id: string;
@@ -37,6 +42,8 @@ type ProfileRow = {
   is_suspended: boolean | null;
   created_at: string | null;
   dre_verification_status: DreStatusEnum;
+  archived_at: string | null;
+  archived_scope: "brokerage" | "site" | null;
 };
 
 export default async function AdminUsersPage({
@@ -52,6 +59,12 @@ export default async function AdminUsersPage({
   // only show verified. Anything else = no filter.
   const dreFilter =
     sp.dre === "unverified" || sp.dre === "verified" ? sp.dre : null;
+  // archived=only -> only archived. archived=include -> show both.
+  // anything else (default) -> hide archived.
+  const archivedFilter =
+    sp.archived === "only" || sp.archived === "include"
+      ? sp.archived
+      : "hide";
 
   const admin = createServiceRoleClient();
 
@@ -64,10 +77,17 @@ export default async function AdminUsersPage({
   let profilesQuery = admin
     .from("profiles")
     .select(
-      "id, email, full_name, brokerage, is_admin, is_vip, is_suspended, created_at, dre_verification_status",
+      "id, email, full_name, brokerage, is_admin, is_vip, is_suspended, created_at, dre_verification_status, archived_at, archived_scope",
       { count: "exact" },
     )
     .limit(1000);
+
+  if (archivedFilter === "only") {
+    profilesQuery = profilesQuery.not("archived_at", "is", null);
+  } else if (archivedFilter === "hide") {
+    profilesQuery = profilesQuery.is("archived_at", null);
+  }
+  // archivedFilter === 'include' -> no filter, show both.
 
   if (q) {
     const pattern = `%${q.replace(/[%_]/g, "\\$&")}%`;
@@ -267,6 +287,33 @@ export default async function AdminUsersPage({
         </Link>
       </div>
 
+      {/* Archive filter row. Default hides archived users; flip to
+          'Include' to see them mixed in, or 'Archived only' to
+          audit + restore. */}
+      <div className="flex items-center gap-3 text-xs">
+        <span className="font-semibold text-slate-500 uppercase tracking-widest text-[10px]">
+          Archive
+        </span>
+        <Link
+          href={`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}${q && sort !== "recent" ? `&sort=${sort}` : sort !== "recent" && !q ? `?sort=${sort}` : ""}`}
+          className={`underline underline-offset-2 ${archivedFilter === "hide" ? "text-slate-900 font-semibold" : "text-slate-500"}`}
+        >
+          Hide archived (default)
+        </Link>
+        <Link
+          href={`/admin/users?archived=include${q ? `&q=${encodeURIComponent(q)}` : ""}${sort !== "recent" ? `&sort=${sort}` : ""}`}
+          className={`underline underline-offset-2 ${archivedFilter === "include" ? "text-indigo-700 font-semibold" : "text-slate-500"}`}
+        >
+          Include archived
+        </Link>
+        <Link
+          href={`/admin/users?archived=only${q ? `&q=${encodeURIComponent(q)}` : ""}${sort !== "recent" ? `&sort=${sort}` : ""}`}
+          className={`underline underline-offset-2 ${archivedFilter === "only" ? "text-red-700 font-semibold" : "text-slate-500"}`}
+        >
+          Archived only
+        </Link>
+      </div>
+
       {profilesErr ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
           <p className="font-semibold mb-1">
@@ -433,6 +480,11 @@ export default async function AdminUsersPage({
                     </td>
                     <td className="px-6 py-3.5 text-right">
                       <div className="inline-flex flex-col items-end gap-1">
+                        {p.archived_at ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-700 text-white px-2 py-0.5 rounded">
+                            Archived
+                          </span>
+                        ) : null}
                         {p.is_suspended ? (
                           <span className="text-[10px] font-bold uppercase tracking-wider bg-red-700 text-white px-2 py-0.5 rounded">
                             Suspended
