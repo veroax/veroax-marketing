@@ -5,7 +5,7 @@ import { randomBytes } from "node:crypto";
 // Format: 12 lowercase alphanumeric characters from a deliberately
 // reduced alphabet that drops ambiguous glyphs ("0"/"o"/"1"/"l"/"i")
 // so the code is dictable over a phone call without losing entropy.
-// 27-char alphabet over 12 positions = log2(27^12) ≈ 57 bits.
+// 31-char alphabet over 12 positions = log2(31^12) is about 59.5 bits.
 // Combined with rate-limiting at the route level (handled at deploy
 // time) that's enough to make brute-forcing useless.
 //

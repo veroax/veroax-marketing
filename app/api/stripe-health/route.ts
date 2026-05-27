@@ -35,10 +35,19 @@ export async function GET() {
       STRIPE_PRICE_SOLO_ANNUAL: Boolean(process.env.STRIPE_PRICE_SOLO_ANNUAL),
       STRIPE_PRICE_PRO_MONTHLY: Boolean(process.env.STRIPE_PRICE_PRO_MONTHLY),
       STRIPE_PRICE_PRO_ANNUAL: Boolean(process.env.STRIPE_PRICE_PRO_ANNUAL),
-      STRIPE_PRICE_BROKERAGE_MONTHLY: Boolean(
+      STRIPE_PRICE_TEAM_MONTHLY: Boolean(
+        process.env.STRIPE_PRICE_TEAM_MONTHLY,
+      ),
+      STRIPE_PRICE_TEAM_ANNUAL: Boolean(
+        process.env.STRIPE_PRICE_TEAM_ANNUAL,
+      ),
+      // Legacy keys kept in the check during the rename window so
+      // /admin/health still surfaces them while they exist. Remove
+      // after the rename in Vercel is complete.
+      STRIPE_PRICE_BROKERAGE_MONTHLY_legacy: Boolean(
         process.env.STRIPE_PRICE_BROKERAGE_MONTHLY,
       ),
-      STRIPE_PRICE_BROKERAGE_ANNUAL: Boolean(
+      STRIPE_PRICE_BROKERAGE_ANNUAL_legacy: Boolean(
         process.env.STRIPE_PRICE_BROKERAGE_ANNUAL,
       ),
       STRIPE_PRICE_ONEOFF_REPORT: Boolean(process.env.STRIPE_PRICE_ONEOFF_REPORT),

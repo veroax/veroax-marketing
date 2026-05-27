@@ -4,8 +4,19 @@ import { createClient } from "@/lib/supabase/server";
 import { priceIdFor, ONEOFF_REPORT_PRICE_ENV } from "@/lib/billing/plans";
 
 function getOrigin(request: Request): string {
-  // Prefer the forwarded host (Vercel sets these) so success_url points at the
-  // production domain when running behind the proxy.
+  // In production: pin to NEXT_PUBLIC_SITE_URL so we cannot be tricked
+  // by a forged x-forwarded-host header into producing a Stripe
+  // success_url pointing at an attacker-controlled domain. This is
+  // a defense against redirect poisoning if Veroax is ever deployed
+  // behind a non-Vercel proxy that does not strip such headers.
+  //
+  // In development (NODE_ENV !== 'production'): fall through to the
+  // request's own URL so local dev on http://localhost:3000 and
+  // preview deployments at *.vercel.app keep working without an
+  // explicit env var.
+  if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
   const url = new URL(request.url);
   const forwardedHost = request.headers.get("x-forwarded-host");
   const forwardedProto = request.headers.get("x-forwarded-proto");
