@@ -883,6 +883,23 @@ const styles = StyleSheet.create({
     color: "#92400e",
     textAlign: "center",
   },
+  // DRE verification-pending band. Same shape as the trial watermark
+  // but slate-on-light-blue, that visual difference plus the distinct
+  // copy keeps the two signals readable when both happen to apply
+  // (rare but possible: a trial agent who hasn't completed DRE
+  // verification yet).
+  verificationPendingBar: {
+    backgroundColor: "#e0f2fe",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  verificationPendingText: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#075985",
+    textAlign: "center",
+  },
 });
 
 // ============================================================================
@@ -936,6 +953,7 @@ export function ReportPDF({
   reportName,
   clientName,
   watermarked = false,
+  verificationPending = false,
   creditSource = null,
 }: {
   report: ReportData;
@@ -958,6 +976,15 @@ export function ReportPDF({
   // overlay on every page so the agent can preview quality without
   // being able to deliver to a client. Defaults to false.
   watermarked?: boolean;
+  // True when the agent's DRE license hasn't been verified against
+  // the California DRE public-lookup site, or the previous
+  // verification has lapsed past the quarterly re-check. The
+  // BodyPage renders a "DRE VERIFICATION PENDING" stripe just like
+  // the trial watermark so a forwarded copy of the PDF clearly
+  // shows the agent's identity hasn't been verified yet. Defaults
+  // to false (treat as verified). The PDF route owns the actual
+  // verification check, this component just renders the badge.
+  verificationPending?: boolean;
   // Buyer client's name, surfaced in the cover's "PREPARED FOR" panel.
   clientName?: string | null;
   // Which credit pool paid for this report. Drives PDF chrome tier:
@@ -1060,6 +1087,7 @@ export function ReportPDF({
         websiteUrl={bodyAgent.websiteUrl}
         officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
+        verificationPending={verificationPending}
       >
         <SectionPropertySnapshot report={report} analysisDate={analysisDate} />
         <SectionDocumentInventory report={report} originalFiles={originalFiles} />
@@ -1071,6 +1099,7 @@ export function ReportPDF({
         websiteUrl={bodyAgent.websiteUrl}
         officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
+        verificationPending={verificationPending}
       >
         <SectionExecutiveSummary report={report} />
       </BodyPage>
@@ -1081,6 +1110,7 @@ export function ReportPDF({
         websiteUrl={bodyAgent.websiteUrl}
         officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
+        verificationPending={verificationPending}
       >
         <SectionCritical report={report} />
       </BodyPage>
@@ -1091,6 +1121,7 @@ export function ReportPDF({
         websiteUrl={bodyAgent.websiteUrl}
         officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
+        verificationPending={verificationPending}
       >
         <SectionModerate report={report} />
         <SectionCosmetic report={report} />
@@ -1102,6 +1133,7 @@ export function ReportPDF({
         websiteUrl={bodyAgent.websiteUrl}
         officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
+        verificationPending={verificationPending}
       >
         <SectionCostSummary report={report} />
       </BodyPage>
@@ -1112,6 +1144,7 @@ export function ReportPDF({
         websiteUrl={bodyAgent.websiteUrl}
         officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
+        verificationPending={verificationPending}
       >
         <SectionEnvironmental report={report} />
       </BodyPage>
@@ -1122,6 +1155,7 @@ export function ReportPDF({
         websiteUrl={bodyAgent.websiteUrl}
         officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
+        verificationPending={verificationPending}
       >
         <SectionHoa report={report} />
       </BodyPage>
@@ -1132,6 +1166,7 @@ export function ReportPDF({
         websiteUrl={bodyAgent.websiteUrl}
         officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
+        verificationPending={verificationPending}
       >
         <SectionPermits report={report} />
         <SectionTitleVesting report={report} />
@@ -1143,6 +1178,7 @@ export function ReportPDF({
         websiteUrl={bodyAgent.websiteUrl}
         officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
+        verificationPending={verificationPending}
       >
         <SectionNegotiation report={report} />
         <SectionMarketContext report={report} />
@@ -1154,6 +1190,7 @@ export function ReportPDF({
         websiteUrl={bodyAgent.websiteUrl}
         officeAddress={bodyAgent.officeAddress}
         watermarked={watermarked}
+        verificationPending={verificationPending}
       >
         <SectionInspectionFollowUps report={report} />
         <SectionOverallRating report={report} />
@@ -1169,6 +1206,7 @@ function BodyPage({
   websiteUrl,
   officeAddress,
   watermarked = false,
+  verificationPending = false,
 }: {
   children: React.ReactNode;
   property: string;
@@ -1180,6 +1218,11 @@ function BodyPage({
   // Render the diagonal "SAMPLE, VEROAX TRIAL" watermark on this
   // page. Set true for trial-credit reports.
   watermarked?: boolean;
+  // Render the slate-on-blue "DRE VERIFICATION PENDING" stripe on
+  // every page. Set true when the agent's DRE license hasn't been
+  // verified against the DRE public site (or the quarterly recheck
+  // has lapsed).
+  verificationPending?: boolean;
 }) {
   // Both the header and footer are wrapped in `<View fixed>` so they
   // repeat on every page including auto-paginated continuation pages.
@@ -1214,6 +1257,20 @@ function BodyPage({
         <View fixed style={styles.watermarkBar}>
           <Text style={styles.watermarkText}>
             SAMPLE, VEROAX TRIAL · NOT FOR CLIENT DELIVERY
+          </Text>
+        </View>
+      ) : null}
+
+      {/* DRE verification-pending stripe. Independent from the trial
+          watermark above; both can render on the same page when a
+          trial agent also hasn't completed DRE verification yet.
+          Copy is intentionally specific so a recipient who sees the
+          stripe knows what's missing (vs. a vague "unverified"
+          label). */}
+      {verificationPending ? (
+        <View fixed style={styles.verificationPendingBar}>
+          <Text style={styles.verificationPendingText}>
+            DRE VERIFICATION PENDING · AGENT IDENTITY NOT YET CONFIRMED
           </Text>
         </View>
       ) : null}

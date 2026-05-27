@@ -61,7 +61,7 @@ export async function GET(
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, brokerage, dre_license, brokerage_dre, phone, display_email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, office_address")
+      .select("full_name, brokerage, dre_license, brokerage_dre, phone, display_email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, office_address, dre_verification_status, dre_verified_at")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -220,6 +220,30 @@ export async function GET(
       ((report as { credit_source?: string | null } | null)?.credit_source ??
         null) as "subscription" | "oneoff" | "trial" | "vip" | null;
 
+    // DRE PDF gate, watermark approach.
+    //
+    // We don't hard-block a download when the profile's DRE isn't
+    // verified, the agent might legitimately need the report while
+    // their license check is pending (initial signup, lookup
+    // hiccup, name mismatch they're sorting out). Instead we render
+    // every page with a "DRE verification pending" stripe just like
+    // the trial watermark, so anyone the agent forwards the PDF to
+    // can see at a glance that the cover's branding hasn't been
+    // backed by a DRE check yet.
+    //
+    // Verified = dre_verification_status is 'verified' AND
+    // dre_verified_at is non-null. Anything else (null, expired,
+    // suspended, revoked, mismatch, not_found, error, or just never
+    // checked) trips the overlay.
+    const dreVerificationStatus =
+      (profile as { dre_verification_status?: string | null } | null)
+        ?.dre_verification_status ?? null;
+    const dreVerifiedAt =
+      (profile as { dre_verified_at?: string | null } | null)
+        ?.dre_verified_at ?? null;
+    const verificationPending =
+      dreVerificationStatus !== "verified" || !dreVerifiedAt;
+
     const buffer = await renderToBuffer(
       <ReportPDF
         report={reportData}
@@ -233,6 +257,7 @@ export async function GET(
         watermarked={Boolean(
           (report as { watermarked?: boolean } | null)?.watermarked,
         )}
+        verificationPending={verificationPending}
         creditSource={creditSource}
       />,
     );

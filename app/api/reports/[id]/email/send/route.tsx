@@ -139,7 +139,7 @@ export async function POST(
   // (cookie/auth handoff would be fragile).
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, brokerage, dre_license, brokerage_dre, phone, display_email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, office_address")
+    .select("full_name, brokerage, dre_license, brokerage_dre, phone, display_email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, office_address, dre_verification_status, dre_verified_at")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -246,6 +246,19 @@ export async function POST(
       | "vip"
       | null;
 
+  // Mirror the auth /pdf and public /r/[code]/pdf routes: if the
+  // agent's DRE license isn't currently verified, render the
+  // verification-pending stripe on every page. Otherwise an
+  // emailed PDF would skip the gate the download path enforces.
+  const dreVerificationStatus =
+    (profile as { dre_verification_status?: string | null } | null)
+      ?.dre_verification_status ?? null;
+  const dreVerifiedAt =
+    (profile as { dre_verified_at?: string | null } | null)
+      ?.dre_verified_at ?? null;
+  const verificationPending =
+    dreVerificationStatus !== "verified" || !dreVerifiedAt;
+
   let pdfBuffer: Buffer;
   try {
     pdfBuffer = await renderToBuffer(
@@ -259,6 +272,7 @@ export async function POST(
         reportName={reportName}
         clientName={clientName}
         watermarked={watermarked}
+        verificationPending={verificationPending}
         creditSource={creditSource}
       />,
     );

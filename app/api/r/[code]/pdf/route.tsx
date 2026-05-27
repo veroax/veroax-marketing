@@ -57,7 +57,7 @@ export async function GET(_req: Request, context: { params: Params }) {
   const { data: profile } = await admin
     .from("profiles")
     .select(
-      "full_name, brokerage, dre_license, phone, display_email, email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, brokerage_dre, office_address",
+      "full_name, brokerage, dre_license, phone, display_email, email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, brokerage_dre, office_address, dre_verification_status, dre_verified_at",
     )
     .eq("id", report.user_id)
     .maybeSingle();
@@ -147,6 +147,19 @@ export async function GET(_req: Request, context: { params: Params }) {
     reportData.property_snapshot?.address?.trim() ||
     "the property";
 
+  // DRE PDF gate, public share-link path. Matches the auth /pdf
+  // route's logic: verified means status='verified' AND
+  // dre_verified_at is non-null; anything else trips the
+  // verification-pending stripe so a buyer or agent on the other
+  // side of the share link sees that the cover branding hasn't
+  // been backed by a DRE check.
+  const dreVerificationStatus =
+    (p?.dre_verification_status as string | null | undefined) ?? null;
+  const dreVerifiedAt =
+    (p?.dre_verified_at as string | null | undefined) ?? null;
+  const verificationPending =
+    dreVerificationStatus !== "verified" || !dreVerifiedAt;
+
   try {
     const buffer = await renderToBuffer(
       <ReportPDF
@@ -161,6 +174,7 @@ export async function GET(_req: Request, context: { params: Params }) {
         watermarked={Boolean(
           (report as { watermarked?: boolean } | null)?.watermarked,
         )}
+        verificationPending={verificationPending}
       />,
     );
     return new NextResponse(buffer as unknown as BodyInit, {
