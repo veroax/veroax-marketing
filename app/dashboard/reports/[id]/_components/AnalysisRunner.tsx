@@ -143,8 +143,21 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
         const data = (await res.json()) as StatusResponse;
         if (cancelled) return;
 
-        // If the report moved past "analyzing" externally, fall through
-        // to the completion handler.
+        // Failure path: status flipped to "failed" while we were
+        // polling. DO NOT play the chime, DO NOT show the green
+        // completion panel, that's the false-success-flash bug.
+        // Surface the failure reason inline and let the agent
+        // retry from here.
+        if (data.status === "failed") {
+          setPhase("error");
+          setError(
+            data.failure_reason ||
+              "Analysis did not complete. Retry to start a fresh run.",
+          );
+          return;
+        }
+        // Genuine success path: status moved to qa_pending /
+        // qa_approved / delivered. Now we can celebrate.
         if (data.status !== "analyzing") {
           playCompletionChime();
           setPhase("completing");
