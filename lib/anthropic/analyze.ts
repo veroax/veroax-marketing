@@ -117,26 +117,17 @@ const PASS_TOKEN_BUDGET = 175_000;
 //   - Safety target: 180K to leave room for Anthropic's measurement
 //     variance and for the output tokens to stream in cleanly.
 //
-//   60 pages × 2000 tokens = 120K + 50K overhead = 170K → 10K headroom.
+//   60 pages x 2000 tokens = 120K + 50K overhead = 170K with 10K headroom.
 //
-// MAX_PAGES_PER_CHUNK in lib/pdf/split.ts stays at 90 — that's the
+// MAX_PAGES_PER_CHUNK in lib/pdf/split.ts stays at 90, that's the
 // per-document Claude limit (model-level PDF rendering cap), which is
 // separate from how many docs we PACK into a single call. The packer
 // below (splitDocumentsByPages) caps total packed pages per call here.
-const PDF_PASS_PAGE_BUDGET = 60;
-
-// Per-group mode. PDF mode sends native PDF attachments to Claude
-// (preserves check-boxes, signatures, side-by-side seller/agent
-// disclosure tables, severity icons in inspection reports — the
-// stuff that drives the most consequential findings). Text mode
-// sends extracted strings (cheaper, fine for layout-irrelevant
-// long-form documents like HOA CC&Rs and reserve studies).
-const GROUP_MODE: Record<PassGroup, "pdf" | "text"> = {
-  seller_disclosures: "pdf",
-  inspections: "pdf",
-  hoa: "text",
-  hazards: "text",
-};
+//
+// PDF_PASS_PAGE_BUDGET and GROUP_MODE are defined once in
+// lib/pdf/limits.ts and shared with lib/server/performAnalysis.ts so
+// the two callers cannot drift.
+import { PDF_PASS_PAGE_BUDGET, GROUP_MODE } from "@/lib/pdf/limits";
 
 const MAX_RETRY_WAIT_SECONDS = 150;
 const MAX_ATTEMPTS = 3;

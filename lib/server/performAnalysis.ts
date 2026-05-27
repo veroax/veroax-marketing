@@ -17,29 +17,21 @@ import { safeFileMetadata } from "@/lib/audit/safe";
 
 // Must match PDF_PASS_PAGE_BUDGET in lib/anthropic/analyze.ts. Duplicated
 // here (not imported) because the in-memory re-split runs BEFORE the
-// analyzer sees the files — and the analyzer's per-call bin-packer
-// assumes every Document already fits comfortably. Lifted here so a
-// 90-page chunk uploaded under an older MAX_PAGES_PER_CHUNK gets
-// re-split into ≤60-page sub-documents before reaching Claude.
-const PDF_PER_CALL_PAGE_BUDGET = 60;
+// analyzer sees the files, and the analyzer's per-call bin-packer
+// assumes every Document already fits comfortably. Imported from the
+// shared module so a 90-page chunk uploaded under an older
+// MAX_PAGES_PER_CHUNK gets re-split into <=60-page sub-documents
+// before reaching Claude.
+import {
+  PDF_PASS_PAGE_BUDGET as PDF_PER_CALL_PAGE_BUDGET,
+  GROUP_MODE as GROUP_TRANSPORT,
+} from "@/lib/pdf/limits";
 import {
   classifyDocument,
   passGroupFor,
   DOCUMENT_TYPE_LABEL,
   type PassGroup,
 } from "@/lib/pdf/classify";
-
-// Which groups send native PDF attachments to Claude vs. extracted
-// text. Must stay in sync with GROUP_MODE in lib/anthropic/analyze.ts.
-// Duplicated here (not imported) because performAnalysis processes
-// files BEFORE the analyzer sees them — it has to know which storage
-// pull-path to take per file.
-const GROUP_TRANSPORT: Record<PassGroup, "pdf" | "text"> = {
-  seller_disclosures: "pdf",
-  inspections: "pdf",
-  hoa: "text",
-  hazards: "text",
-};
 import type { ReportData } from "@/lib/anthropic/schema";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
