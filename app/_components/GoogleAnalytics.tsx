@@ -31,7 +31,7 @@ export function GoogleAnalytics({ measurementId }: Props) {
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
-          gtag('config', '${measurementId}', { send_page_view: true });
+          gtag('config', ${JSON.stringify(measurementId)}, { send_page_view: true });
         `}
       </Script>
     </>
