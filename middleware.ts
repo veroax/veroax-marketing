@@ -53,6 +53,34 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // Archived-account gate. When an authenticated user is hitting any
+  // protected route, check whether their profile is archived. If so,
+  // sign them out and redirect to /account-archived. The /account-
+  // archived page itself is intentionally unauthenticated and not in
+  // PROTECTED_PREFIXES, so we never bounce in a loop.
+  //
+  // Reads profiles via the same user-scoped client used for auth so
+  // we don't need to construct a service-role client here at the
+  // edge. RLS on profiles is own-row-only, which is exactly what we
+  // need.
+  if (user && isProtected && path !== "/account-archived") {
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("archived_at")
+      .eq("id", user.id)
+      .maybeSingle();
+    const archivedAt =
+      (profileRow as { archived_at?: string | null } | null)?.archived_at ??
+      null;
+    if (archivedAt) {
+      await supabase.auth.signOut();
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/account-archived";
+      redirectUrl.search = "";
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
   return supabaseResponse;
 }
 
