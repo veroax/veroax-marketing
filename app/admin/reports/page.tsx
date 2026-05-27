@@ -256,7 +256,7 @@ export default async function AdminReportsList({
                   <tr key={r.id} className="hover:bg-slate-50/50">
                     <td className="px-6 py-3 font-medium text-slate-900">
                       <Link
-                        href={`/dashboard/reports/${r.id}`}
+                        href={`/admin/reports/${r.id}`}
                         className="hover:text-indigo-700"
                       >
                         {display}
@@ -313,7 +313,7 @@ export default async function AdminReportsList({
                     </td>
                     <td className="px-6 py-3 text-right">
                       <Link
-                        href={`/dashboard/reports/${r.id}`}
+                        href={`/admin/reports/${r.id}`}
                         className="text-xs text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
                       >
                         Open →
