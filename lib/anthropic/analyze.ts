@@ -21,6 +21,11 @@ import {
 } from "@/lib/cost-reference/california-markets";
 import { fetchMarketContext } from "./market-context";
 import { fetchLiveCostReference } from "./cost-reference-fetch";
+import {
+  reconcileListingData,
+  mlsStatusNoteFromReconciliation,
+  type ListingReconciliation,
+} from "./listing-reconciliation";
 
 // ============================================================================
 // Multi-pass disclosure analysis
@@ -216,6 +221,12 @@ export type AnalyzeResult = {
     input_tokens: number;
     output_tokens: number;
   }>;
+  // Audit trail from the listing-data reconciliation step. Persisted
+  // to reports.listing_reconciliation by performAnalysis. Used by
+  // the UI to surface the divergence banner + the source-override
+  // workflow. Null when reconciliation was skipped (no usable
+  // listing data input) or failed.
+  listing_reconciliation: ListingReconciliation | null;
   model: string;
 };
 
@@ -375,16 +386,34 @@ export async function analyzeDisclosurePackage(
   // passes for each metadata field, the focused passes typically
   // converge on the same answers for these basic facts.
   const facts = pickFirstFacts(passResults.map((p) => p.analysis));
-  const liveMarketContext = await fetchMarketContext({
-    propertyAddress: input.propertyAddressHint ?? null,
-    marketRegion: facts.market_region ?? null,
-    propertyType: facts.property_type ?? null,
-    bedrooms: facts.bedrooms ?? null,
-    bathrooms: facts.bathrooms ?? null,
-    squareFeet: facts.square_feet ?? null,
-    listPrice: facts.list_price ?? null,
-    listingUrl: input.listingUrl ?? null,
-  }).catch(() => null);
+
+  // Two web_search-backed fetches run in parallel after focused
+  // passes complete:
+  //   - market-context: comps, rates, monthly carrying cost
+  //   - listing reconciliation: reconciles package MLS print-out vs.
+  //     agent's listing URL vs. fresh live web search; produces the
+  //     relist ladder and divergence flag
+  // They're independent so we await them concurrently. Both have
+  // their own hard outer timeouts so a single hang can't take the
+  // whole analysis down.
+  const [liveMarketContext, listingReconciliation] = await Promise.all([
+    fetchMarketContext({
+      propertyAddress: input.propertyAddressHint ?? null,
+      marketRegion: facts.market_region ?? null,
+      propertyType: facts.property_type ?? null,
+      bedrooms: facts.bedrooms ?? null,
+      bathrooms: facts.bathrooms ?? null,
+      squareFeet: facts.square_feet ?? null,
+      listPrice: facts.list_price ?? null,
+      listingUrl: input.listingUrl ?? null,
+    }).catch(() => null),
+    reconcileListingData({
+      propertyAddress: input.propertyAddressHint ?? null,
+      apn: facts.apn ?? null,
+      packageMlsText: input.listingText ?? null,
+      listingUrl: input.listingUrl ?? null,
+    }).catch(() => null),
+  ]);
 
   // Synthesis pass, deterministic code, not a Claude call.
   // Observed in production: the Claude-driven synthesis call hung
@@ -399,6 +428,7 @@ export async function analyzeDisclosurePackage(
     input.propertyAddressHint ?? null,
     input.updateContext ?? null,
     liveMarketContext,
+    listingReconciliation,
   );
   await input.onSynthesisCompleted?.({ input_tokens: 0, output_tokens: 0 });
 
@@ -416,6 +446,7 @@ export async function analyzeDisclosurePackage(
       input_tokens: p.input_tokens,
       output_tokens: p.output_tokens,
     })),
+    listing_reconciliation: listingReconciliation,
     model: ANALYSIS_MODEL,
   };
 }
@@ -1075,6 +1106,82 @@ async function verifyFocusedAnalysis({
 // Replaces the Claude-driven synthesis that was hanging in production.
 // ============================================================================
 
+// Apply the listing-data reconciliation to a freshly-synthesized
+// ReportData. Three changes:
+//
+//   1. property_snapshot.mls_number is set to the reconciled current
+//      MLS number when reconciliation succeeded. This OVERRIDES
+//      whatever value the focused passes inferred (the focused
+//      passes can't know which MLS# is current; the reconciliation
+//      can, via live web_search).
+//   2. property_snapshot.mls_status_note is set to the "current;
+//      prior MLS X and Y cancelled" suffix when there are prior
+//      MLS numbers, so the cover and snapshot row render the full
+//      historical context.
+//   3. market_context gets relist_ladder + listing_divergence_note
+//      when the seller has a relist history or when sources
+//      disagreed.
+//
+// Returns the same ReportData reference, mutated in place. Pure
+// transformation, no Claude call.
+function applyListingReconciliation(
+  report: ReportData,
+  recon: ListingReconciliation | null,
+): ReportData {
+  if (!recon) return report;
+
+  // 1 + 2: property_snapshot edits.
+  if (report.property_snapshot && recon.current) {
+    if (recon.current.mls_number) {
+      report.property_snapshot.mls_number = recon.current.mls_number;
+    }
+    if (recon.current.list_price != null) {
+      report.property_snapshot.list_price = recon.current.list_price;
+    }
+    if (recon.current.list_date) {
+      report.property_snapshot.list_date = recon.current.list_date;
+    }
+    if (recon.current.days_on_market != null) {
+      report.property_snapshot.days_on_market = recon.current.days_on_market;
+    }
+    const statusNote = mlsStatusNoteFromReconciliation(recon);
+    if (statusNote) {
+      report.property_snapshot.mls_status_note = statusNote;
+    }
+  }
+
+  // 3: market_context edits. Only render the relist ladder when it
+  // contains 2+ events (a single event is just the current listing
+  // and doesn't tell a story). The divergence note renders whenever
+  // sources actually disagreed.
+  if (report.market_context) {
+    if (recon.relist_ladder && recon.relist_ladder.length >= 2) {
+      report.market_context.relist_ladder = recon.relist_ladder;
+    }
+    if (recon.has_divergence && recon.divergence_note) {
+      report.market_context.listing_divergence_note = recon.divergence_note;
+    }
+  } else if (
+    recon.has_divergence ||
+    (recon.relist_ladder && recon.relist_ladder.length >= 2)
+  ) {
+    // No market_context existed but the reconciliation surfaced
+    // signal worth rendering. Spin up a minimal market_context so
+    // the relist ladder and divergence note have a home.
+    report.market_context = {
+      summary:
+        "Listing history reconstructed by the listing-data reconciliation step.",
+      relist_ladder:
+        recon.relist_ladder && recon.relist_ladder.length >= 2
+          ? recon.relist_ladder
+          : null,
+      listing_divergence_note: recon.has_divergence ? recon.divergence_note : null,
+    };
+  }
+
+  return report;
+}
+
 function synthesizeReportInCode(
   focused: FocusedAnalysis[],
   propertyAddressHint: string | null,
@@ -1084,6 +1191,12 @@ function synthesizeReportInCode(
   // produced, it's grounded in current rate aggregators and recent
   // sales data, which the focused passes can't reach.
   liveMarketContext: ReportData["market_context"] | null = null,
+  // Optional listing-data reconciliation. When non-null, applied
+  // at the end of synthesis to fix property_snapshot.mls_number,
+  // property_snapshot.mls_status_note, market_context.relist_ladder,
+  // and market_context.listing_divergence_note. See
+  // applyListingReconciliation above.
+  listingReconciliation: ListingReconciliation | null = null,
 ): ReportData {
   // Aggregate findings (treat permit_compliance findings separately so
   // they end up in the permit section, not double-counted).
@@ -1636,7 +1749,7 @@ function synthesizeReportInCode(
     }
   }
 
-  return {
+  const baseReport: ReportData = {
     property_snapshot: property,
     document_inventory: documentInventory,
     completeness_audit: { summary: completenessSummary, issues: completenessIssues },
@@ -1661,6 +1774,13 @@ function synthesizeReportInCode(
     overall_rating: overallRating,
     update_note: updateNote,
   };
+
+  // Apply the listing-data reconciliation last so the live MLS#,
+  // status note, relist ladder, and divergence note take precedence
+  // over whatever the focused passes inferred. The reconciliation
+  // has fresher signal (live web_search) than the focused passes
+  // can produce.
+  return applyListingReconciliation(baseReport, listingReconciliation);
 }
 
 // Format a human-readable update banner for re-analyzed reports. Null

@@ -638,6 +638,28 @@ const styles = StyleSheet.create({
     color: C.subtext,
     marginBottom: 4,
   },
+  // Listing-data divergence banner, rendered above the Market Context
+  // narrative when the package's MLS print-out, the agent's listing
+  // URL, and the live web search disagreed on price / MLS# / status /
+  // list date. Background applied at the View level (Text-with-
+  // backgroundColor is on the project-forbidden list per AGENTS.md).
+  divergenceBanner: {
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  divergenceLabel: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#92400e",
+    marginBottom: 2,
+  },
+  divergenceBody: {
+    fontSize: 9,
+    color: "#92400e",
+    lineHeight: 1.45,
+  },
   // Numbered item inside a dual block (Strengths / Concerns lists).
   // Bumped from 9pt to 10pt with more leading + bottom margin so the
   // list reads cleanly instead of feeling stacked-tight.
@@ -1390,13 +1412,21 @@ function CoverPage({
 
   // --- 2. Listing details -------------------------------------------
   if (p?.apn) coverKv.push(["APN", withSoftBreaks(p.apn)]);
-  // MLS# only shown for live/pending listings, historical MLS# on a
-  // sold/withdrawn record is noise for the buyer.
-  if (
-    p?.mls_number &&
-    (p?.list_status === "active" || p?.list_status === "pending")
-  ) {
-    coverKv.push(["MLS#", withSoftBreaks(p.mls_number)]);
+  // MLS# is a PERMANENT field on the cover snapshot. The listing-data
+  // reconciliation step populates property_snapshot.mls_number from
+  // the live web search (when available) so this is the CURRENT
+  // active MLS, not whatever was in the package's static MLS
+  // print-out. When the property has cancelled prior MLS numbers,
+  // mls_status_note carries the "current; prior MLS X and Y
+  // cancelled" suffix and is appended to the same row so the agent
+  // and buyer see the full historical context. Removed the
+  // previous "only render for active/pending" gate, the buyer needs
+  // to see MLS# on every report regardless of status.
+  if (p?.mls_number) {
+    const mlsValue = p.mls_status_note
+      ? `${p.mls_number} (${p.mls_status_note})`
+      : p.mls_number;
+    coverKv.push(["MLS#", withSoftBreaks(mlsValue)]);
   }
   if (p?.list_price) {
     const showListDate = p?.list_status === "active" && p?.list_date;
@@ -1834,9 +1864,23 @@ function SectionPropertySnapshot({
   if (p?.days_on_market != null) parts.push(`${p.days_on_market} DOM`);
   if (p?.market_region) parts.push(p.market_region);
 
+  // MLS line renders directly under the section banner, immediately
+  // after where the address appears in the running header. The
+  // reconciliation step populates this with the CURRENT MLS number;
+  // mls_status_note carries the "current; prior MLS X cancelled"
+  // historical context when the property has a relist history.
+  const mlsLine = p?.mls_number
+    ? p.mls_status_note
+      ? `MLS# ${p.mls_number} (${p.mls_status_note})`
+      : `MLS# ${p.mls_number}`
+    : null;
+
   return (
     <View>
       <SectionBanner number={1} title="Property Snapshot" />
+      {mlsLine ? (
+        <Text style={styles.propertySnapshotInline}>{mlsLine}</Text>
+      ) : null}
       {parts.length > 0 ? (
         <Text style={styles.propertySnapshotInline}>
           {parts.join(" · ")}
@@ -2680,7 +2724,9 @@ function SectionTitleVesting({ report }: { report: ReportData }) {
   );
 }
 
-// Market Context, sub-segment pricing + comps + mortgage rate.
+// Market Context, sub-segment pricing + comps + mortgage rate +
+// (when the listing has been re-listed or sources disagreed) the
+// reconstructed listing history.
 function SectionMarketContext({ report }: { report: ReportData }) {
   const mc = report.market_context;
   return (
@@ -2688,6 +2734,24 @@ function SectionMarketContext({ report }: { report: ReportData }) {
       <SectionBanner number={13} title="Market Context" />
       {mc ? (
         <>
+          {/* Divergence flag, rendered above the rest of the section
+              when the listing-data reconciliation step found the
+              three sources (package MLS print-out, agent's listing
+              URL, live web search) disagreed on price / MLS# /
+              status / list date. Tells the buyer up front that
+              the package's static MLS sheet does not reflect the
+              current listing. */}
+          {mc.listing_divergence_note ? (
+            <View style={styles.divergenceBanner}>
+              <Text style={styles.divergenceLabel}>
+                Listing data, sources disagreed:
+              </Text>
+              <Text style={styles.divergenceBody}>
+                {withSoftBreaks(mc.listing_divergence_note)}
+              </Text>
+            </View>
+          ) : null}
+
           <Text style={styles.body}>{withSoftBreaks(mc.summary)}</Text>
           {mc.monthly_carrying_cost ? (
             <Text style={styles.body}>
@@ -2705,6 +2769,26 @@ function SectionMarketContext({ report }: { report: ReportData }) {
               {mc.mortgage_rate_range}
             </Text>
           ) : null}
+
+          {/* Relist ladder, reconstructed seller pricing trajectory
+              across the listing's history. Renders when there are
+              at least 2 events (a single event is the current
+              listing alone and doesn't tell a story). Each event's
+              narrative is buyer-readable directly. */}
+          {mc.relist_ladder && mc.relist_ladder.length >= 2 ? (
+            <>
+              <Text style={styles.subHead}>Listing history.</Text>
+              {mc.relist_ladder.map((event, i) => (
+                <View key={i} style={styles.compRow}>
+                  <Text style={styles.compDot}>·</Text>
+                  <Text style={styles.compText}>
+                    {withSoftBreaks(event.narrative)}
+                  </Text>
+                </View>
+              ))}
+            </>
+          ) : null}
+
           {mc.comparable_units && mc.comparable_units.length > 0 ? (
             <>
               <Text style={styles.subHead}>Comparable units.</Text>

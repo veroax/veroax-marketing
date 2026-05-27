@@ -97,6 +97,12 @@ export type ReportData = {
     // ----------------------------------------------------------------
     apn?: string | null;
     mls_number?: string | null;
+    // Optional companion note that renders after the MLS number on
+    // the cover and property snapshot. Populated by the listing-data
+    // reconciliation step when the property has cancelled prior MLS
+    // numbers: "current; prior MLS 82039496 and 82044514 cancelled".
+    // Null when there's only one MLS number in the property's history.
+    mls_status_note?: string | null;
     list_date?: string | null;
     list_status?: "active" | "pending" | "sold" | "withdrawn" | "unknown" | null;
     zestimate?: number | null;
@@ -218,6 +224,32 @@ export type ReportData = {
       status: string; // e.g., "Sold $435,000", "Listed $468,000"
       note?: string | null;
     }> | null;
+    // Seller's pricing trajectory across the listing's history,
+    // reconstructed by the listing-data reconciliation step.
+    // Renders as a "Listing History" subsection when populated AND
+    // when there are at least 2 events. Each event is a 1-2 sentence
+    // narrative the buyer can read directly. Optional, null when
+    // there's only a single current listing with no relist history.
+    relist_ladder?: Array<{
+      date: string | null;
+      mls_number: string | null;
+      list_price: number | null;
+      status:
+        | "listed"
+        | "price_change"
+        | "cancelled"
+        | "withdrawn"
+        | "pending"
+        | "sold";
+      narrative: string;
+    }> | null;
+    // 1-2 sentence flag rendered above the relist ladder when the
+    // three reconciled sources (package MLS print-out, agent's
+    // listing URL, live web search) disagreed on price / MLS# /
+    // status / list date. Tells the buyer "the package's static MLS
+    // sheet doesn't match the live listing." Null when the sources
+    // agreed.
+    listing_divergence_note?: string | null;
   } | null;
   // Title & vesting summary from the preliminary title report. Captures
   // how the unit is vested (sole, joint, tenants-in-common, percentages),

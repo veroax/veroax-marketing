@@ -438,15 +438,33 @@ export async function performAnalysis(
       : null;
   const shareCode = existingShareCode ?? generateShareCode();
 
+  // Persist the listing-data reconciliation audit trail alongside
+  // the report. When non-null, also stamp a default source choice
+  // (the reconciliation's recommendation) so the report has a
+  // resolved headline source on first render; the agent can override
+  // via the report detail page later.
+  const reconciliation = result.listing_reconciliation;
+  const update: Record<string, unknown> = {
+    status: "qa_pending",
+    report_data: result.report,
+    property_address: report.property_address ?? extractedAddress,
+    analysis_completed_at: new Date().toISOString(),
+    share_code: shareCode,
+  };
+  if (reconciliation) {
+    update.listing_reconciliation = reconciliation;
+    if (reconciliation.recommended_source) {
+      update.listing_source_choice = reconciliation.recommended_source;
+      update.listing_source_choice_at = new Date().toISOString();
+      // listing_source_choice_by stays null when the choice was the
+      // auto-default. The agent's user_id gets stamped only when
+      // they override manually via the UI.
+    }
+  }
+
   const { error: updateErr } = await admin
     .from("reports")
-    .update({
-      status: "qa_pending",
-      report_data: result.report,
-      property_address: report.property_address ?? extractedAddress,
-      analysis_completed_at: new Date().toISOString(),
-      share_code: shareCode,
-    })
+    .update(update)
     .eq("id", reportId);
   if (updateErr) {
     throw new Error(`Could not save report: ${updateErr.message}`);
