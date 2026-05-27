@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB per file
-const MAX_FILES = 20;
+// Hard cap on individual files. Real California disclosure packages
+// commonly run 40 to 80 PDFs (seller forms, multiple inspections,
+// HOA bundles, historical disclosures). The cap is generous, but
+// once an agent gets above ZIP_RECOMMENDATION_THRESHOLD we
+// affirmatively suggest a ZIP because each individual file is its
+// own browser-to-Supabase round trip, a single ZIP uploads as one
+// request and is unpacked server-side.
+const MAX_FILES = 100;
+const ZIP_RECOMMENDATION_THRESHOLD = 20;
 const ALLOWED_PDF = "application/pdf";
 const ALLOWED_ZIP = ["application/zip", "application/x-zip-compressed"];
 
@@ -36,6 +44,12 @@ export default function UploadPage() {
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  // Free-form status text rendered prominently during submit, e.g.
+  // "Uploading file 12 of 47, this can take a minute on larger ZIPs".
+  // Without this the user sees only the per-row badges + a Finalizing
+  // button, neither of which gives a clear "yes the system is alive"
+  // signal during a slow upload.
+  const [submitStatus, setSubmitStatus] = useState<string | null>(null);
   // Report metadata (none of these become the property's address ,
   // the address is derived from the disclosure documents themselves).
   const [reportName, setReportName] = useState("");
@@ -69,11 +83,27 @@ export default function UploadPage() {
     setItems((prev) => {
       const combined = [...prev, ...incoming];
       if (combined.length > MAX_FILES) {
-        setGlobalError(`Maximum ${MAX_FILES} files per report.`);
+        setGlobalError(
+          `Maximum ${MAX_FILES} individual files per report. Combine them into a single ZIP, we'll unpack it server-side.`,
+        );
         return combined.slice(0, MAX_FILES);
       }
       return combined;
     });
+  }
+
+  function removeAll() {
+    setItems([]);
+    setGlobalError(null);
+  }
+
+  function cancelAndExit() {
+    // Soft cancel: navigate back to the dashboard. The in-progress
+    // upload (if any) is just discarded, the report row in Supabase
+    // gets cleaned up by the stale-sweep cron if a /create was already
+    // issued. We do not try to roll that back inline because the
+    // upload step hasn't named a reportId we can return.
+    router.push("/dashboard");
   }
 
   function handleFileInput(e: ChangeEvent<HTMLInputElement>) {
@@ -105,6 +135,7 @@ export default function UploadPage() {
 
     setSubmitting(true);
     setGlobalError(null);
+    setSubmitStatus("Preparing your report...");
     const supabase = createClient();
 
     try {
@@ -128,10 +159,18 @@ export default function UploadPage() {
       // Step 2: upload each file directly to Supabase Storage.
       // Path convention: disclosures/{user_id}/{report_id}/{filename}
       const uploadedPaths: string[] = [];
+      const totalToUpload = items.filter((i) => i.state !== "error").length;
+      let uploadedSoFar = 0;
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         if (item.state === "error") continue;
 
+        const sizeHint = item.file.size > 20 * 1024 * 1024
+          ? ` (${fmtSize(item.file.size)}, this can take a minute)`
+          : "";
+        setSubmitStatus(
+          `Uploading file ${uploadedSoFar + 1} of ${totalToUpload}: ${item.file.name}${sizeHint}`,
+        );
         setItems((prev) =>
           prev.map((it, idx) => (idx === i ? { ...it, state: "uploading" } : it)),
         );
@@ -160,12 +199,14 @@ export default function UploadPage() {
           prev.map((it, idx) => (idx === i ? { ...it, state: "done" } : it)),
         );
         uploadedPaths.push(path);
+        uploadedSoFar += 1;
       }
 
       // Step 2.5: if the agent included an MLS-printout PDF, upload it to
       // a sibling folder so finalize can extract text from it later.
       let mlsFilePath: string | null = null;
       if (mlsPdfFile) {
+        setSubmitStatus(`Uploading MLS printout: ${mlsPdfFile.name}`);
         const safeMlsName = mlsPdfFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         const path = `${userId}/${reportId}/mls/${safeMlsName}`;
         const { error: mlsUploadErr } = await supabase.storage
@@ -186,6 +227,9 @@ export default function UploadPage() {
       // Step 3: tell the server we're done uploading. Server will extract any
       // ZIPs, capture the original_files inventory, optionally extract text
       // from the MLS PDF, and mark the report as ready for analysis.
+      setSubmitStatus(
+        "Finalizing your report (extracting ZIPs, capturing document inventory)...",
+      );
       const finalizeRes = await fetch(`/api/reports/${reportId}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -200,10 +244,12 @@ export default function UploadPage() {
       }
 
       // Step 4: send the user to the report detail page.
+      setSubmitStatus("Done, taking you to the analysis page...");
       router.push(`/dashboard/reports/${reportId}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed.";
       setGlobalError(message);
+      setSubmitStatus(null);
     } finally {
       setSubmitting(false);
     }
@@ -221,14 +267,22 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {/* Tip about ZIPs */}
+      {/* Tip about ZIPs. Most California disclosure packages run 40 to
+          80 individual PDFs (seller forms, multiple inspections, HOA
+          bundles, historical disclosures). A single ZIP is one
+          browser-to-Supabase request and is unpacked server-side, much
+          faster than 50 separate uploads. Drop the whole package as-is. */}
       <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-sm text-indigo-900 leading-relaxed">
-        <p className="font-semibold mb-1">Tip: extract your Disclosures.io ZIP first.</p>
+        <p className="font-semibold mb-1">
+          Working with a large California disclosure package? Upload it as
+          a single ZIP.
+        </p>
         <p className="text-indigo-700 text-xs">
-          We accept ZIP files and will extract them automatically, but the analysis is
-          faster and more reliable when individual PDFs are uploaded directly. Open the
-          ZIP on your computer, then drag in the individual TDS, SPQ, AVID, NHD,
-          inspection, and HOA PDFs.
+          We unpack ZIPs automatically and analyze every file inside,
+          seller disclosures, inspections, HOA documents, and historical
+          disclosures included. A single ZIP also uploads MUCH faster
+          than 40 to 80 individual PDFs. If you only have a handful of
+          loose PDFs, drop those instead.
         </p>
       </div>
 
@@ -409,9 +463,49 @@ export default function UploadPage() {
         </p>
       </div>
 
+      {/* Many-files warning. Fires when the agent has more than the
+          ZIP-recommendation threshold of loose PDFs queued, this is
+          almost always a CA-disclosure-package use case where a ZIP
+          is the better path. We don't block, just recommend, the
+          server handles many-PDFs fine, just slowly. */}
+      {hasFiles && items.length > ZIP_RECOMMENDATION_THRESHOLD && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900 leading-relaxed">
+          <p className="font-semibold mb-1">
+            That&apos;s {items.length} individual files. Consider uploading a
+            single ZIP instead.
+          </p>
+          <p className="text-amber-800 text-xs">
+            We accept up to {MAX_FILES} individual PDFs, but each file is
+            its own browser upload. A ZIP of the same files uploads as one
+            request and is unpacked server-side, much faster and less
+            likely to hit a network hiccup mid-upload. Remove these and
+            drop the ZIP your brokerage gave you, or keep going if you
+            prefer.
+          </p>
+        </div>
+      )}
+
       {/* File list */}
       {hasFiles && (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          {/* Bulk-remove header. Shown whenever there are multiple
+              files queued so the agent can wipe the slate and start
+              over (e.g., they meant to upload a ZIP but picked PDFs
+              by mistake). */}
+          {items.length > 1 && !submitting && (
+            <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+              <span className="text-xs text-slate-600">
+                {items.length} file{items.length === 1 ? "" : "s"} queued
+              </span>
+              <button
+                type="button"
+                onClick={removeAll}
+                className="text-xs text-slate-500 hover:text-red-600 underline underline-offset-2"
+              >
+                Remove all
+              </button>
+            </div>
+          )}
           <ul className="divide-y divide-slate-100">
             {items.map((it, i) => (
               <li
@@ -450,22 +544,66 @@ export default function UploadPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-xs text-gray-500">
-          By starting an analysis, you confirm you&apos;re authorized to process these documents on behalf of your client.
-        </p>
-        <button
-          type="button"
-          onClick={startAnalysis}
-          disabled={submitting || items.length === 0}
-          className="bg-amber-400 text-indigo-950 font-semibold px-6 py-3 rounded-lg hover:bg-amber-300 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+      {/* Live status during submit. Spans the width of the form so the
+          agent has a clear "yes, the system is alive" signal even when
+          a single large ZIP is the only thing uploading. Pairs with the
+          per-row badges in the file list. */}
+      {submitting && submitStatus && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="text-sm text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 flex items-start gap-3"
         >
-          {submitting
-            ? allDone
-              ? "Finalizing…"
-              : "Uploading…"
-            : "Start analysis"}
-        </button>
+          <svg
+            className="w-4 h-4 text-indigo-600 animate-spin mt-0.5 shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="3"
+              opacity="0.25"
+            />
+            <path
+              d="M22 12a10 10 0 00-10-10"
+              stroke="currentColor"
+              strokeWidth="3"
+            />
+          </svg>
+          <span className="leading-relaxed">{submitStatus}</span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <p className="text-xs text-gray-500 max-w-md">
+          By starting an analysis, you confirm you&apos;re authorized to
+          process these documents on behalf of your client.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={cancelAndExit}
+            disabled={submitting}
+            className="text-sm text-slate-600 hover:text-slate-900 px-4 py-3 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={startAnalysis}
+            disabled={submitting || items.length === 0}
+            className="bg-amber-400 text-indigo-950 font-semibold px-6 py-3 rounded-lg hover:bg-amber-300 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {submitting
+              ? allDone
+                ? "Finalizing..."
+                : "Uploading..."
+              : "Start analysis"}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -306,10 +306,12 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
             </span>
           </p>
           <p className="text-xs text-gray-400 mt-3 leading-relaxed">
-            Multi-pass analysis takes about <strong>3–6 minutes</strong> for a typical
-            CA disclosure package. We extract text from every document, then run
-            focused Claude calls in parallel (seller disclosures, inspections,
-            HOA, hazards) before synthesizing the final 14-section report.
+            Multi-pass analysis can take up to <strong>15 minutes</strong> on
+            a large California disclosure package. We extract text from every
+            document, then run focused Claude calls in parallel (seller
+            disclosures, inspections, HOA, hazards) before synthesizing the
+            final 14-section report. Larger packages with historical
+            disclosures sit toward the longer end of that window.
           </p>
         </div>
       </div>
