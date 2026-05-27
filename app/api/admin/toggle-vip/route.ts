@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/auth/require";
 //
 // Promotes or demotes a user's VIP status. Admin-only. VIP users
 // bypass the credit gate on report creation (free access), never
-// get a watermark, and see "VIP — free access" on /dashboard/billing
+// get a watermark, and see "VIP, free access" on /dashboard/billing
 // instead of credit pools.
 //
 // Audited as "vip.granted" or "vip.revoked" with the actor info

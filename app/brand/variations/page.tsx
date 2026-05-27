@@ -3,10 +3,10 @@ import Link from "next/link";
 // Side-by-side comparison page for the lockup variations. Each card
 // shows the SVG rendered at two sizes (large for evaluation, small
 // for "how does this look at favicon scale") plus a name + design
-// notes. Public page — no auth — so you can share the URL.
+// notes. Public page, no auth, so you can share the URL.
 
 export const metadata = {
-  title: "Brand lockup variations — Veroax",
+  title: "Brand lockup variations, Veroax",
   robots: { index: false, follow: false },
 };
 
@@ -29,7 +29,7 @@ const REFINEMENTS: Variation[] = [
     name: "v1 refined · gold #D4B85C",
     file: "/brand/lockup-v1-refined-a.svg",
     notes:
-      "Box scaled down so its height aligns optically with the wordmark caps. Gold lifted slightly from the original #C9A84C to #D4B85C — barely noticeable in isolation but reads more golden side-by-side.",
+      "Box scaled down so its height aligns optically with the wordmark caps. Gold lifted slightly from the original #C9A84C to #D4B85C, barely noticeable in isolation but reads more golden side-by-side.",
     height: 46,
     width: 230,
   },
@@ -53,7 +53,7 @@ const REFINEMENTS: Variation[] = [
   },
   {
     id: "R-D",
-    name: "v1 on dark — designed for black",
+    name: "v1 on dark, designed for black",
     file: "/brand/lockup-v1-on-dark.svg",
     notes:
       "Same geometry but the colors invert for legibility against dark backgrounds. Box becomes gold, V becomes navy, wordmark becomes white. Use this version on the dashboard sidebar, the PDF cover chrome, dark social graphics.",
@@ -174,7 +174,7 @@ export default function BrandVariationsPage() {
           </p>
         </div>
 
-        {/* Refinements section — newest iterations from the most
+        {/* Refinements section, newest iterations from the most
             recent feedback round (smaller box, lighter gold,
             dark-mode treatment). */}
         <section className="mb-12">
@@ -236,7 +236,7 @@ export default function BrandVariationsPage() {
   );
 }
 
-// Per-card rendering — shared between the refinements section at
+// Per-card rendering, shared between the refinements section at
 // the top and the earlier-explorations section below. Each card
 // shows the lockup at four scales/backgrounds so judgement is
 // honest:
@@ -282,7 +282,7 @@ function VariationCard({ variation: v }: { variation: Variation }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={v.file}
-              alt=""
+              alt={`${v.name} lockup on light background`}
               style={{ maxHeight: 32, width: "auto" }}
             />
           </div>
@@ -296,16 +296,16 @@ function VariationCard({ variation: v }: { variation: Variation }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={v.file}
-              alt=""
+              alt={`${v.name} lockup on navy background`}
               style={{ maxHeight: 32, width: "auto" }}
             />
           </div>
-          {/* True black tile — the toughest test. */}
+          {/* True black tile, the toughest test. */}
           <div className="border border-slate-700 rounded-lg p-3 flex items-center justify-center bg-black">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={v.file}
-              alt=""
+              alt={`${v.name} lockup on true black background`}
               style={{ maxHeight: 32, width: "auto" }}
             />
           </div>

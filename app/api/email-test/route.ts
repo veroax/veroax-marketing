@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   const { data, error } = await resend.emails.send({
     from: "Veroax Diagnostic <contact@veroax.com>",
     to: "support@veroax.com",
-    subject: "Veroax email diagnostic — please ignore",
+    subject: "Veroax email diagnostic, please ignore",
     text: "If you received this, the Resend email pipeline is working.",
     html: "<p>If you received this, the Resend email pipeline is working.</p>",
   });

@@ -1,4 +1,4 @@
-// PDF text extraction using unpdf — a serverless-friendly build of
+// PDF text extraction using unpdf, a serverless-friendly build of
 // Mozilla's pdf.js. We were using pdf-parse v2 but its underlying
 // pdf.js worker file didn't survive Vercel's bundler, causing the
 // analyze and inspect routes to crash at module load.

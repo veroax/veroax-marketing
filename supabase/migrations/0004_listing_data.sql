@@ -3,9 +3,9 @@
 -- the canonical address from MLS/Zillow rather than what was extracted
 -- from the disclosure documents.
 --
--- listing_url   — MLS / Zillow / Redfin URL the user pasted
--- listing_text  — raw MLS-printout text the user pasted (alternative)
--- listing_data  — parsed structured fields (address, list_price, dom,
+-- listing_url  , MLS / Zillow / Redfin URL the user pasted
+-- listing_text , raw MLS-printout text the user pasted (alternative)
+-- listing_data , parsed structured fields (address, list_price, dom,
 --                 status, …) populated by a future extraction step.
 --                 jsonb so we can add fields without further migrations.
 

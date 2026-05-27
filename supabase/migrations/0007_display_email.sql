@@ -2,7 +2,7 @@
 -- show a different email on their reports than the one they signed
 -- up with.
 --
---   display_email  text  — what appears on the PDF cover's "Prepared
+--   display_email  text , what appears on the PDF cover's "Prepared
 --                          By" panel and in email reply-to headers
 --                          when the agent sends through Veroax. NULL
 --                          means "use the auth signup email."

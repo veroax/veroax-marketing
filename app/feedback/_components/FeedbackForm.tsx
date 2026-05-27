@@ -19,7 +19,7 @@ export function FeedbackForm() {
           ✓
         </div>
         <h2 className="text-lg font-bold text-slate-900 mb-1">
-          Got it — thank you.
+          Got it, thank you.
         </h2>
         <p className="text-sm text-slate-600">
           We&apos;ll get back to you within a business day.
@@ -35,7 +35,7 @@ export function FeedbackForm() {
       <Field
         label="Report ID (optional)"
         name="report_id"
-        hint="If your feedback is about a specific report, paste its ID from the URL — helps us look it up faster."
+        hint="If your feedback is about a specific report, paste its ID from the URL, helps us look it up faster."
       />
       <label className="block">
         <span className="text-xs font-semibold text-slate-700 mb-1 block">

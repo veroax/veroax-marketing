@@ -4,7 +4,7 @@ import { Resend } from "resend";
 
 // Server action that delivers a feedback message to support@veroax.com
 // via the existing Resend integration. Same shape as the contact-form
-// API route — we just write it as a server action so the page can use
+// API route, we just write it as a server action so the page can use
 // useActionState() and render acknowledgments inline.
 
 export type FeedbackActionState = {

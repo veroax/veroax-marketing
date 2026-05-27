@@ -75,7 +75,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           error:
-            "Submitter email doesn't match a Veroax account — can't grant a credit. Acknowledge or dismiss instead.",
+            "Submitter email doesn't match a Veroax account, can't grant a credit. Acknowledge or dismiss instead.",
         },
         { status: 409 },
       );

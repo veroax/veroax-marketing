@@ -5,7 +5,7 @@ import { balanceForUser } from "@/lib/billing/credits";
 import Stripe from "stripe";
 
 export const metadata = {
-  title: "Billing — Veroax",
+  title: "Billing, Veroax",
 };
 
 type LedgerRow = {
@@ -27,7 +27,7 @@ export default async function BillingPage() {
   // Snapshot the user's full credit picture for the header cards.
   const balance = await balanceForUser(user.id);
 
-  // Recent ledger entries — drives the activity list at the bottom
+  // Recent ledger entries, drives the activity list at the bottom
   // of the page. Capped at 30; "View all" link could go to a
   // dedicated history page later.
   const { data: ledgerData } = await supabase
@@ -38,7 +38,7 @@ export default async function BillingPage() {
     .limit(30);
   const ledger = (ledgerData ?? []) as LedgerRow[];
 
-  // Recent Stripe invoices — best-effort. If the user doesn't have
+  // Recent Stripe invoices, best-effort. If the user doesn't have
   // a Stripe customer ID yet, we skip this section entirely.
   const { data: profile } = await supabase
     .from("profiles")
@@ -76,7 +76,7 @@ export default async function BillingPage() {
         hosted_invoice_url: inv.hosted_invoice_url ?? null,
       }));
     } catch (err) {
-      // Non-fatal — billing page still renders the other sections.
+      // Non-fatal, billing page still renders the other sections.
       console.error("[billing] could not load Stripe invoices:", err);
     }
   }
@@ -115,7 +115,7 @@ export default async function BillingPage() {
         </div>
       </div>
 
-      {/* VIP banner — shown only to VIP users, replaces the plan
+      {/* VIP banner, shown only to VIP users, replaces the plan
           chrome with a clear "you have free access" indication. */}
       {balance.isVip ? (
         <section
@@ -165,13 +165,13 @@ export default async function BillingPage() {
               </p>
             ) : !customerId ? (
               <p className="text-xs text-slate-500 mt-1">
-                You haven&apos;t subscribed yet — running on the free
+                You haven&apos;t subscribed yet, running on the free
                 trial.
               </p>
             ) : null}
           </div>
 
-          {/* Credit pools — 3 stacked cards on mobile, row on desktop */}
+          {/* Credit pools, 3 stacked cards on mobile, row on desktop */}
           <div className="grid grid-cols-3 gap-3 text-center w-full sm:w-auto">
             <Stat
               label="Subscription"
@@ -179,7 +179,7 @@ export default async function BillingPage() {
               sub={
                 balance.subscriptionReportsIncluded > 0
                   ? `of ${balance.subscriptionReportsIncluded}/mo`
-                  : "—"
+                  : ","
               }
             />
             <Stat
@@ -196,7 +196,7 @@ export default async function BillingPage() {
           </div>
         </div>
 
-        {/* Quick "buy more" affordance — suppressed for VIPs whose
+        {/* Quick "buy more" affordance, suppressed for VIPs whose
             access doesn't depend on credit balance. */}
         {!balance.isVip &&
         balance.subscriptionReportsRemaining === 0 &&
@@ -224,14 +224,14 @@ export default async function BillingPage() {
         ) : null}
       </section>
 
-      {/* Recent activity — credit ledger */}
+      {/* Recent activity, credit ledger */}
       <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
         <h2 className="text-base font-bold text-slate-900 mb-3">
           Credit activity
         </h2>
         {ledger.length === 0 ? (
           <p className="text-sm text-slate-500 italic">
-            No credit activity yet — your trial grant will appear here
+            No credit activity yet, your trial grant will appear here
             when you generate your first report.
           </p>
         ) : (
@@ -288,7 +288,7 @@ export default async function BillingPage() {
                         : "bg-slate-100 text-slate-700"
                   }`}
                 >
-                  {inv.status ?? "—"}
+                  {inv.status ?? ","}
                 </span>
                 <span className="flex-1 text-slate-700">
                   {new Date(inv.created * 1000).toLocaleDateString(
@@ -380,13 +380,13 @@ function ledgerDescription(row: LedgerRow): string {
     case "trial_grant":
       return "Free trial credit granted on signup";
     case "subscription_renewal":
-      return `Subscription renewed — credits granted`;
+      return `Subscription renewed, credits granted`;
     case "oneoff_purchase":
       return "Pay-as-you-go credit purchased";
     case "report_consumed":
       return `Report ${(row.report_id ?? "").slice(0, 8) || "consumed"}${
         (row.metadata as { watermarked?: boolean } | null)?.watermarked
-          ? " (watermarked — trial)"
+          ? " (watermarked, trial)"
           : ""
       }`;
     case "admin_grant":

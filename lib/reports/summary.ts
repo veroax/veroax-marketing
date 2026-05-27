@@ -5,13 +5,13 @@ import type { ReportData } from "@/lib/anthropic/schema";
 //   - /api/reports/[id]/email/draft (the seeded email body)
 //
 // Living in one place keeps the agent's dashboard view and the email
-// they send to the client perfectly aligned — if they edit nothing
+// they send to the client perfectly aligned, if they edit nothing
 // before sending, the client sees exactly the bullets the agent saw.
 
 // Each pick carries the bullet text plus optional metadata so the
 // dashboard can show a small "Triggered rule: …" badge when a
 // finding was upgraded to Critical by an always-CRITICAL rule.
-// The email path doesn't need the badge — it just .map(c => c.text)s.
+// The email path doesn't need the badge, it just .map(c => c.text)s.
 export type SummaryItem = {
   text: string;
   // Only set for concerns sourced from a finding with a triggered_rule.
@@ -81,7 +81,7 @@ export function composeAgentStrengthsAndConcerns(report: ReportData): {
   }
   if (!report.hoa?.applicable) {
     strengths.push({
-      text: "No HOA — eliminates association financial risk",
+      text: "No HOA, eliminates association financial risk",
     });
   }
   if (strengths.length === 0) {

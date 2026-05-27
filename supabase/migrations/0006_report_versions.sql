@@ -12,7 +12,7 @@
 --   * Outside that window, the update consumes a report credit,
 --     same as creating a brand-new report.
 --
---   versions         jsonb default '[]' — append-only history.
+--   versions         jsonb default '[]', append-only history.
 --                    Each entry is a snapshot taken right before
 --                    a re-analysis kicks off:
 --                      {
@@ -24,14 +24,14 @@
 --                        status,
 --                        pdf_blob_path: text | null  (reserved for
 --                          future pre-rendered PDF storage; null for
---                          now — the PDF route re-renders from the
+--                          now, the PDF route re-renders from the
 --                          snapshot when needed.)
 --                      }
 --
---   last_updated_at  timestamptz — most recent update; NULL for
+--   last_updated_at  timestamptz, most recent update; NULL for
 --                    reports that were never updated.
 --
---   update_count     int default 0 — running counter of updates
+--   update_count     int default 0, running counter of updates
 --                    applied. Drives the next version_number.
 
 alter table public.reports

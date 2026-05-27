@@ -114,14 +114,14 @@ export default function ComparisonPage() {
             <span>At favicon scale:</span>
             <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/v4-baseline-primary-light.svg" alt="" style={{ height: 24 }} />
+              <img src="/brand/v4-baseline-primary-light.svg" alt="v4 baseline lockup, light variant" style={{ height: 24 }} />
             </div>
             <div
               className="rounded p-2 flex items-center justify-center"
               style={{ background: "#0F0E2E" }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/v4-baseline-reversed-dark.svg" alt="" style={{ height: 24 }} />
+              <img src="/brand/v4-baseline-reversed-dark.svg" alt="v4 baseline lockup, dark variant" style={{ height: 24 }} />
             </div>
           </div>
         </section>
@@ -193,14 +193,14 @@ export default function ComparisonPage() {
             <span>At favicon scale:</span>
             <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/v3-01-coral-lowercase-light.svg" alt="" style={{ height: 24 }} />
+              <img src="/brand/v3-01-coral-lowercase-light.svg" alt="v3 coral lowercase lockup, light variant" style={{ height: 24 }} />
             </div>
             <div
               className="rounded p-2 flex items-center justify-center"
               style={{ background: "#0F0E2E" }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/v3-01-coral-lowercase-dark.svg" alt="" style={{ height: 24 }} />
+              <img src="/brand/v3-01-coral-lowercase-dark.svg" alt="v3 coral lowercase lockup, dark variant" style={{ height: 24 }} />
             </div>
           </div>
         </section>
@@ -250,11 +250,11 @@ export default function ComparisonPage() {
                 <span>Favicon:</span>
                 <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/brand/v3-01b-coral-mono-light.svg" alt="" style={{ height: 24 }} />
+                  <img src="/brand/v3-01b-coral-mono-light.svg" alt="v3 coral monochrome lockup, light variant" style={{ height: 24 }} />
                 </div>
                 <div className="rounded p-2 flex items-center justify-center" style={{ background: "#0F0E2E" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/brand/v3-01b-coral-mono-dark.svg" alt="" style={{ height: 24 }} />
+                  <img src="/brand/v3-01b-coral-mono-dark.svg" alt="v3 coral monochrome lockup, dark variant" style={{ height: 24 }} />
                 </div>
               </div>
               <div className="mt-3 flex gap-3 text-xs">
@@ -305,11 +305,11 @@ export default function ComparisonPage() {
                 <span>Favicon:</span>
                 <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/brand/v3-01-coral-lowercase-light.svg" alt="" style={{ height: 24 }} />
+                  <img src="/brand/v3-01-coral-lowercase-light.svg" alt="v3 coral lowercase lockup, light variant" style={{ height: 24 }} />
                 </div>
                 <div className="rounded p-2 flex items-center justify-center" style={{ background: "#0F0E2E" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/brand/v3-01-coral-lowercase-dark.svg" alt="" style={{ height: 24 }} />
+                  <img src="/brand/v3-01-coral-lowercase-dark.svg" alt="v3 coral lowercase lockup, dark variant" style={{ height: 24 }} />
                 </div>
               </div>
               <div className="mt-3 flex gap-3 text-xs">

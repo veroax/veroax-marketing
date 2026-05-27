@@ -2,7 +2,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { SubmissionRow } from "./_components/SubmissionRow";
 
 export const metadata = {
-  title: "Report-error inbox — Admin",
+  title: "Report-error inbox, Admin",
 };
 
 type Submission = {

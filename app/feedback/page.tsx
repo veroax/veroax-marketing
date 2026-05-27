@@ -21,7 +21,7 @@ export default function FeedbackPage() {
         </h1>
         <p className="text-slate-600 mb-8 leading-relaxed">
           Bug, missing feature, weird PDF rendering, accuracy concern on a
-          specific finding — anything goes. Messages land in our support inbox
+          specific finding, anything goes. Messages land in our support inbox
           and a human reads each one.
         </p>
         <div className="bg-white rounded-2xl border border-slate-200 p-6">

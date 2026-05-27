@@ -12,7 +12,7 @@ type Props = {
   reportId: string;
   filename: string;
   ageDays: number;
-  // True when this is the only file left — disables the button
+  // True when this is the only file left, disables the button
   // since the route also rejects in that case.
   isLastRemaining: boolean;
 };
@@ -99,7 +99,7 @@ export function RemoveFileButton({
             </p>
             {insideFreeWindow ? (
               <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg mt-3">
-                ✓ Within the {FREE_WINDOW_DAYS}-day free update window — no
+                ✓ Within the {FREE_WINDOW_DAYS}-day free update window, no
                 additional charge.
               </p>
             ) : (

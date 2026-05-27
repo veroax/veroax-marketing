@@ -33,13 +33,13 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
   // We used to list storage objects here for a top-of-page "Source
   // documents" panel, but the same data renders inside AgentSummary
   // (as the "Uploaded documents" card built from reports.original_files),
-  // so the top panel was duplicative. Dropped — saves a storage round-
+  // so the top panel was duplicative. Dropped, saves a storage round-
   // trip on every detail page load and removes the redundant section.
 
   const reportData = report.report_data as ReportData | null;
 
   // Pull token/cost-related audit_log rows. We surface partial data even
-  // when the analysis didn't complete fully — if Claude succeeded but a
+  // when the analysis didn't complete fully, if Claude succeeded but a
   // later step failed we still want to see what it cost. We also fall
   // back to the estimated-token count emitted before the Claude call,
   // so the user has something to look at even after a rejection.
@@ -127,16 +127,16 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
         <div className="flex items-center gap-3">
           {/* Note: the prominent "Download full PDF report" button lives
               inside AgentSummary's action row below. The top-of-page
-              chrome only shows the status pill now — duplicating the
+              chrome only shows the status pill now, duplicating the
               CTA in two places competed for attention. */}
           <StatusPill status={report.status} />
         </div>
       </div>
 
-      {/* Analyzing state — render the client runner that triggers + polls.
+      {/* Analyzing state, render the client runner that triggers + polls.
           analysisStartedAt seeds the elapsed-time display so navigating
           back to this page mid-run shows REAL elapsed instead of resetting
-          to 0 — which also keeps the stuck-detection threshold working
+          to 0, which also keeps the stuck-detection threshold working
           correctly after a navigation. */}
       {report.status === "analyzing" && (
         <AnalysisRunner
@@ -171,7 +171,7 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
         </div>
       )}
 
-      {/* Agent-focused summary view — replaces the old inline 14-section
+      {/* Agent-focused summary view, replaces the old inline 14-section
           render. The full report is downloadable as PDF; this page now
           orients the agent around what they need to ACT on. */}
       {reportData && (
@@ -238,17 +238,17 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
         />
       )}
 
-      {/* Token burn / cost — dev visibility */}
+      {/* Token burn / cost, dev visibility */}
       {usage && <TokenBurnCard usage={usage} />}
 
-      {/* "Report an error" affordance — sits at the bottom of every
+      {/* "Report an error" affordance, sits at the bottom of every
           report. Agents click here when a finding is wrong, missing,
           or doesn't apply; admins review submissions on
           /admin/report-errors and grant a refund credit when
           warranted. Email is pre-filled from the signed-in profile. */}
       <div className="border-t border-slate-200 pt-4 mt-6 flex items-center justify-between gap-3">
         <p className="text-xs text-slate-500">
-          Notice an error in this report? Let us know — we may credit
+          Notice an error in this report? Let us know, we may credit
           your account.
         </p>
         <ReportErrorButton
@@ -260,7 +260,7 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
   );
 }
 
-// Sonnet pricing — $3/M input, $15/M output. Update if we switch models.
+// Sonnet pricing, $3/M input, $15/M output. Update if we switch models.
 // ============================================================================
 // Note: the old top-of-page Source documents panel (with its split-PDF
 // collapsing helpers) was removed because AgentSummary already renders
@@ -286,13 +286,13 @@ function TokenBurnCard({
     usage.input_tokens?.toLocaleString() ??
     (usage.estimated_input_tokens != null
       ? `~${usage.estimated_input_tokens.toLocaleString()} est.`
-      : "—");
-  const displayOutput = usage.output_tokens?.toLocaleString() ?? "—";
+      : ",");
+  const displayOutput = usage.output_tokens?.toLocaleString() ?? ",";
   const displayCost = hasActual
     ? estimateUsd(usage.input_tokens, usage.output_tokens)
     : usage.estimated_input_tokens != null
       ? `~${estimateUsd(usage.estimated_input_tokens, 5000)} est.`
-      : "—";
+      : ",";
 
   return (
     <section className="bg-slate-900 rounded-2xl p-5 text-white text-sm space-y-3">
@@ -308,13 +308,13 @@ function TokenBurnCard({
             Dev
           </span>
         </h2>
-        <span className="text-xs text-slate-400 font-mono">{usage.model ?? "—"}</span>
+        <span className="text-xs text-slate-400 font-mono">{usage.model ?? ","}</span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
         <Stat label="Input tokens" value={displayInput} />
         <Stat label="Output tokens" value={displayOutput} />
         <Stat label="Est. cost" value={displayCost} highlight />
-        <Stat label="Files used" value={String(usage.files_uploaded ?? "—")} />
+        <Stat label="Files used" value={String(usage.files_uploaded ?? ",")} />
       </div>
       {usage.files_skipped && usage.files_skipped.length > 0 && (
         <details className="text-xs text-slate-300">
@@ -324,7 +324,7 @@ function TokenBurnCard({
           <ul className="mt-2 space-y-1 pl-4 list-disc text-slate-400">
             {usage.files_skipped.map((f, i) => (
               <li key={i}>
-                <span className="font-mono text-slate-300">{f.filename}</span> — {f.reason}
+                <span className="font-mono text-slate-300">{f.filename}</span>, {f.reason}
               </li>
             ))}
           </ul>
@@ -338,7 +338,7 @@ function estimateUsd(
   input: number | undefined,
   output: number | undefined,
 ): string {
-  if (input == null || output == null) return "—";
+  if (input == null || output == null) return ",";
   const cost = (input / 1_000_000) * 3 + (output / 1_000_000) * 15;
   return `$${cost.toFixed(4)}`;
 }
@@ -400,7 +400,7 @@ function formatUSD(n: number): string {
 }
 
 // ============================================================================
-// Agent-focused summary view — replaces the inline 14-section PDF preview.
+// Agent-focused summary view, replaces the inline 14-section PDF preview.
 // The actual report is downloadable as PDF; this page orients the agent
 // around what they need to ACT on:
 //   - Strengths to highlight to the buyer
@@ -452,7 +452,7 @@ function AgentSummary({
   }>;
 }) {
   const ageDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
-  // Same narrative the PDF cover renders — single source of truth.
+  // Same narrative the PDF cover renders, single source of truth.
   // Used in the new "Talking points for your client" panel below.
   const narrative = composeExecutiveNarrative(reportData);
   const address =
@@ -520,7 +520,7 @@ function AgentSummary({
 
       {/* ----- Talking points (above Strengths / Concerns) ------ */}
       {/* 2-3 narrative paragraphs derived from the same helper that
-          drives the PDF cover's Executive Summary — so what the
+          drives the PDF cover's Executive Summary, so what the
           agent reads here matches what the PDF says verbatim. */}
       <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
         <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase mb-3">
@@ -695,7 +695,7 @@ function AgentSummary({
           </ul>
           <p className="mt-3 text-xs text-slate-500 italic">
             Earlier snapshots are preserved when you add documents to this
-            report — the current view always reflects the latest re-analysis.
+            report, the current view always reflects the latest re-analysis.
           </p>
         </details>
       )}

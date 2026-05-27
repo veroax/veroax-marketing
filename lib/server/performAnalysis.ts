@@ -255,7 +255,7 @@ export async function performAnalysis(
       continue;
     }
 
-    // Text-mode path (hoa, hazards) — unchanged from prior behavior.
+    // Text-mode path (hoa, hazards), unchanged from prior behavior.
     let extracted;
     try {
       extracted = await extractText(buffer);
@@ -406,7 +406,7 @@ export async function performAnalysis(
     result.report.property_snapshot?.address?.trim() || null;
 
   // Generate a public share code if the report doesn't already have
-  // one. Generated on first completion and preserved across reruns —
+  // one. Generated on first completion and preserved across reruns ,
   // the public link stays stable so the agent can hand it to the
   // buyer once and not have to re-share when the analysis is
   // refreshed (re-analysis updates the data the share link
@@ -437,7 +437,7 @@ export async function performAnalysis(
     throw new Error(`Could not save report: ${updateErr.message}`);
   }
 
-  // Credit consumption — happens AFTER the report data is saved so a
+  // Credit consumption, happens AFTER the report data is saved so a
   // failure here doesn't leave us in a "spent the credit but the
   // report didn't actually save" state. Two paths:
   //
@@ -482,7 +482,7 @@ export async function performAnalysis(
       });
     }
   } catch (creditErr) {
-    // Credit-consumption failure shouldn't fail the analysis — the
+    // Credit-consumption failure shouldn't fail the analysis, the
     // report data is already saved. Log + continue so an admin can
     // reconcile later.
     console.error(
@@ -546,7 +546,7 @@ async function sendReportReadyEmail(params: {
   // Talking points + strengths/concerns from the SAME helpers that
   // power the dashboard's on-screen summary, the PDF cover's executive
   // summary, and the client-facing email draft. Single source of truth
-  // for what shows up across every surface — so the agent's first
+  // for what shows up across every surface, so the agent's first
   // impression in this email matches what they'll see on the dashboard.
   const narrative = composeExecutiveNarrative(params.report);
   const { strengths, concerns } = composeAgentStrengthsAndConcerns(params.report);
@@ -556,7 +556,7 @@ async function sendReportReadyEmail(params: {
   // Concerns is amber; Walk Away is red.
   const ratingTone = ratingToHeroTone(rating);
 
-  // Cost summary — buyer out-of-pocket only (HOA-paid is informational
+  // Cost summary, buyer out-of-pocket only (HOA-paid is informational
   // and lives in the PDF). The synthesizer now scopes grand_total to
   // buyer-pays so we can surface it directly.
   const grand = params.report.cost_summary?.grand_total;
@@ -665,7 +665,7 @@ function buildReportReadyPlainText(args: {
     "",
     `Open the full report: ${args.reportUrl}`,
     "",
-    "— Veroax",
+    ", Veroax",
     "support@veroax.com · (866) 247-8833",
   ].join("\n");
 }

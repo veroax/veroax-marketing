@@ -2,14 +2,14 @@
 --
 -- Two related additions to profiles:
 --
--- 1. is_vip — flag for users who get FREE access to everything.
+-- 1. is_vip, flag for users who get FREE access to everything.
 --    VIPs bypass the credit gate on report creation entirely.
 --    Their reports are NEVER watermarked. The billing dashboard
---    shows "VIP — free access" instead of credit pools.
+--    shows "VIP, free access" instead of credit pools.
 --    Useful for the founder's friends, pilot agents, brokerage
 --    decision-makers we're courting, and customer-support comps.
 --
--- 2. vip_granted_at / vip_granted_by / vip_notes — audit trail so
+-- 2. vip_granted_at / vip_granted_by / vip_notes, audit trail so
 --    the founder can see WHO marked WHOM as VIP and why. Same
 --    shape we use for admin role grants in audit_log.
 

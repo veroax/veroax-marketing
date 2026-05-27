@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PLAN_TIERS, ONEOFF_REPORT_PRICE_USD } from "@/lib/billing/plans";
 
 export const metadata = {
-  title: "Pricing — Veroax",
+  title: "Pricing, Veroax",
   description:
     "Per-deal pricing for AI-powered California disclosure analysis. Solo agents, busy producers, and brokerages.",
 };
@@ -178,7 +178,7 @@ export default function PricingPage() {
               href="/api/checkout?plan=oneoff"
               className="inline-block mt-5 text-indigo-700 font-semibold underline underline-offset-2"
             >
-              Buy one report — ${ONEOFF_REPORT_PRICE_USD} →
+              Buy one report, ${ONEOFF_REPORT_PRICE_USD} →
             </a>
           </div>
         </div>
@@ -192,7 +192,7 @@ export default function PricingPage() {
             <li className="flex items-start gap-2">
               <span className="text-emerald-600 mt-0.5">✓</span>
               <span>
-                30-day free re-analysis window — add documents or
+                30-day free re-analysis window, add documents or
                 re-run on the same deal without consuming another
                 credit
               </span>
@@ -214,7 +214,7 @@ export default function PricingPage() {
             <li className="flex items-start gap-2">
               <span className="text-emerald-600 mt-0.5">✓</span>
               <span>
-                Click-to-source on every finding — open the underlying
+                Click-to-source on every finding, open the underlying
                 disclosure PDF at the cited page
               </span>
             </li>

@@ -59,7 +59,7 @@ export default async function AdminUsersPage({
   // simplest path here is one query that pulls user_id + count of
   // reports, but Supabase's PostgREST aggregate support is limited,
   // so we fetch report rows light and bucket in code. Cap at 1000
-  // users for now — the list view starts to need pagination beyond
+  // users for now, the list view starts to need pagination beyond
   // that anyway.
   let profilesQuery = admin
     .from("profiles")

@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: "Post not found, Veroax" };
   }
   return {
-    title: `${post.title} — Veroax`.replace(/—/g, "|"),
+    title: `${post.title}, Veroax`.replace(/,/g, "|"),
     description: post.description,
     alternates: {
       canonical: `${SITE_URL}/blog/${post.slug}`,

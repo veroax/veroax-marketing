@@ -11,7 +11,7 @@ import { PDFDocument } from "pdf-lib";
 // analyze.ts) because real-world per-page token cost lands closer to
 // 2000 than the 1500 we'd estimated. Matching the storage chunk size
 // to the per-call budget avoids the in-memory re-split path firing
-// on every new upload — it stays as a safety net for legacy 90-page
+// on every new upload, it stays as a safety net for legacy 90-page
 // chunks already in storage.
 export const MAX_PAGES_PER_CHUNK = 60;
 

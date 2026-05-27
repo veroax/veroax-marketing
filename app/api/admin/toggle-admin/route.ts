@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   // Self-demotion guardrail: if the caller is demoting themselves AND
   // they are the only remaining admin, block the action. The same
   // shape covers the "demote the last admin via another admin"
-  // case — count admins after the proposed change and reject if it
+  // case, count admins after the proposed change and reject if it
   // would zero out.
   if (!targetIsAdmin) {
     const { count } = await admin
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     const currentAdminCount = count ?? 0;
     // We're about to set targetUserId.is_admin to false. If that user is
     // currently an admin AND removing them would leave zero admins,
-    // block. (Edge: target wasn't admin to begin with — count doesn't
+    // block. (Edge: target wasn't admin to begin with, count doesn't
     // change. Handled by the .eq().single() lookup below.)
     const { data: targetProfile } = await admin
       .from("profiles")
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // Audit trail — admin role changes are exactly the kind of action
+  // Audit trail, admin role changes are exactly the kind of action
   // we want a forensic record of. Record both the actor and the target.
   try {
     await admin.from("audit_log").insert({

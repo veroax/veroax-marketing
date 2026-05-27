@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 
 // Per-row action chips for the reports list (and archive list). Renders
 // inline text-buttons rather than a dropdown so the actions are
-// immediately visible without a click — there are only two of them and
+// immediately visible without a click, there are only two of them and
 // they're both useful. Archive is reversible (lives one click away in
 // the Archive view), so it uses a simple inline confirm. Delete is
 // destructive and unrecoverable, so it opens a modal that requires the
-// agent to type DELETE before the button enables — same pattern other
+// agent to type DELETE before the button enables, same pattern other
 // destructive flows in the app use.
 
 type Variant = "main" | "archive";
@@ -67,7 +67,7 @@ export function RowActions({ reportId, reportLabel, variant }: Props) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
-      // Row is gone — close the modal and refresh the list.
+      // Row is gone, close the modal and refresh the list.
       setShowDeleteModal(false);
       router.refresh();
     } catch (err) {

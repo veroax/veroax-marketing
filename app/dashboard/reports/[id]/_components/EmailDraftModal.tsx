@@ -9,11 +9,11 @@ import { useEffect, useState } from "react";
 //      subject + body_plain + body_html + recipient_suggestion.
 //   2. Agent fills in the recipient, optionally edits subject/body.
 //   3. Two send options:
-//      - "Open in my email app" — constructs a mailto: URL with the
+//      - "Open in my email app", constructs a mailto: URL with the
 //        plain body, opens it, and tells the agent to attach the PDF
 //        manually (we expose a separate download link in the modal
 //        for that). Also logs the draft to email_drafts.
-//      - "Send via Veroax" — POSTs to /api/reports/[id]/email/send
+//      - "Send via Veroax", POSTs to /api/reports/[id]/email/send
 //        with via='resend', which renders the PDF, attaches it, and
 //        delivers through Resend.
 //
@@ -110,7 +110,7 @@ export function EmailDraftModal({ reportId, isOpen, onClose }: Props) {
       setSuccess(
         data.warning
           ? `Sent. (Note: ${data.warning})`
-          : "Sent via Veroax — the PDF is attached.",
+          : "Sent via Veroax, the PDF is attached.",
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Send failed.");
@@ -143,11 +143,11 @@ export function EmailDraftModal({ reportId, isOpen, onClose }: Props) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
 
-      // Append a one-line attachment reminder to the body — the
+      // Append a one-line attachment reminder to the body, the
       // mailto: protocol doesn't carry attachments, so we tell the
       // agent to grab the PDF from the link below.
       const reminder =
-        "\n\n(The PDF is downloadable from your Veroax report page — attach it before sending.)";
+        "\n\n(The PDF is downloadable from your Veroax report page, attach it before sending.)";
       const finalBody = bodyPlain + reminder;
       const url =
         `mailto:${encodeURIComponent(recipient.trim())}` +

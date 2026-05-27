@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth/require";
 // POST /api/reports/[id]/email/draft
 //
 // Returns a pre-filled subject + body for a client-facing email
-// summarizing the report. The body is BRIEF — under 200 words — with
+// summarizing the report. The body is BRIEF, under 200 words, with
 // just the top 3 strengths and top 3 concerns. The agent edits in the
 // modal before sending (item 8).
 //
@@ -19,7 +19,7 @@ import { requireUser } from "@/lib/auth/require";
 //     body_html: string,
 //   }
 //
-// The PDF is NOT inlined into body_html — the modal advertises it as
+// The PDF is NOT inlined into body_html, the modal advertises it as
 // an attachment, and either the mailto: handler (item 8) or the Resend
 // send call attaches the actual PDF bytes.
 
@@ -43,7 +43,7 @@ export async function POST(
   }
   if (!report.report_data) {
     return NextResponse.json(
-      { error: "Report has no analysis yet — wait for analysis to complete." },
+      { error: "Report has no analysis yet, wait for analysis to complete." },
       { status: 409 },
     );
   }
@@ -64,7 +64,7 @@ export async function POST(
   // When the agent has saved a custom email signature on /settings,
   // it REPLACES the auto-generated formatSignoff output verbatim.
   // PDF cover always uses the structured Name/Brokerage/DRE fields
-  // — only the email signature is overridable.
+  //, only the email signature is overridable.
   const customSignature = (
     profile as { email_signature?: string | null } | null
   )?.email_signature?.trim();
@@ -95,14 +95,14 @@ export async function POST(
 
   // Same narrative the on-page "Talking points for your client" panel
   // and the PDF cover's Executive Summary render. Single source of
-  // truth — what the agent reads on the dashboard, what the buyer
+  // truth, what the agent reads on the dashboard, what the buyer
   // reads in the email, and what's printed on the PDF cover are
   // VERBATIM identical, so an agent forwarding a paragraph from the
   // email matches the PDF exactly.
   const talkingPoints = composeExecutiveNarrative(reportData);
 
   // Overall rating + cost-exposure band so the email's hero card can
-  // mirror the dashboard's hero metadata strip. Optional — when the
+  // mirror the dashboard's hero metadata strip. Optional, when the
   // analysis didn't populate them, those bits just don't render.
   const overallRating = reportData.overall_rating?.label ?? null;
   const grandTotal = reportData.cost_summary?.grand_total ?? null;
@@ -133,7 +133,7 @@ export async function POST(
   const bodyPlain = [
     greeting,
     "",
-    `I just finished reviewing the disclosure package on ${address}. Here's what stood out — talking points first, then the highlights.`,
+    `I just finished reviewing the disclosure package on ${address}. Here's what stood out, talking points first, then the highlights.`,
     "",
     ...(clientName || overallRating || costRange
       ? [
@@ -152,7 +152,7 @@ export async function POST(
     "TOP CONCERNS",
     ...concerns.map((c, i) => `  ${i + 1}. ${c}`),
     "",
-    "I've attached the full report — call me when you've had a chance to read through it and we can talk next steps.",
+    "I've attached the full report, call me when you've had a chance to read through it and we can talk next steps.",
     "",
     ...(schedulingLine ? [schedulingLine, ""] : []),
     signoff,
@@ -254,7 +254,7 @@ function renderHtmlBody(params: {
 
   // Color palette mirrors the on-page AgentSummary panels (Tailwind
   // indigo-950 / amber-300 / emerald / red / slate). Inline styles only
-  // — most email clients strip <style> blocks or sandbox them. Border
+  //, most email clients strip <style> blocks or sandbox them. Border
   // radius + background colors render well in Gmail, Apple Mail, and
   // Outlook 365 / web; OWA on older desktop Outlook is less reliable
   // with rounded corners but degrades to a clean rectangle which is
@@ -267,14 +267,14 @@ function renderHtmlBody(params: {
       )
       .join("");
 
-  // Hero banner — mirrors the dashboard's indigo header card.
+  // Hero banner, mirrors the dashboard's indigo header card.
   // "Prepared For" label hidden when clientName is null, same as the
   // dashboard's behavior.
   const preparedFor = clientName
     ? `<div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#fcd34d;text-transform:uppercase;margin:0 0 4px;">Prepared For · ${escapeHtml(clientName)}</div>`
     : "";
 
-  // Metadata strip under the hero — rating + cost when available, in
+  // Metadata strip under the hero, rating + cost when available, in
   // a compact horizontal row. Both fields graceful-degrade to nothing.
   const metaParts: string[] = [];
   if (overallRating) {
@@ -296,7 +296,7 @@ function renderHtmlBody(params: {
     metaParts.length > 0 ? "12px 12px 0 0" : "12px";
   const heroMarginBottom = metaParts.length > 0 ? "0" : "18px";
 
-  // Talking points — narrative paragraphs in a neutral card.
+  // Talking points, narrative paragraphs in a neutral card.
   const talkingPointsHtml = talkingPoints
     .map(
       (p) =>

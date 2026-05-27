@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 // Renders an ISO timestamp in the BROWSER's local timezone. Same
-// pattern as CompletionTimestamp from the report-detail page —
+// pattern as CompletionTimestamp from the report-detail page ,
 // SSR shows the raw ISO string to avoid hydration mismatch flicker;
 // the client useEffect tick re-renders into the agent's actual
 // timezone with date + short time.

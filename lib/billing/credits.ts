@@ -6,15 +6,15 @@ import { reportsIncludedFor, type PlanId } from "./plans";
 // downstream of that.
 //
 // Two sources of credits, consumed in this order:
-//   1. Subscription credits — reportsIncluded per billing period.
+//   1. Subscription credits, reportsIncluded per billing period.
 //      Tracked by COUNTING reports created since
 //      current_period_start. Resets when the webhook updates the
 //      period on renewal.
-//   2. One-off purchases — profiles.report_credits_balance. Don't
+//   2. One-off purchases, profiles.report_credits_balance. Don't
 //      expire; persist until consumed.
 //
 // Plus one bonus source for new accounts:
-//   3. Trial credits — profiles.trial_credits_remaining. Same as
+//   3. Trial credits, profiles.trial_credits_remaining. Same as
 //      one-offs but they produce a WATERMARKED PDF so the agent
 //      can see the quality without being able to deliver to a
 //      client.
@@ -27,7 +27,7 @@ import { reportsIncludedFor, type PlanId } from "./plans";
 const FREE_UPDATE_WINDOW_DAYS = 30;
 
 export type CreditBalance = {
-  // VIP users bypass the credit gate entirely — free access to all
+  // VIP users bypass the credit gate entirely, free access to all
   // features, no watermark, no usage counter. Set by admins from
   // /admin/users/[id]. When true, the other fields below are still
   // populated for display purposes but canCreateReport is always
@@ -101,8 +101,8 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
   );
 
   // Count reports created since current_period_start. We don't
-  // explicitly write a ledger entry per consumption — the count is
-  // the source of truth — but we DO write a ledger entry for
+  // explicitly write a ledger entry per consumption, the count is
+  // the source of truth, but we DO write a ledger entry for
   // visibility in the billing dashboard.
   let subscriptionReportsUsed = 0;
   let subscriptionReportsIncluded = 0;
@@ -125,7 +125,7 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
     subscriptionReportsIncluded - subscriptionReportsUsed,
   );
 
-  // VIP bypass — always allowed, never watermarked. Credit pools
+  // VIP bypass, always allowed, never watermarked. Credit pools
   // are still computed and surfaced for visibility but they don't
   // gate anything.
   if (isVip) {
@@ -174,7 +174,7 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
 
 // Consume one report credit. Called by the report-create flow AFTER
 // balanceForUser confirmed canCreateReport. Idempotent against the
-// reports.billable flag — calling twice on the same report is a
+// reports.billable flag, calling twice on the same report is a
 // no-op.
 //
 // Returns whether the resulting report should be watermarked

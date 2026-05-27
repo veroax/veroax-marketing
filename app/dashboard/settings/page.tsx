@@ -6,7 +6,7 @@ import {
   type DreStatusEnum,
 } from "@/app/_components/DreVerificationPill";
 
-// /dashboard/settings — agent profile editor. The same five fields
+// /dashboard/settings, agent profile editor. The same five fields
 // (full_name, dre_license, brokerage, brokerage_dre, phone) drive the
 // "Prepared By" panel on every PDF cover plus the page footers. Saving
 // here updates all future downloads immediately.

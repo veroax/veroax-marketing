@@ -42,7 +42,7 @@ export default async function DashboardPage({
   // Map UI sort keys → DB column names. "property" uses
   // property_address; rows without one fall back to report_name in
   // the table render so the visual sort isn't perfect when address
-  // is null — that's an acceptable trade-off for not needing a
+  // is null, that's an acceptable trade-off for not needing a
   // computed column.
   const dbSortColumn =
     sortKey === "property"

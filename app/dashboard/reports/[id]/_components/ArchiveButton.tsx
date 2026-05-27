@@ -23,7 +23,7 @@ export function ArchiveButton({ reportId, archived }: Props) {
   async function handleClick() {
     const intent = archived ? "restore" : "archive";
     if (!archived) {
-      // Archiving — light confirmation so a stray click doesn't
+      // Archiving, light confirmation so a stray click doesn't
       // disappear a report from the main list.
       const ok = window.confirm(
         "Archive this report? It'll disappear from your main Reports list and live in the Archive view. You can restore it later.",

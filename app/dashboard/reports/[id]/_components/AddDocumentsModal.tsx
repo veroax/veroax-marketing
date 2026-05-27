@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 //   1. Agent picks one or more PDF files.
 //   2. On submit, each file uploads to disclosures/{user}/{report}/
 //      via the user-scoped Supabase client (so RLS owns the auth).
-//   3. POST /api/reports/[id]/update with { paths } — the server
+//   3. POST /api/reports/[id]/update with { paths }, the server
 //      snapshots the current state into versions[], merges the new
 //      files into original_files, and triggers full-package
 //      re-analysis with date-aware context.
@@ -24,7 +24,7 @@ type Props = {
   userId: string;
   isOpen: boolean;
   onClose: () => void;
-  // Days since the original analysis — drives the free-window notice.
+  // Days since the original analysis, drives the free-window notice.
   ageDays: number;
 };
 
@@ -132,12 +132,12 @@ export function AddDocumentsModal({
 
         {insideFreeWindow ? (
           <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg mb-4">
-            ✓ Within the {FREE_WINDOW_DAYS}-day free update window —
+            ✓ Within the {FREE_WINDOW_DAYS}-day free update window ,
             no additional charge.
           </div>
         ) : (
           <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg mb-4">
-            This report is {Math.round(ageDays)} days old — outside the
+            This report is {Math.round(ageDays)} days old, outside the
             {" "}{FREE_WINDOW_DAYS}-day free update window. Updating will
             consume a report credit.
           </div>

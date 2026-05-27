@@ -1,4 +1,4 @@
--- Veroax — Phase 1 initial schema
+-- Veroax, Phase 1 initial schema
 -- Run this in Supabase Dashboard → SQL Editor → New query → paste → Run
 -- After running, verify all tables exist in Table Editor.
 --
@@ -107,7 +107,7 @@ create index if not exists idx_reports_created_at on public.reports(created_at d
 -- ============================================================================
 -- Long-retention log for compliance and dispute resolution. Per the
 -- Privacy Policy, retained for up to 7 years. Stores non-PII metadata
--- about reports — never the disclosure content itself.
+-- about reports, never the disclosure content itself.
 
 create table if not exists public.audit_log (
   id uuid primary key default gen_random_uuid(),
@@ -179,7 +179,7 @@ create trigger on_auth_user_created
 -- ============================================================================
 -- Every table is locked by default. Policies grant minimum-required
 -- access. Server-side code using the service_role key bypasses RLS
--- intentionally — that's where webhook handlers and analysis workers run.
+-- intentionally, that's where webhook handlers and analysis workers run.
 
 alter table public.profiles enable row level security;
 alter table public.subscriptions enable row level security;
@@ -235,8 +235,8 @@ create policy "audit_log_select_own"
 -- ============================================================================
 -- Storage buckets
 -- ============================================================================
--- "disclosures" — raw uploaded PDF packages (private)
--- "reports"     — final branded PDFs (private; signed-URL access)
+-- "disclosures", raw uploaded PDF packages (private)
+-- "reports"    , final branded PDFs (private; signed-URL access)
 --
 -- We create the buckets here; the storage RLS policies are set in
 -- 0002_storage_policies.sql.

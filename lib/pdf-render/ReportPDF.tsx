@@ -1,6 +1,6 @@
 /* eslint-disable jsx-a11y/alt-text */
 
-// Veroax disclosure analysis PDF — modeled on the Cowork output layout.
+// Veroax disclosure analysis PDF, modeled on the Cowork output layout.
 // React-PDF (works in Vercel serverless without Chrome).
 //
 // IMPORTANT layout rules learned the hard way:
@@ -38,18 +38,18 @@ import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 //   cosmetic → pale gray (de-emphasized; not a severity signal)
 //   positive → green (good news / strengths)
 // Structural chrome (section banners, cost-summary header bars, grand
-// total bar) stays navy/slate for professionalism — only the severity
+// total bar) stays navy/slate for professionalism, only the severity
 // language uses traffic-light colors.
 const C = {
   navy: "#1B2A4A",
   slate: "#2E4057",
   accent: "#2E86AB",
   gold: "#C9A84C",
-  critical: "#C0392B", // red — stop
-  high: "#E67E22", // red-orange — urgent
-  moderate: "#F39C12", // amber — caution (was blue #2980B9)
-  cosmetic: "#9CA3AF", // pale gray — de-emphasized
-  positive: "#27AE60", // green — go / strengths
+  critical: "#C0392B", // red, stop
+  high: "#E67E22", // red-orange, urgent
+  moderate: "#F39C12", // amber, caution (was blue #2980B9)
+  cosmetic: "#9CA3AF", // pale gray, de-emphasized
+  positive: "#27AE60", // green, go / strengths
   light: "#F4F7FA",
   rowAlt: "#EBF2FA",
   border: "#D0DCE8",
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     // fill the page so the gold/brand accent bar runs top-to-bottom.
     flexDirection: "column",
   },
-  // Cover layout — flexGrow:1 stretches the wrap to fill the full
+  // Cover layout, flexGrow:1 stretches the wrap to fill the full
   // page height so the accent bar runs edge-to-edge. We previously
   // had a minHeight here that crashed React-PDF; flex growth is the
   // safe equivalent.
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     paddingBottom: 40,
   },
-  // Top row of the cover panel — holds the eyebrow text on the left
+  // Top row of the cover panel, holds the eyebrow text on the left
   // and the brokerage logo (when set) on the right. Renders as a
   // single row; the eyebrow grows to fill remaining width.
   coverTopRow: {
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: C.text,
   },
-  // Section heading — replaced the previous big navy banner with
+  // Section heading, replaced the previous big navy banner with
   // simple typography matching the Cowork-skill style: "N. Title"
   // in dark navy at section-header weight. The big banner was
   // visually heavy and interrupted the reading flow on every section.
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
   },
-  // Findings — Cowork-style cards. The card itself is a light tinted
+  // Findings, Cowork-style cards. The card itself is a light tinted
   // panel (no left accent strip; tint is the only chrome) with a
   // bold title + severity pill at the top, then the verbatim source
   // quote in an italic block, then the narrative sections (What it
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     color: C.critical,
     paddingRight: 8,
   },
-  // Verbatim source quote block — italic body with a labeled lead-in.
+  // Verbatim source quote block, italic body with a labeled lead-in.
   findingQuoteLabel: {
     fontSize: 9,
     color: C.subtext,
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     paddingLeft: 10,
   },
-  // Source citation — small italic line below the quote.
+  // Source citation, small italic line below the quote.
   findingSourceCitation: {
     fontSize: 9,
     color: C.subtext,
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     color: C.subtext,
     lineHeight: 1.4,
   },
-  // Cosmetic findings bullet list — replaces the old finding-card
+  // Cosmetic findings bullet list, replaces the old finding-card
   // render for cosmetic items where the per-finding card was overkill.
   cosmeticBullet: {
     fontSize: 10,
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     lineHeight: 1.45,
   },
-  // Overall rating pill — clean caps label inside a tinted box,
+  // Overall rating pill, clean caps label inside a tinted box,
   // with a one-line summary below. Replaces the previous large
   // ratingBox that consumed too much vertical real estate.
   ratingPillBox2: {
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginBottom: 4,
   },
-  // Property snapshot — compact inline summary instead of a tall
+  // Property snapshot, compact inline summary instead of a tall
   // KvTable. Dot-separated facts on one line; supplemental "Analysis
   // date" line below in muted color so the reader sees the key facts
   // first.
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
     lineHeight: 1.45,
   },
   description: {
-    // Bumped 9 → 9.5 to match the base body size — the FindingBlock
+    // Bumped 9 → 9.5 to match the base body size, the FindingBlock
     // description and a body paragraph elsewhere are the same kind of
     // information, so they should set at the same size.
     fontSize: 9.5,
@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
     // React-PDF doesn't reliably clip with borderRadius on Image, but
     // a small rounded thumb still reads as "agent photo" in context.
     // The settings preview shows a true circle on screen; on the PDF
-    // it's a rounded square — acceptable trade-off.
+    // it's a rounded square, acceptable trade-off.
     borderRadius: 4,
     marginRight: 8,
   },
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
     color: C.subtext,
     marginBottom: 4,
   },
-  // "PREPARED FOR" panel — mirrors the "Prepared By" treatment but
+  // "PREPARED FOR" panel, mirrors the "Prepared By" treatment but
   // emphasizes the client. Sits above the Prepared By panel when a
   // client name is supplied.
   preparedForLabel: {
@@ -611,12 +611,12 @@ const styles = StyleSheet.create({
   // "no findings" empty states.
   //
   // Type scale (approximately 1.25 ratio, base 9.5):
-  //   caption (8)   — disclaimers, badges, source attribution
-  //   body    (9.5) — narrative paragraphs, finding descriptions
-  //   subHead (10.5)— field group titles within sections
-  //   section (13)  — section banner titles
+  //   caption (8)  , disclaimers, badges, source attribution
+  //   body    (9.5), narrative paragraphs, finding descriptions
+  //   subHead (10.5), field group titles within sections
+  //   section (13) , section banner titles
   // Body paragraph rhythm tuned to feel closer to the on-screen
-  // dashboard read — bigger leading + slightly more space between
+  // dashboard read, bigger leading + slightly more space between
   // paragraphs so the Executive Summary doesn't feel cramped. Agent
   // feedback was that the previous tighter rhythm looked dense
   // compared to the dashboard's leading-relaxed paragraphs.
@@ -647,7 +647,7 @@ const styles = StyleSheet.create({
     lineHeight: 1.45,
   },
   // Two-column dual block (Strengths/Concerns, etc.)
-  // flexBasis: 0 was triggering layout coordinate crashes — use width instead.
+  // flexBasis: 0 was triggering layout coordinate crashes, use width instead.
   dualBlock: {
     flexDirection: "row",
     marginTop: 8,
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
   // Two 240-wide columns + 20pt gap = 500. Exact widths avoid percentage
   // calc paths that crash React-PDF's layout engine.
   // Bumped vertical padding 10 → 14 so the cards have more breathing
-  // room around the text — readability-driven, matches the dashboard's
+  // room around the text, readability-driven, matches the dashboard's
   // ~20px padding feel.
   dualBlockLeft: {
     width: 240,
@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
   // anchor the header/footer to page edges. That combined with `fixed`
   // and content overflow produced a hard render crash from React-PDF:
   //   "unsupported number: -1.7793471615011557e+21"
-  // — the layout engine emits an invalid coordinate during the
+  //, the layout engine emits an invalid coordinate during the
   // pagination pass when an absolute-positioned fixed element has to
   // be repeated on continuation pages whose content has flexed
   // unexpectedly. Reverted to flow positioning + `fixed`. Trade-off:
@@ -896,7 +896,7 @@ export type AgentBranding = {
   brokerageDre?: string | null;
   phone?: string | null;
   email?: string | null;
-  // Branding additions from /dashboard/settings — all nullable; the
+  // Branding additions from /dashboard/settings, all nullable; the
   // cover and footer render cleanly when any/all are absent.
   brokerageLogoUrl?: string | null;
   headshotUrl?: string | null;
@@ -906,9 +906,9 @@ export type AgentBranding = {
   brandAccentHex?: string | null;
   // Short subtitle rendered under the agent name on the cover.
   tagline?: string | null;
-  // Agent website URL — rendered as a separate footer line.
+  // Agent website URL, rendered as a separate footer line.
   websiteUrl?: string | null;
-  // Multi-line office address — rendered under the DRE row in the
+  // Multi-line office address, rendered under the DRE row in the
   // footer (whitespace-pre-line equivalent: we split on \n).
   officeAddress?: string | null;
 };
@@ -919,8 +919,8 @@ export type OriginalFile = {
   size_kb: number;
   // ISO timestamp when this file was uploaded. Drives the per-row
   // "Uploaded" column in the Document Inventory section. Optional so
-  // legacy reports rendered without it still work — they render with
-  // a "—" placeholder.
+  // legacy reports rendered without it still work, they render with
+  // a "," placeholder.
   uploaded_at?: string | null;
 };
 
@@ -1010,11 +1010,11 @@ export function ReportPDF({
   // Page count varies with how many of the conditionally-rendered
   // pages have content. The fixed page-number footer renders via
   // `<Text render={({pageNumber, totalPages}) => ...}>` so the
-  // labeling adjusts automatically — no totalBodyPages constant
+  // labeling adjusts automatically, no totalBodyPages constant
   // needed.
   return (
     <Document
-      title={`Disclosure Analysis — ${property}`}
+      title={`Disclosure Analysis, ${property}`}
       author="Veroax"
       subject="AI-assisted disclosure analysis"
     >
@@ -1050,7 +1050,7 @@ export function ReportPDF({
            14. Suggested Inspection Follow-Ups (new)
            15. Overall Rating
           We drop the standalone Outstanding Questions and
-          Insurance & Lender Risk sections — the data they carried is
+          Insurance & Lender Risk sections, the data they carried is
           now woven into the per-finding "Next step" + "Why it matters"
           fields and the Hazard table's "Buyer takeaway" column. */}
 
@@ -1177,7 +1177,7 @@ function BodyPage({
   // agent has filled them in.
   websiteUrl?: string | null;
   officeAddress?: string | null;
-  // Render the diagonal "SAMPLE — VEROAX TRIAL" watermark on this
+  // Render the diagonal "SAMPLE, VEROAX TRIAL" watermark on this
   // page. Set true for trial-credit reports.
   watermarked?: boolean;
 }) {
@@ -1185,7 +1185,7 @@ function BodyPage({
   // repeat on every page including auto-paginated continuation pages.
   // Agent feedback was that long sections (Critical Findings, the Cost
   // Summary) were producing continuation pages with no header/footer
-  // chrome — buyers would see a "page in the middle of nowhere."
+  // chrome, buyers would see a "page in the middle of nowhere."
   //
   // We intentionally do NOT use `position: absolute` to bottom-anchor
   // the footer. Past React-PDF versions in this codebase crashed with
@@ -1193,14 +1193,14 @@ function BodyPage({
   // flex columns. The trade-off: when a page's content is shorter than
   // the available space, the footer renders right after the content
   // rather than at the page bottom. That's a minor visual nit; the
-  // important property — header/footer on EVERY page — holds.
+  // important property, header/footer on EVERY page, holds.
   //
   // The renderFooter callback inside `<Text fixed render>` reads the
   // pageNumber so each continuation page renders the right label, not
   // a stale "Page 2 of 5" that was computed at the parent level.
   return (
     <Page size="LETTER" style={styles.page}>
-      {/* Trial watermark — fixed so it repeats on every page including
+      {/* Trial watermark, fixed so it repeats on every page including
           auto-paginated continuation pages. Rendered as a Text with
           a small font, lots of letter spacing (via spacing in the
           string itself since CSS letter-spacing is on the project-
@@ -1213,7 +1213,7 @@ function BodyPage({
       {watermarked ? (
         <View fixed style={styles.watermarkBar}>
           <Text style={styles.watermarkText}>
-            SAMPLE — VEROAX TRIAL · NOT FOR CLIENT DELIVERY
+            SAMPLE, VEROAX TRIAL · NOT FOR CLIENT DELIVERY
           </Text>
         </View>
       ) : null}
@@ -1310,7 +1310,7 @@ function CoverPage({
   //   5. Geographic      (market region)
   //   6. Cost reference  (which market drove the cost estimates)
   //   7. Meta            (analysis date, report ID)
-  // Rows are conditionally added when data is present — a sparsely
+  // Rows are conditionally added when data is present, a sparsely
   // populated snapshot just renders fewer rows. The existing KvTable
   // component handles the alternating-row stripes automatically.
   const coverKv: Array<[string, string]> = [];
@@ -1333,7 +1333,7 @@ function CoverPage({
 
   // --- 2. Listing details -------------------------------------------
   if (p?.apn) coverKv.push(["APN", withSoftBreaks(p.apn)]);
-  // MLS# only shown for live/pending listings — historical MLS# on a
+  // MLS# only shown for live/pending listings, historical MLS# on a
   // sold/withdrawn record is noise for the buyer.
   if (
     p?.mls_number &&
@@ -1344,7 +1344,7 @@ function CoverPage({
   if (p?.list_price) {
     const showListDate = p?.list_status === "active" && p?.list_date;
     const listPriceValue = showListDate
-      ? `${formatUSD(p.list_price)} — listed ${formatIsoDate(p.list_date!)}`
+      ? `${formatUSD(p.list_price)}, listed ${formatIsoDate(p.list_date!)}`
       : formatUSD(p.list_price);
     coverKv.push(["List Price", listPriceValue]);
   }
@@ -1525,7 +1525,7 @@ function CoverPage({
 // ============================================================================
 
 function SectionBanner({ number, title }: { number: number; title: string }) {
-  // Typographic section heading — replaces the previous big navy
+  // Typographic section heading, replaces the previous big navy
   // banner. Single line "N. Title" in dark navy. Wrapped in a
   // wrap={false} View with minPresenceAhead so a heading doesn't
   // orphan at the bottom of a page without its first paragraph.
@@ -1621,7 +1621,7 @@ function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
         <SeverityBadge severity={finding.severity} />
       </View>
 
-      {/* Verbatim source quote — Cowork-style auditability anchor. */}
+      {/* Verbatim source quote, Cowork-style auditability anchor. */}
       {sourceQuote ? (
         <>
           <Text style={styles.findingQuoteLabel}>From the source document:</Text>
@@ -1680,7 +1680,7 @@ function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
           <Text style={styles.findingNarrativeLabel}>
             Cost responsibility:{" "}
           </Text>
-          HOA / association (paid from reserves or assessments — the
+          HOA / association (paid from reserves or assessments, the
           buyer does not write this check directly).
         </Text>
       ) : null}
@@ -1696,7 +1696,7 @@ function FindingBlock({ finding, index }: { finding: Finding; index: number }) {
 
 // Stacked label/value pair used inside FindingBlock. Label sits on its
 // own line in small bold caps; value occupies the full row width below.
-// No flex columns — full-width Text wraps naturally inside the card.
+// No flex columns, full-width Text wraps naturally inside the card.
 function FindingDetailRow({
   label,
   value,
@@ -1759,7 +1759,7 @@ function SectionPropertySnapshot({
 
   // Property snapshot used to be a tall KvTable that duplicated almost
   // every field already on the cover (address, year built, beds/baths,
-  // sqft, list price, market region — all shown on the cover KV). The
+  // sqft, list price, market region, all shown on the cover KV). The
   // body version was eating 1/3 of page 2 for information the reader
   // had already seen. Now we render a compact inline summary strip: a
   // single line of dot-separated facts plus the analysis date. The
@@ -1890,7 +1890,7 @@ function composeStrengthsAndConcerns(report: ReportData): {
   if (report.hoa?.applicable && (report.hoa.concerns?.length ?? 0) === 0) {
     strengths.push("HOA review surfaced no material financial concerns");
   } else if (!report.hoa?.applicable) {
-    strengths.push("No HOA review burden — property not subject to an HOA");
+    strengths.push("No HOA review burden, property not subject to an HOA");
   }
   if ((report.environmental?.hazards?.length ?? 0) === 0) {
     strengths.push("No significant natural hazard zones disclosed");
@@ -1925,7 +1925,7 @@ function SectionDocumentInventory({
 }) {
   const inv = report.document_inventory;
 
-  // The user uploaded these files. This is the canonical inventory —
+  // The user uploaded these files. This is the canonical inventory ,
   // it's captured in /finalize before any internal page-splitting, so
   // it never shows the _part_N chunks Claude analyzed under the hood.
   const haveOriginals = (originalFiles?.length ?? 0) > 0;
@@ -1940,7 +1940,7 @@ function SectionDocumentInventory({
             <Text style={styles.bulletDot}>·</Text>
             <Text style={styles.bulletText}>
               <Text style={{ fontFamily: "Helvetica-Bold" }}>{f.name}</Text>
-              {f.pages ? ` — ${f.pages} pp` : ""}
+              {f.pages ? `, ${f.pages} pp` : ""}
               {f.size_kb ? ` (${formatSize(f.size_kb)})` : ""}
               {f.uploaded_at
                 ? `  ·  Uploaded ${formatIsoDate(f.uploaded_at)}`
@@ -2006,7 +2006,7 @@ function SectionCritical({ report }: { report: ReportData }) {
 }
 
 function SectionModerate({ report }: { report: ReportData }) {
-  // High & Moderate findings render as a compact 5-column table —
+  // High & Moderate findings render as a compact 5-column table ,
   // Cowork pattern. Per-finding card layout is reserved for critical
   // findings; everything moderate gets a row in the table. This
   // keeps the page short and scannable.
@@ -2031,7 +2031,7 @@ function SectionModerate({ report }: { report: ReportData }) {
 }
 
 function SectionCosmetic({ report }: { report: ReportData }) {
-  // Cosmetic findings render as a simple bullet list — these are
+  // Cosmetic findings render as a simple bullet list, these are
   // small enough that per-finding cards are visual overkill. Each
   // line shows the finding title; if cost matters and isn't HOA-
   // paid we append the dollar amount.
@@ -2067,15 +2067,15 @@ function SectionCosmetic({ report }: { report: ReportData }) {
 
 // Compact 3-column table for High/Moderate findings. Previous
 // implementation had 5 columns + flex-grown Text cells that React-PDF
-// couldn't reliably wrap — text ran off the right edge on long
+// couldn't reliably wrap, text ran off the right edge on long
 // descriptions. The new layout:
-//   Item (135pt) — title + source citation stacked
-//   What says (flexGrow View wrapping a Text) — description with
+//   Item (135pt), title + source citation stacked
+//   What says (flexGrow View wrapping a Text), description with
 //     timeline/confidence appended inline so we don't need separate
 //     columns for them
-//   Cost (90pt) — dollar range or "HOA-paid" label
+//   Cost (90pt), dollar range or "HOA-paid" label
 // Total fixed: 225pt; flex column gets ~275pt of the 500pt content
-// width. That's roughly 50 characters per line — enough for a
+// width. That's roughly 50 characters per line, enough for a
 // document-says sentence to fit on 2-3 lines per row.
 function FindingsTable({ items }: { items: Finding[] }) {
   return (
@@ -2163,7 +2163,7 @@ function SectionCostSummary({ report }: { report: ReportData }) {
     <View>
       <SectionBanner number={7} title="Repair Cost Summary" />
       <Text style={styles.body}>
-        {`These numbers reflect what the BUYER of this specific unit is exposed to. HOA-paid capital projects are itemized separately below for context — they don't roll into the buyer total because the association pays them from reserves and assessments, not the buyer directly.`}
+        {`These numbers reflect what the BUYER of this specific unit is exposed to. HOA-paid capital projects are itemized separately below for context, they don't roll into the buyer total because the association pays them from reserves and assessments, not the buyer directly.`}
       </Text>
 
       {/* Buyer-pays categories */}
@@ -2193,14 +2193,14 @@ function SectionCostSummary({ report }: { report: ReportData }) {
         </View>
       ))}
 
-      {/* Buyer grand total — headline number. */}
+      {/* Buyer grand total, headline number. */}
       <View style={styles.costGrandTotalRow}>
         <Text style={styles.costGrandTotalLabel}>
           TOTAL BUYER OUT-OF-POCKET EXPOSURE
         </Text>
         <Text style={styles.costGrandTotalValue}>
           {buyerCats.length === 0 && hoaCats.length > 0
-            ? "—"
+            ? ","
             : formatCostRange(buyerSubtotal)}
         </Text>
       </View>
@@ -2214,7 +2214,7 @@ function SectionCostSummary({ report }: { report: ReportData }) {
             HOA-paid capital projects (informational only)
           </Text>
           <Text style={styles.body}>
-            {`The figures below are the FULL project cost paid by the HOA from reserves or assessments. The buyer's exposure to these items is indirect — through dues increases or pro-rata share of a special assessment — and is covered in the HOA Financial & Governance Review section.`}
+            {`The figures below are the FULL project cost paid by the HOA from reserves or assessments. The buyer's exposure to these items is indirect, through dues increases or pro-rata share of a special assessment, and is covered in the HOA Financial & Governance Review section.`}
           </Text>
           {hoaCats.map((cat, ci) => (
             <View key={`hoa-${ci}`}>
@@ -2273,7 +2273,7 @@ function SectionHoa({ report }: { report: ReportData }) {
       <SectionBanner number={9} title="HOA Financial & Governance Review" />
       <Text style={styles.body}>{hoa.summary}</Text>
 
-      {/* Compact financial KV table — Master policy / Reserves /
+      {/* Compact financial KV table, Master policy / Reserves /
           Operating account / Dues / Special assessment / Capital
           projects / etc. Renders only when the analyzer populated
           hoa.facts; legacy reports just don't get this block. */}
@@ -2281,7 +2281,7 @@ function SectionHoa({ report }: { report: ReportData }) {
         <KvTable rows={facts.map((f) => [f.label, f.value])} />
       ) : null}
 
-      {/* "Reserve health, our read" — editorial paragraph. */}
+      {/* "Reserve health, our read", editorial paragraph. */}
       {hoa.reserve_health_read ? (
         <>
           <Text style={styles.subHead}>Reserve health, our read.</Text>
@@ -2291,7 +2291,7 @@ function SectionHoa({ report }: { report: ReportData }) {
         </>
       ) : null}
 
-      {/* "Watch items" — diligence flag. */}
+      {/* "Watch items", diligence flag. */}
       {hoa.watch_items ? (
         <>
           <Text style={styles.subHead}>Watch items.</Text>
@@ -2299,7 +2299,7 @@ function SectionHoa({ report }: { report: ReportData }) {
         </>
       ) : null}
 
-      {/* Free-form concerns list — legacy fallback when the structured
+      {/* Free-form concerns list, legacy fallback when the structured
           facts/reserve_health_read aren't populated. */}
       {hoa.concerns?.length ? (
         <View>
@@ -2389,7 +2389,7 @@ function SectionNegotiation({ report }: { report: ReportData }) {
 function SectionEnvironmental({ report }: { report: ReportData }) {
   // 3-column table per the Cowork sample: Hazard / Status / Buyer
   // takeaway. We derive the Status column from the existing severity
-  // enum — a "cosmetic" severity means the hazard is documented but
+  // enum, a "cosmetic" severity means the hazard is documented but
   // the unit is NOT in the affected zone; "critical" / "high" /
   // "moderate" all mean the unit IS in the affected zone. The notes
   // field becomes the "buyer takeaway."
@@ -2458,7 +2458,7 @@ function SectionEnvironmental({ report }: { report: ReportData }) {
 
 function SectionOutstanding({ report }: { report: ReportData }) {
   // Agent feedback was that this section felt overwhelming when it ran
-  // to 15+ questions — the buyer would skim or skip. Render-side cap of
+  // to 15+ questions, the buyer would skim or skip. Render-side cap of
   // 6 (matches the synthesizer's cap for new reports; protects against
   // legacy report_data that still has 20+) plus a framing sentence that
   // explains these are the questions WORTH asking, not an exhaustive
@@ -2481,7 +2481,7 @@ function SectionOutstanding({ report }: { report: ReportData }) {
       ) : (
         <View>
           <Text style={styles.body}>
-            {`The findings above are the facts. These questions exist only where the documents leave a specific gap that affects the buyer's decision — bring them to the seller, listing agent, or HOA management as appropriate.`}
+            {`The findings above are the facts. These questions exist only where the documents leave a specific gap that affects the buyer's decision, bring them to the seller, listing agent, or HOA management as appropriate.`}
           </Text>
           {capped.map((q, i) => (
             <View key={i} style={styles.bullet}>
@@ -2506,7 +2506,7 @@ function SectionOverallRating({ report }: { report: ReportData }) {
     <View>
       <SectionBanner number={15} title="Overall Rating" />
       {/* Compact pill at the top with the rating label in caps and
-          a one-line summary inside it — matches the Cowork sample
+          a one-line summary inside it, matches the Cowork sample
           exactly. The pill itself is tinted with a soft pastel
           version of the rating color (light pink for Significant
           Concerns / Walk Away, soft tan/beige for Acceptable, soft
@@ -2552,7 +2552,7 @@ function SectionOverallRating({ report }: { report: ReportData }) {
   );
 }
 
-// Soft pastel backgrounds for the rating pill — the Cowork pattern.
+// Soft pastel backgrounds for the rating pill, the Cowork pattern.
 // Returns a light tint of the rating color that reads as a badge
 // without dominating the page.
 function ratingPillTone(label: ReportData["overall_rating"]["label"] | undefined): string {
@@ -2588,7 +2588,7 @@ function ratingPillTextColor(
   }
 }
 
-// Title & Vesting — new section sourced from the prelim title report.
+// Title & Vesting, new section sourced from the prelim title report.
 function SectionTitleVesting({ report }: { report: ReportData }) {
   const tv = report.title_vesting;
   return (
@@ -2623,7 +2623,7 @@ function SectionTitleVesting({ report }: { report: ReportData }) {
   );
 }
 
-// Market Context — sub-segment pricing + comps + mortgage rate.
+// Market Context, sub-segment pricing + comps + mortgage rate.
 function SectionMarketContext({ report }: { report: ReportData }) {
   const mc = report.market_context;
   return (
@@ -2675,7 +2675,7 @@ function SectionMarketContext({ report }: { report: ReportData }) {
   );
 }
 
-// Inspection Follow-Ups — numbered checklist of specialists.
+// Inspection Follow-Ups, numbered checklist of specialists.
 function SectionInspectionFollowUps({ report }: { report: ReportData }) {
   const items = report.inspection_follow_ups ?? [];
   return (
@@ -2684,7 +2684,7 @@ function SectionInspectionFollowUps({ report }: { report: ReportData }) {
       {items.length === 0 ? (
         <Text style={styles.emptyState}>
           The findings above already point to specific specialists in
-          their &ldquo;Next step&rdquo; fields — no additional follow-up
+          their &ldquo;Next step&rdquo; fields, no additional follow-up
           list compiled for this analysis.
         </Text>
       ) : (
@@ -2747,7 +2747,7 @@ function SectionInspectionFollowUps({ report }: { report: ReportData }) {
 // ============================================================================
 
 // Inject zero-width spaces into unbroken runs so React-PDF has break
-// points. PDF renderers won't split a word — so a long URL or file
+// points. PDF renderers won't split a word, so a long URL or file
 // name (no spaces/hyphens) will run straight off the page edge.
 // Injecting U+200B every ~30 chars inside long tokens gives the
 // renderer wrap opportunities without affecting copy/paste meaningfully.
@@ -2793,7 +2793,7 @@ function formatAgentFooter(agent: AgentBranding): string {
 }
 
 // Render an ISO date (YYYY-MM-DD) as "Mar 14, 2026". Falls back to
-// the raw string when the input doesn't parse — better to show what
+// the raw string when the input doesn't parse, better to show what
 // we got than blank out the field. Used on the cover KvTable for
 // list_date and hoa_last_increase_date.
 function formatIsoDate(iso: string): string {
@@ -2807,7 +2807,7 @@ function formatIsoDate(iso: string): string {
 }
 
 function formatUSD(n: number | null | undefined): string {
-  if (n == null) return "—";
+  if (n == null) return ",";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -2816,7 +2816,7 @@ function formatUSD(n: number | null | undefined): string {
 }
 
 function formatCostRange(r: CostRange | null | undefined): string {
-  if (!r) return "—";
+  if (!r) return ",";
   const low = Number(r.low) || 0;
   const high = Number(r.high) || 0;
   if (low === high) return formatUSD(low);

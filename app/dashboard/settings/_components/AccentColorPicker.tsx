@@ -8,7 +8,7 @@ import { useRef } from "react";
 // shape before writing it to profiles.brand_accent_hex.
 //
 // Severity colors (red / red-orange / amber / cosmetic gray / green)
-// stay LOCKED in the PDF — they're a deliberate traffic-light scheme
+// stay LOCKED in the PDF, they're a deliberate traffic-light scheme
 // that conveys meaning. Only the gold accent (cover bar, eyebrow
 // text, Prepared By label) flexes here.
 
@@ -61,7 +61,7 @@ export function AccentColorPicker({ name, value, onChange }: Props) {
           );
         })}
 
-        {/* Custom tile — opens the native color picker. Selected style
+        {/* Custom tile, opens the native color picker. Selected style
             matches the preset swatches so it visually integrates with
             the row. */}
         <button
@@ -76,7 +76,7 @@ export function AccentColorPicker({ name, value, onChange }: Props) {
           }`}
           style={{
             // When the agent picked a custom color, show it as the
-            // tile background — otherwise show a soft conic-gradient
+            // tile background, otherwise show a soft conic-gradient
             // so the tile reads as "color picker, not a fixed color."
             background: isCustom
               ? normalized

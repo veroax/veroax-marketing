@@ -7,13 +7,13 @@ import { requireUser } from "@/lib/auth/require";
 // Hard-deletes a report: removes the storage objects under
 // disclosures/{user}/{report}/, deletes the reports row (which cascades
 // to email_drafts via FK on delete cascade and sets audit_log.report_id
-// to null via FK on delete set null — so the audit trail survives), and
+// to null via FK on delete set null, so the audit trail survives), and
 // writes a final report.deleted audit_log row.
 //
 // Owners can delete their own reports. Admins (profiles.is_admin) can
 // delete any report and the audit entry records the admin_actor.
 // Body: nothing required; we still parse it defensively so a curious
-// CLI hit doesn't crash. There is no "confirm" field server-side — the
+// CLI hit doesn't crash. There is no "confirm" field server-side, the
 // UI handles the type-DELETE-to-confirm gating before calling this.
 
 export async function POST(
@@ -74,7 +74,7 @@ export async function POST(
         .from("disclosures")
         .remove(paths);
       if (rmErr) {
-        // Don't fail the delete — orphaned storage is a smaller problem
+        // Don't fail the delete, orphaned storage is a smaller problem
         // than a report stuck in a half-deleted state. Log it for ops.
         console.error(
           `[delete] storage cleanup failed for ${folder}:`,

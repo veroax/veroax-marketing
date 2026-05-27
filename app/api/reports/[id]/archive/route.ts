@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/auth/require";
 //
 // Owner can archive/restore their own reports. Admins
 // (profiles.is_admin = true) can additionally archive/restore any
-// report — used to recover an agent's archived report on request.
+// report, used to recover an agent's archived report on request.
 // Admin restore writes an audit_log "report.restored_by_admin" row
 // with the admin's user_id so we have a trail.
 
@@ -53,7 +53,7 @@ export async function POST(
 
   const isOwner = report.user_id === user.id;
   if (!isOwner && !isAdmin) {
-    // Defensive — RLS would have already blocked the SELECT for a
+    // Defensive, RLS would have already blocked the SELECT for a
     // non-owner regular user, but we double-check.
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
@@ -94,7 +94,7 @@ export async function POST(
         },
       });
     } catch (err) {
-      // Audit-log failure shouldn't fail the operation — log and move
+      // Audit-log failure shouldn't fail the operation, log and move
       // on. The state change has already persisted.
       console.error("[archive] audit log insert failed:", err);
     }

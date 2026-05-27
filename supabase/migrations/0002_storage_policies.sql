@@ -1,4 +1,4 @@
--- Veroax — storage RLS policies
+-- Veroax, storage RLS policies
 -- Run this AFTER 0001_initial_schema.sql.
 -- Restricts each storage bucket so that users can only access files
 -- under a folder matching their own auth.uid().

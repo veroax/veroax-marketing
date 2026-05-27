@@ -34,7 +34,7 @@ export default async function AdminHome() {
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   // Parallel queries so the page loads in the time of the slowest one.
-  // Each .select with {count: 'exact', head: true} returns no rows —
+  // Each .select with {count: 'exact', head: true} returns no rows ,
   // just the count, fast for large tables.
   const [
     profilesAll,

@@ -15,11 +15,11 @@ import { looksLikeShareCode } from "@/lib/share/code";
 
 // Public-facing PDF download from a share-code URL. Mirrors the
 // authenticated /api/reports/[id]/pdf flow but resolves by share_code
-// instead of report id. No auth — the URL is the bearer token.
+// instead of report id. No auth, the URL is the bearer token.
 //
 // The PDF reflects the CURRENT report_data (re-renders on every hit).
 // Past versions are archived via the dashboard's versions[] download
-// path — the public link is always "latest."
+// path, the public link is always "latest."
 
 export const runtime = "nodejs";
 
@@ -114,7 +114,7 @@ export async function GET(_req: Request, context: { params: Params }) {
     authEmail: null,
   });
 
-  // Same original_files coercion as /api/reports/[id]/pdf — keep the
+  // Same original_files coercion as /api/reports/[id]/pdf, keep the
   // shape consistent so the renderer doesn't have a code path for
   // public vs authenticated PDFs.
   const fallbackUploadedAt =

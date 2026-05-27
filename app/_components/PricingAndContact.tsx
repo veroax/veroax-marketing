@@ -42,7 +42,7 @@ type Plan = {
 const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
 
 // Compute the homepage's richer plan shape from a PLAN_TIERS row.
-// Pure function — easy to unit-test if we ever want to.
+// Pure function, easy to unit-test if we ever want to.
 function planTierToHomepagePlan(tier: PlanTier): Plan {
   if (tier.isCustom) {
     return {

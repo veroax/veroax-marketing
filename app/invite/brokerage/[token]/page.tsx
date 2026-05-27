@@ -1,4 +1,4 @@
-// /invite/brokerage/[token] — brokerage invite acceptance landing.
+// /invite/brokerage/[token], brokerage invite acceptance landing.
 //
 // Mirrors /invite/[token] (team invite) but joins the user to a
 // brokerage as either:

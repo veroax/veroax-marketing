@@ -29,7 +29,7 @@ export default async function DashboardLayout({
 
   // Fetch the profile row (created automatically by the on-signup trigger).
   // full_name, dre_license, and brokerage are all REQUIRED before a
-  // report PDF will render — the dashboard nudges to /settings when
+  // report PDF will render, the dashboard nudges to /settings when
   // any are missing. is_admin gates the optional "Admin" link in the
   // sidebar.
   const { data: profile } = await supabase
@@ -84,7 +84,7 @@ export default async function DashboardLayout({
           ) : null}
           <NavLink href="/dashboard/billing" label="Billing" />
           <NavLink href="/dashboard/settings" label="Settings" />
-          {/* Admin link — visible only when profiles.is_admin = true.
+          {/* Admin link, visible only when profiles.is_admin = true.
               Rendered with a red accent + caps badge so it's
               visually obvious you're crossing into a privileged
               surface. */}
@@ -100,7 +100,7 @@ export default async function DashboardLayout({
             </Link>
           ) : null}
         </nav>
-        {/* Support contact block — sits just above the signed-in
+        {/* Support contact block, sits just above the signed-in
             chrome so it's visible without scrolling, but doesn't
             shout for attention. Both lines are clickable: phone
             opens the OS dialer / FaceTime / etc. via tel:, email
@@ -192,7 +192,7 @@ export default async function DashboardLayout({
           </div>
         </header>
 
-        {/* Profile-completion banner — hard requirement now: reports
+        {/* Profile-completion banner, hard requirement now: reports
             won't download until name + DRE + brokerage are all set. */}
         {profileIncomplete && (
           <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 text-sm text-amber-900 flex items-center justify-between gap-4">

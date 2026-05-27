@@ -7,7 +7,7 @@ import type { Finding } from "@/lib/anthropic/schema";
 // click-to-source. Each finding's "Source: X" line is a button that
 // opens a side panel showing the source PDF at the cited page.
 //
-// The buyer's public /r/{code} view doesn't get this — the source
+// The buyer's public /r/{code} view doesn't get this, the source
 // PDFs are private. The agent gets it on the auth-protected
 // dashboard so they can audit any finding back to its source in one
 // click without downloading and grepping through long PDFs.
@@ -34,7 +34,7 @@ type SourcePanelState =
 
 // Parse a source citation like "CalPro Home Inspection, page 10" or
 // "AVID p. 4" or "TDS Section C, page 3" into a (filename-ish, page).
-// We don't know the actual storage filename — that's up to the
+// We don't know the actual storage filename, that's up to the
 // signed-URL endpoint to resolve. We DO try to extract the page
 // number for the PDF viewer.
 function parseSourceCitation(source: string): {
@@ -54,7 +54,7 @@ function parseSourceCitation(source: string): {
     .replace(/,?\s*p\.?\s*\d+/gi, "")
     .trim();
   // The filename in storage is usually like "5._CalPro_Home_Inspection.pdf".
-  // We can't construct that exactly — but we can pass a hint and let
+  // We can't construct that exactly, but we can pass a hint and let
   // the server route do prefix/contains matching across the folder.
   // For now, use the stripped doc name as the hint.
   return {

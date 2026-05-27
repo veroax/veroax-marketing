@@ -9,12 +9,12 @@ const ANALYSIS_LOCK_MINUTES = 15;
 
 // Max function runtime. Vercel Pro supports up to 800s. We use after()
 // to run the actual analysis work AFTER the HTTP response is sent so we
-// don't hit Vercel's gateway timeout (~5min) — the function keeps
+// don't hit Vercel's gateway timeout (~5min), the function keeps
 // executing in the background until maxDuration or completion.
 export const maxDuration = 800;
 
 // ============================================================================
-// POST handler — performs the synchronous validation + lock-taking, then
+// POST handler, performs the synchronous validation + lock-taking, then
 // kicks off the heavy analysis work via after() and returns 202 immediately.
 //
 // The heavy work itself lives in lib/server/performAnalysis.ts, shared
@@ -62,7 +62,7 @@ export async function POST(
       {
         ok: true,
         status: "analyzing",
-        note: "Analysis already running — polling will detect completion.",
+        note: "Analysis already running, polling will detect completion.",
       },
       { status: 202 },
     );
@@ -116,7 +116,7 @@ export async function POST(
     {
       ok: true,
       status: "analyzing",
-      note: "Analysis started — polling will detect completion.",
+      note: "Analysis started, polling will detect completion.",
     },
     { status: 202 },
   );

@@ -29,7 +29,7 @@ export default function CheckoutSuccess() {
         </h1>
         <p className="text-indigo-200 leading-relaxed">
           Your Veroax subscription is active. Look out for a welcome email in
-          the next minute — it has your login link and a quick walkthrough of
+          the next minute, it has your login link and a quick walkthrough of
           how to upload your first disclosure package.
         </p>
         <p className="text-xs text-indigo-300">

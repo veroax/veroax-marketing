@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth/require";
 // Removes a single file the agent uploaded to this report (and any
 // _part_N split siblings created by lib/pdf/split.ts), then forces
 // a full-package re-analysis on the remaining files. Same shape as
-// /update — snapshot the current state into versions[], flip status
+// /update, snapshot the current state into versions[], flip status
 // to analyzing, kick the heavy work into after().
 //
 // Body: { filename: string }
@@ -68,7 +68,7 @@ export async function POST(
     );
   }
 
-  // Reject removal that would leave no files behind — at that point
+  // Reject removal that would leave no files behind, at that point
   // the agent should just delete the report (or upload fresh
   // documents via /upload). Returning an error keeps the rest of
   // the system in a coherent state.
@@ -90,7 +90,7 @@ export async function POST(
     return NextResponse.json(
       {
         error:
-          "Can't remove the last remaining file — at least one disclosure file must stay on the report. Archive the report or start a new one if you need to replace everything.",
+          "Can't remove the last remaining file, at least one disclosure file must stay on the report. Archive the report or start a new one if you need to replace everything.",
       },
       { status: 400 },
     );
@@ -103,7 +103,7 @@ export async function POST(
   const insideFreeWindow = ageDays <= FREE_UPDATE_WINDOW_DAYS;
 
   if (!insideFreeWindow) {
-    // Same pattern as /update — log a billable event for the
+    // Same pattern as /update, log a billable event for the
     // future credit-gate code to consume; don't block today.
     await admin.from("audit_log").insert({
       user_id: user.id,
@@ -168,7 +168,7 @@ export async function POST(
 
   if (pathsToDelete.length === 0) {
     // The DB row referenced the file but storage didn't have it.
-    // Continue — still drop the row from original_files; this is
+    // Continue, still drop the row from original_files; this is
     // probably a stale entry from an interrupted upload.
     console.warn(
       `[remove-file] no storage objects matched for ${filename} on report ${reportId}`,
@@ -235,7 +235,7 @@ export async function POST(
   });
 
   // ----- Kick off re-analysis in the background --------------------
-  // No updateContext — this isn't an "added docs" scenario, it's a
+  // No updateContext, this isn't an "added docs" scenario, it's a
   // re-analysis on the leaner package. The findings should simply
   // reflect what's left.
   after(async () => {
@@ -249,7 +249,7 @@ export async function POST(
           property_address: report.property_address,
           source_file_path: report.source_file_path ?? folder,
         },
-        // We don't pass updateContext here — there are no new added
+        // We don't pass updateContext here, there are no new added
         // files, just fewer existing ones. The analyzer reads
         // whatever PDFs remain in the folder.
         updateContext: null,

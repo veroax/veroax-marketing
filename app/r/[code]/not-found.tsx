@@ -1,11 +1,11 @@
 import Link from "next/link";
 
 // Rendered automatically by Next when the /r/[code] page calls
-// notFound(). Kept gentle — a buyer following an expired link
+// notFound(). Kept gentle, a buyer following an expired link
 // shouldn't get a stack-trace-looking 404.
 
 export const metadata = {
-  title: "Report link not found — Veroax",
+  title: "Report link not found, Veroax",
   robots: { index: false, follow: false },
 };
 

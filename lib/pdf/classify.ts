@@ -1,4 +1,4 @@
-// Document classifier — determines what kind of disclosure document a
+// Document classifier, determines what kind of disclosure document a
 // PDF represents based on its filename. Used by the multi-pass analyzer
 // to route each document to the right focused analysis pass.
 //
@@ -18,7 +18,7 @@ export type DocumentType =
 
 // Tokenize a filename: split on anything that isn't a letter/digit so
 // underscores, dots, dashes, and spaces all become word boundaries.
-// We do this because regex \b treats _ as a word character — so a file
+// We do this because regex \b treats _ as a word character, so a file
 // named "6._NHD_Report.pdf" doesn't word-boundary-match \bnhd\b. Tokens
 // solve that cleanly.
 function tokens(filename: string): string[] {
@@ -29,7 +29,7 @@ function tokens(filename: string): string[] {
     .filter(Boolean);
 }
 
-// Order matters — first match wins. More specific patterns go first
+// Order matters, first match wins. More specific patterns go first
 // (e.g., "termite" matches inspections before generic "report" patterns).
 const TYPE_RULES: Array<[DocumentType, (toks: string[], full: string) => boolean]> = [
   // Coversheets
@@ -47,7 +47,7 @@ const TYPE_RULES: Array<[DocumentType, (toks: string[], full: string) => boolean
       /fire[\s_-]*hazard/i.test(f),
   ],
 
-  // Inspections (broad — anything inspection-related)
+  // Inspections (broad, anything inspection-related)
   [
     "inspections",
     (t, f) =>
@@ -80,7 +80,7 @@ const TYPE_RULES: Array<[DocumentType, (toks: string[], full: string) => boolean
       /title[\s_-]*report/i.test(f),
   ],
 
-  // Seller disclosures (broadest — checked last so more specific types win)
+  // Seller disclosures (broadest, checked last so more specific types win)
   [
     "seller_disclosures",
     (t, f) =>
@@ -112,7 +112,7 @@ export const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
 };
 
 // Pass-group key (multiple types collapsed for analysis). Cover and
-// title don't need their own focused pass — they're folded into the
+// title don't need their own focused pass, they're folded into the
 // seller-disclosures pass since the content overlaps with what the
 // agent context naturally needs.
 export type PassGroup =

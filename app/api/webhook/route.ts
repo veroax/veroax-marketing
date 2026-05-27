@@ -21,7 +21,7 @@ const NOTIFY_EVENTS = new Set<string>([
 const NOTIFY_TO = "support@veroax.com";
 
 function fmtCents(amount: number | null | undefined, currency = "usd"): string {
-  if (amount == null) return "—";
+  if (amount == null) return ",";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
@@ -42,13 +42,13 @@ function describeEvent(event: Stripe.Event): {
         subject: `🎉 New Veroax subscription: ${plan} (${billing})`,
         summary: `${s.customer_details?.email ?? "Unknown email"} just subscribed to Veroax ${plan} (${billing} billing).`,
         details: {
-          Email: s.customer_details?.email ?? "—",
-          Name: s.customer_details?.name ?? "—",
+          Email: s.customer_details?.email ?? ",",
+          Name: s.customer_details?.name ?? ",",
           Plan: plan,
           Billing: billing,
           Amount: fmtCents(s.amount_total, s.currency ?? "usd"),
-          "Customer ID": String(s.customer ?? "—"),
-          "Subscription ID": String(s.subscription ?? "—"),
+          "Customer ID": String(s.customer ?? ","),
+          "Subscription ID": String(s.subscription ?? ","),
           "Session ID": s.id,
         },
       };
@@ -68,7 +68,7 @@ function describeEvent(event: Stripe.Event): {
           Status: sub.status,
           "Canceled at": sub.canceled_at
             ? new Date(sub.canceled_at * 1000).toISOString()
-            : "—",
+            : ",",
         },
       };
     }
@@ -93,15 +93,15 @@ function describeEvent(event: Stripe.Event): {
         subject: `⚠️ Payment failed: ${fmtCents(inv.amount_due, inv.currency)}`,
         summary: `A recurring payment failed. Stripe will retry per your dunning settings; the customer should also get an email to update their card.`,
         details: {
-          "Customer email": inv.customer_email ?? "—",
-          "Customer ID": String(inv.customer ?? "—"),
-          "Invoice ID": inv.id ?? "—",
+          "Customer email": inv.customer_email ?? ",",
+          "Customer ID": String(inv.customer ?? ","),
+          "Invoice ID": inv.id ?? ",",
           Amount: fmtCents(inv.amount_due, inv.currency),
           "Attempt count": String(inv.attempt_count ?? 0),
           "Next attempt": inv.next_payment_attempt
             ? new Date(inv.next_payment_attempt * 1000).toISOString()
-            : "—",
-          "Hosted invoice URL": inv.hosted_invoice_url ?? "—",
+            : ",",
+          "Hosted invoice URL": inv.hosted_invoice_url ?? ",",
         },
       };
     }
@@ -117,7 +117,7 @@ function describeEvent(event: Stripe.Event): {
 async function notify(event: Stripe.Event): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.log(`[webhook] ${event.type} (no RESEND_API_KEY — skipping email)`);
+    console.log(`[webhook] ${event.type} (no RESEND_API_KEY, skipping email)`);
     return;
   }
 
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
 
   console.log(`[webhook] received ${event.type} (${event.id})`);
 
-  // DB sync — write the subscription state into our subscriptions
+  // DB sync, write the subscription state into our subscriptions
   // table and grant credits where appropriate. Failures here don't
   // ack the webhook (we want Stripe to retry) UNLESS the failure is
   // "row not found" which would loop forever.
@@ -201,14 +201,14 @@ export async function POST(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "DB sync failed";
     console.error(`[webhook] DB sync failed for ${event.type}:`, message);
-    // Still ack — we already log; Stripe retries would just spam.
+    // Still ack, we already log; Stripe retries would just spam.
   }
 
   if (NOTIFY_EVENTS.has(event.type)) {
     try {
       await notify(event);
     } catch (err) {
-      // Email failure shouldn't cause Stripe to retry — log and ack.
+      // Email failure shouldn't cause Stripe to retry, log and ack.
       const message = err instanceof Error ? err.message : "Notify failed";
       console.error(`[webhook] notify failed for ${event.type}:`, message);
     }
@@ -268,7 +268,7 @@ async function syncToDb(event: Stripe.Event): Promise<void> {
       break;
     }
     case "invoice.paid": {
-      // A renewal invoice was paid — the subscription event handler
+      // A renewal invoice was paid, the subscription event handler
       // covers this when it fires alongside, but we double-check that
       // period was rolled over.
       const inv = event.data.object as Stripe.Invoice;
@@ -358,7 +358,7 @@ async function handleCheckoutCompleted(
       .eq("id", userId);
   }
 
-  // One-off purchase mode — payment, not subscription. Increment
+  // One-off purchase mode, payment, not subscription. Increment
   // the user's pay-as-you-go credit balance and log it.
   if (session.mode === "payment") {
     const lineItem = session.metadata?.report_credits;
@@ -386,7 +386,7 @@ async function handleCheckoutCompleted(
     return;
   }
 
-  // Subscription mode — pull the subscription and upsert.
+  // Subscription mode, pull the subscription and upsert.
   const subId =
     typeof session.subscription === "string"
       ? session.subscription

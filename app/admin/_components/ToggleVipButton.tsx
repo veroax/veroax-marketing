@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 // Promotes/demotes a user's VIP status. VIPs bypass the credit gate
-// and never see a watermark. Use sparingly — the granted user
+// and never see a watermark. Use sparingly, the granted user
 // effectively gets unlimited free access until you flip it back.
 
 type Props = {

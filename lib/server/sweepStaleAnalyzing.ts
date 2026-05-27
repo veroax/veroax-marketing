@@ -1,7 +1,7 @@
 // Sweep reports stuck in status='analyzing' past a hard timeout.
 //
 // performAnalysis() catches errors and flips the row to 'failed' with
-// a failure_reason — so this sweep only fires when the FUNCTION ITSELF
+// a failure_reason, so this sweep only fires when the FUNCTION ITSELF
 // is killed mid-flight (Vercel serverless timeout, OOM, network blip
 // during the Anthropic call, etc). In those cases the status row stays
 // 'analyzing' forever because no code path runs the cleanup.

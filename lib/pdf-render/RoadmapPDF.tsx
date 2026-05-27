@@ -8,7 +8,7 @@ import {
 
 // One-page roadmap PDF for the founder. Lists the major buckets of
 // work that gate marketing readiness, with checkbox glyphs. Broad
-// strokes only — no implementation detail — so the document fits on
+// strokes only, no implementation detail, so the document fits on
 // one Letter page even after a couple of additions. The render is
 // deliberately spartan (Helvetica only, no images, no flexbox tricks)
 // because it's meant to be a working document the founder marks up,
@@ -103,7 +103,7 @@ type Section = { title: string; items: Item[] };
 
 const SECTIONS: Section[] = [
   {
-    title: "1. Analysis quality — what makes the report worth paying for",
+    title: "1. Analysis quality, what makes the report worth paying for",
     items: [
       {
         done: true,
@@ -132,7 +132,7 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "2. PDF + UX polish — what the buyer sees",
+    title: "2. PDF + UX polish, what the buyer sees",
     items: [
       {
         done: true,
@@ -160,16 +160,16 @@ const SECTIONS: Section[] = [
       },
       {
         done: true,
-        text: "Split each report section into its own forced-page-break BodyPage so no section can auto-overflow. Unlocks clean header/footer on every page without position:absolute (which crashes React-PDF on overflow pages — see 2026-05-22 incident)",
+        text: "Split each report section into its own forced-page-break BodyPage so no section can auto-overflow. Unlocks clean header/footer on every page without position:absolute (which crashes React-PDF on overflow pages, see 2026-05-22 incident)",
       },
       {
         done: false,
-        text: "Optional client-branded variant — coffee-stained logo / brokerage colors / agent headshot polish",
+        text: "Optional client-branded variant, coffee-stained logo / brokerage colors / agent headshot polish",
       },
     ],
   },
   {
-    title: "3. Agent product surface — the dashboard, email, and workflow",
+    title: "3. Agent product surface, the dashboard, email, and workflow",
     items: [
       {
         done: true,
@@ -210,7 +210,7 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "4. Billing + plans — how Veroax makes money",
+    title: "4. Billing + plans, how Veroax makes money",
     items: [
       {
         done: true,
@@ -226,7 +226,7 @@ const SECTIONS: Section[] = [
       },
       {
         done: true,
-        text: "Free-trial flow: profiles.trial_credits_remaining=1 by default. Trial consumption sets reports.watermarked=true; ReportPDF renders an amber SAMPLE — VEROAX TRIAL band on every page (auth + public PDF).",
+        text: "Free-trial flow: profiles.trial_credits_remaining=1 by default. Trial consumption sets reports.watermarked=true; ReportPDF renders an amber SAMPLE, VEROAX TRIAL band on every page (auth + public PDF).",
       },
       {
         done: false,
@@ -235,7 +235,7 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "5. Multi-state — beyond California",
+    title: "5. Multi-state, beyond California",
     items: [
       {
         done: false,
@@ -256,7 +256,7 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "6. Reliability + trust — what makes this safe at scale",
+    title: "6. Reliability + trust, what makes this safe at scale",
     items: [
       {
         done: true,
@@ -272,7 +272,7 @@ const SECTIONS: Section[] = [
       },
       {
         done: false,
-        text: "Agent-visible activity timeline (per report) — what ran when, who did what",
+        text: "Agent-visible activity timeline (per report), what ran when, who did what",
       },
       {
         done: false,
@@ -285,7 +285,7 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "7. Marketing readiness — when to flip the switch",
+    title: "7. Marketing readiness, when to flip the switch",
     items: [
       {
         done: false,
@@ -310,7 +310,7 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "Future considerations — track but not gating marketing",
+    title: "Future considerations, track but not gating marketing",
     items: [
       {
         done: false,
@@ -322,7 +322,7 @@ const SECTIONS: Section[] = [
       },
       {
         done: false,
-        text: "International — explicitly out of scope; US-only roadmap",
+        text: "International, explicitly out of scope; US-only roadmap",
       },
     ],
   },
@@ -340,12 +340,12 @@ const SECTIONS: Section[] = [
 export function RoadmapPDF() {
   return (
     <Document
-      title="Veroax — roadmap to marketing-ready"
+      title="Veroax, roadmap to marketing-ready"
       author="Veroax"
       subject="Founder roadmap"
     >
       <Page size="LETTER" style={styles.page}>
-        <Text style={styles.title}>Veroax — roadmap to marketing-ready</Text>
+        <Text style={styles.title}>Veroax, roadmap to marketing-ready</Text>
         <Text style={styles.subtitle}>
           Broad-strokes punch list, grouped by phase. Filled boxes are
           already shipped; open boxes remain.

@@ -11,7 +11,7 @@ import Link from "next/link";
 // to the live URLs (/pricing, /api/webhook, etc.) directly.
 
 export const metadata = {
-  title: "Billing setup — Veroax Admin",
+  title: "Billing setup, Veroax Admin",
 };
 
 export default function BillingSetupDoc() {
@@ -44,7 +44,7 @@ export default function BillingSetupDoc() {
       <Section number={1} title="Run the migration in Supabase">
         <P>
           Open the Supabase SQL editor and run the contents of{" "}
-          <Code>supabase/migrations/0011_billing.sql</Code>. Idempotent —
+          <Code>supabase/migrations/0011_billing.sql</Code>. Idempotent ,
           safe to re-run.
         </P>
         <P>The migration adds:</P>
@@ -157,7 +157,7 @@ STRIPE_PRICE_ONEOFF_REPORT=price_xxx`}</Pre>
         <P>
           <Code>STRIPE_SECRET_KEY</Code> and{" "}
           <Code>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</Code> are already set
-          from earlier work — leave them.
+          from earlier work, leave them.
         </P>
       </Section>
 
@@ -182,7 +182,7 @@ STRIPE_PRICE_ONEOFF_REPORT=price_xxx`}</Pre>
         </P>
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-900 my-3">
           <strong>Paste-safety:</strong> Don&apos;t paste the{" "}
-          <Code>whsec_…</Code> value into chat — same rule as the Stripe
+          <Code>whsec_…</Code> value into chat, same rule as the Stripe
           secret key.
         </div>
       </Section>
@@ -234,7 +234,7 @@ STRIPE_PRICE_ONEOFF_REPORT=price_xxx`}</Pre>
             while signed in to a Veroax test account.
           </li>
           <li>
-            Click &quot;Start Solo — $49/mo&quot;. You should land on
+            Click &quot;Start Solo, $49/mo&quot;. You should land on
             Stripe Checkout with your account email pre-filled.
           </li>
           <li>
@@ -282,7 +282,7 @@ STRIPE_PRICE_ONEOFF_REPORT=price_xxx`}</Pre>
           Every new account gets <Code>trial_credits_remaining=1</Code>{" "}
           via the migration default. The first analysis burns the trial;
           the resulting PDF carries the amber{" "}
-          <strong>SAMPLE — VEROAX TRIAL · NOT FOR CLIENT DELIVERY</strong>{" "}
+          <strong>SAMPLE, VEROAX TRIAL · NOT FOR CLIENT DELIVERY</strong>{" "}
           band on every page. To deliver unwatermarked, the agent must
           subscribe or buy a one-off.
         </P>
@@ -307,7 +307,7 @@ where email = '<recipient>';`}</Pre>
 }
 
 // =====================================================================
-// Tiny rendering helpers — keep this file self-contained.
+// Tiny rendering helpers, keep this file self-contained.
 // =====================================================================
 
 function Section({

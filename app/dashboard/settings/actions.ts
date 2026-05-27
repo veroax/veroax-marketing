@@ -3,7 +3,7 @@
 // Server Action for saving the agent's profile from /dashboard/settings.
 // The same columns drive the PDF report's "Prepared By" panel + footer,
 // so what the agent saves here is what shows up on every downloaded
-// report immediately after — no analyze rerun needed.
+// report immediately after, no analyze rerun needed.
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
@@ -75,7 +75,7 @@ export async function updateProfileAction(
   const emailSignature = trim(formData, "email_signature");
 
   // -------- Validation -------------------------------------------
-  // Hard requirements — these fields appear on every PDF cover and
+  // Hard requirements, these fields appear on every PDF cover and
   // the report itself is blocked from download (412) without them.
   if (!fullName) return { error: "Full name is required." };
   if (!dreLicense) return { error: "DRE license is required." };
@@ -116,17 +116,17 @@ export async function updateProfileAction(
   // upsert (rather than update) so this works for two distinct user
   // populations:
   //
-  //   1. Agents who signed up AFTER the on-signup trigger was wired —
+  //   1. Agents who signed up AFTER the on-signup trigger was wired ,
   //      they already have a profiles row, and we just update it.
   //   2. Agents who signed up BEFORE the trigger existed, or whose
-  //      on-signup trigger didn't fire — they don't have a row, and a
+  //      on-signup trigger didn't fire, they don't have a row, and a
   //      plain .update().eq("id", user.id) matches zero rows and
   //      returns success without persisting anything. That was the
   //      bug behind "I save my details, the page says Saved, then
   //      they're gone on reload."
   //
   // email is NOT NULL on profiles, so we include it on the upsert
-  // payload — required when we're creating the row, ignored when the
+  // payload, required when we're creating the row, ignored when the
   // row already exists.
   const { data: written, error } = await supabase
     .from("profiles")
@@ -162,7 +162,7 @@ export async function updateProfileAction(
   if (!written || written.length === 0) {
     return {
       error:
-        "Save returned no rows. Your profile row may be missing — contact support.",
+        "Save returned no rows. Your profile row may be missing, contact support.",
     };
   }
 

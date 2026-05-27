@@ -15,7 +15,7 @@ import { requireUser } from "@/lib/auth/require";
 //
 // We use the service-role client for storage operations because the user's
 // session token isn't always available inside Vercel functions for large
-// downloads — but we keep RLS-respecting access for the reports table check.
+// downloads, but we keep RLS-respecting access for the reports table check.
 
 // PDF splitting can take a few seconds per long document. 300s ceiling
 // gives us headroom for multi-document HOA packages.
@@ -31,7 +31,7 @@ export async function POST(
   if (!auth.ok) return auth.response;
   const { supabase, user } = auth;
 
-  // Verify the report belongs to this user — RLS enforces this anyway,
+  // Verify the report belongs to this user, RLS enforces this anyway,
   // but the explicit check gives a clean 404 instead of a confusing
   // empty result.
   const { data: report, error: reportErr } = await supabase
@@ -80,7 +80,7 @@ export async function POST(
       const baseDir = zipPath.substring(0, zipPath.lastIndexOf("/"));
 
       for (const entry of entries) {
-        // Flatten directory structure inside the zip — we only care about the
+        // Flatten directory structure inside the zip, we only care about the
         // PDFs themselves, not their folder organization within the archive.
         const safeName = entry.entryName
           .split("/")
@@ -99,7 +99,7 @@ export async function POST(
         }
       }
 
-      // Delete the original ZIP — only PDFs need to remain in storage.
+      // Delete the original ZIP, only PDFs need to remain in storage.
       await admin.storage.from("disclosures").remove([zipPath]);
     } catch (err) {
       const message = err instanceof Error ? err.message : "ZIP extraction failed.";
@@ -115,7 +115,7 @@ export async function POST(
 
   // Capture the canonical "original files" list (post-ZIP-extraction, but
   // pre-splitting). This becomes the source of truth for the PDF document
-  // inventory — independent of whatever Claude's analysis reports later.
+  // inventory, independent of whatever Claude's analysis reports later.
   // The user sees exactly what they uploaded, not the internal _part_N
   // chunks our splitter created.
   // Per-file upload timestamp surfaces in the PDF Document Inventory
@@ -247,7 +247,7 @@ export async function POST(
 
   // If the agent uploaded an MLS-printout PDF, download it, extract the
   // text, and persist that text to reports.listing_text. The analysis
-  // reads listing_text as supplementary marketing context — it does NOT
+  // reads listing_text as supplementary marketing context, it does NOT
   // need the actual PDF, just the words. If extraction fails (encrypted,
   // image-only without OCR), we log it but don't block the report.
   let mlsListingText: string | null = null;
@@ -261,7 +261,7 @@ export async function POST(
       }
       const mlsBuffer = Buffer.from(await mlsBlob.arrayBuffer());
       const extracted = await extractText(mlsBuffer);
-      // Trim and cap at a sane length — MLS sheets are typically 2-4 pages
+      // Trim and cap at a sane length, MLS sheets are typically 2-4 pages
       // of running text, so 50K chars is a comfortable ceiling that still
       // catches edge cases without bloating downstream prompts.
       mlsListingText = extracted.text.slice(0, 50_000) || null;
@@ -290,7 +290,7 @@ export async function POST(
   }
 
   // Mark the report as ready for analysis and persist the canonical
-  // original_files list (post-ZIP, pre-split) — the PDF document
+  // original_files list (post-ZIP, pre-split), the PDF document
   // inventory reads from this column so the user always sees what they
   // actually uploaded. Also stash the MLS storage path and any
   // extracted listing text so the analyze step can use it as context.

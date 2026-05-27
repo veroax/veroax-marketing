@@ -11,7 +11,7 @@ import { ReportErrorButton } from "@/components/ReportErrorButton";
 //
 // Same data shape as the dashboard's AgentSummary so the agent and
 // buyer are reading the same words. The CSS is intentionally
-// conservative — Tailwind utility classes only, no custom components,
+// conservative, Tailwind utility classes only, no custom components,
 // so it renders the same in every modern browser.
 
 type ProfileShape = {
@@ -80,7 +80,7 @@ export function PublicReportView({
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Top brand banner. Reframed as the BUYER'S identity strip
-          (not the agent's internal label) — this URL is what the
+          (not the agent's internal label), this URL is what the
           agent hands the buyer, so the eyebrow reads as a personalized
           delivery rather than an internal "Disclosure Package
           Analysis" label. */}
@@ -104,7 +104,7 @@ export function PublicReportView({
       </header>
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
-        {/* Hero card — title + rating pill + meta */}
+        {/* Hero card, title + rating pill + meta */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">
             {propertyAddress}
@@ -156,7 +156,7 @@ export function PublicReportView({
 
           {/* Download PDF + share-link copy buttons. PDF is rendered
               on-demand from the same data; the share URL is what the
-              buyer is already viewing — copy convenience. */}
+              buyer is already viewing, copy convenience. */}
           <div className="mt-5 flex flex-wrap gap-2">
             <a
               href={`/api/r/${shareCode}/pdf`}
@@ -170,7 +170,7 @@ export function PublicReportView({
           </div>
         </section>
 
-        {/* "How to read this report" — short framing for the buyer
+        {/* "How to read this report", short framing for the buyer
             who clicked the link cold. Establishes what this is +
             who made it + what to do with it. */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
@@ -203,7 +203,7 @@ export function PublicReportView({
           </div>
         </Section>
 
-        {/* Top strengths / top concerns — dual block on desktop,
+        {/* Top strengths / top concerns, dual block on desktop,
             stacked on mobile. */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
@@ -234,7 +234,7 @@ export function PublicReportView({
           </div>
         </div>
 
-        {/* Critical findings — open by default. */}
+        {/* Critical findings, open by default. */}
         <Section
           title={`Critical findings (${criticalFindings.length})`}
           defaultOpen
@@ -252,7 +252,7 @@ export function PublicReportView({
           )}
         </Section>
 
-        {/* High & Moderate — collapsed by default. */}
+        {/* High & Moderate, collapsed by default. */}
         <Section
           title={`High & moderate findings (${moderateFindings.length})`}
           defaultOpen={false}
@@ -284,7 +284,7 @@ export function PublicReportView({
           )}
         </Section>
 
-        {/* Cosmetic notes — collapsed. */}
+        {/* Cosmetic notes, collapsed. */}
         <Section
           title={`Cosmetic notes (${cosmeticFindings.length})`}
           defaultOpen={false}
@@ -523,7 +523,7 @@ export function PublicReportView({
           </Section>
         ) : null}
 
-        {/* Report-an-error affordance for the public viewer too —
+        {/* Report-an-error affordance for the public viewer too ,
             we'll resolve their email to a Veroax account when
             granting credit (works for the agent who shared the
             link; anonymous buyer submissions go to the admin
@@ -548,7 +548,7 @@ export function PublicReportView({
         </div>
       </main>
 
-      {/* Agent footer — branding sits at the bottom so the buyer sees
+      {/* Agent footer, branding sits at the bottom so the buyer sees
           the punchline first, the agent identity last. */}
       <footer className="border-t border-slate-200 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
@@ -635,7 +635,7 @@ export function PublicReportView({
   );
 }
 
-// Reusable collapsible section — native <details> for the no-JS path
+// Reusable collapsible section, native <details> for the no-JS path
 // (works on every browser), plus client-side state so the open/close
 // animation is smooth. Critical findings + agent summary default open;
 // everything else is collapsed.
@@ -676,7 +676,7 @@ function Section({
   );
 }
 
-// Critical-finding card — matches the PDF's five-zone layout:
+// Critical-finding card, matches the PDF's five-zone layout:
 // title + severity, quote, what/why/next, cost, confidence.
 function FindingCard({ finding, index }: { finding: Finding; index: number }) {
   const hoaPaid = finding.cost_responsibility === "hoa";

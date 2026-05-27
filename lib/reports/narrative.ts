@@ -6,7 +6,7 @@ import type { ReportData, CostRange } from "@/lib/anthropic/schema";
 //   - /dashboard/reports/[id]/page.tsx (the on-screen Talking Points card)
 //
 // Both surfaces draw from the same function so what the agent sees on
-// the dashboard matches what their client reads in the PDF — no drift.
+// the dashboard matches what their client reads in the PDF, no drift.
 //
 // Returns 2-3 substantive paragraphs covering:
 //   1. Property overview (type, age, size, market, list price/DOM)
@@ -52,7 +52,7 @@ export function composeExecutiveNarrative(report: ReportData): string[] {
   let findingsPara = "";
   if (critCount === 0 && modCount === 0) {
     findingsPara =
-      "The package reveals no critical, high, or moderate findings that materially affect the buyer's decision — the disclosed condition is consistent with a well-maintained property.";
+      "The package reveals no critical, high, or moderate findings that materially affect the buyer's decision, the disclosed condition is consistent with a well-maintained property.";
   } else if (critCount === 0) {
     findingsPara = `The package surfaces ${modCount} moderate item${modCount === 1 ? "" : "s"} reflecting typical aging-property maintenance, but no critical or high-severity findings. The work is bounded and routine.`;
   } else {
@@ -60,7 +60,7 @@ export function composeExecutiveNarrative(report: ReportData): string[] {
       .slice(0, 2)
       .map((f) => f.title)
       .join(" and ");
-    findingsPara = `${critCount} critical or high-severity finding${critCount === 1 ? "" : "s"} require immediate attention before contingency removal${topCritical ? ` — including ${topCritical}` : ""}.`;
+    findingsPara = `${critCount} critical or high-severity finding${critCount === 1 ? "" : "s"} require immediate attention before contingency removal${topCritical ? `, including ${topCritical}` : ""}.`;
     if (modCount > 0) {
       findingsPara += ` ${modCount} additional moderate item${modCount === 1 ? "" : "s"} add to the work scope.`;
     }
@@ -98,11 +98,11 @@ export function composeExecutiveNarrative(report: ReportData): string[] {
 }
 
 // ---- Local formatters (kept inline so this module has no React-PDF
-// or dashboard-page dependencies — it's pure logic that can be
+// or dashboard-page dependencies, it's pure logic that can be
 // consumed from either render surface). ----
 
 function formatUSD(n: number | null | undefined): string {
-  if (n == null) return "—";
+  if (n == null) return ",";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -111,7 +111,7 @@ function formatUSD(n: number | null | undefined): string {
 }
 
 function formatCostRange(r: CostRange | null | undefined): string {
-  if (!r) return "—";
+  if (!r) return ",";
   const low = Number(r.low) || 0;
   const high = Number(r.high) || 0;
   if (low === high) return formatUSD(low);

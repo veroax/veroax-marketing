@@ -150,7 +150,7 @@ export async function POST(
   const reportTeamId =
     (report as { team_id?: string | null }).team_id ?? null;
 
-  // Same hard requirement as /pdf — name/DRE/brokerage must appear
+  // Same hard requirement as /pdf, name/DRE/brokerage must appear
   // on the cover, so we won't send a report missing any of them.
   const missing: string[] = [];
   if (!profile?.full_name?.trim()) missing.push("full name");
@@ -159,7 +159,7 @@ export async function POST(
   if (missing.length > 0) {
     return NextResponse.json(
       {
-        error: `Complete your agent profile before sending reports — missing ${missing.join(", ")}. Visit /dashboard/settings to add them.`,
+        error: `Complete your agent profile before sending reports, missing ${missing.join(", ")}. Visit /dashboard/settings to add them.`,
       },
       { status: 412 },
     );
@@ -320,7 +320,7 @@ export async function POST(
     .single();
   if (insertErr) {
     // Email was sent successfully but our log row failed. Surface a
-    // 200 with a warning — undeliverable side effects aren't worth
+    // 200 with a warning, undeliverable side effects aren't worth
     // failing the caller after the email already went out.
     return NextResponse.json({
       ok: true,

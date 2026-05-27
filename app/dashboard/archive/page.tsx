@@ -9,7 +9,7 @@ import {
 import { SearchBar } from "../_components/SearchBar";
 
 export const metadata = {
-  title: "Archive — Veroax",
+  title: "Archive, Veroax",
 };
 
 // Mirror of /dashboard with WHERE archived = true. Same sort + search
@@ -18,7 +18,7 @@ export const metadata = {
 // Visibility: regular agents see their own archived reports (RLS
 // enforces user_id scoping). Admins (profiles.is_admin = true) see
 // archived reports across the system so they can restore-by-other-
-// agent — the SELECT explicitly bypasses the user_id filter for them.
+// agent, the SELECT explicitly bypasses the user_id filter for them.
 
 type SearchParams = Promise<{
   sort?: string;
@@ -49,7 +49,7 @@ export default async function ArchivePage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Detect admin status — admins get cross-user visibility on the
+  // Detect admin status, admins get cross-user visibility on the
   // archive so they can restore an archived report for another
   // agent. Regular users see their own archived items.
   const { data: profile } = await supabase

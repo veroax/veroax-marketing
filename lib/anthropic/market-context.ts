@@ -3,7 +3,7 @@ import { getAnthropicClient, ANALYSIS_MODEL } from "./client";
 import type { ReportData } from "./schema";
 
 // Live market-context fetch using Claude's web_search tool. Runs in
-// parallel with the focused-analysis passes — by the time synthesis
+// parallel with the focused-analysis passes, by the time synthesis
 // stitches everything together this returns a market_context object
 // with current mortgage rates, regional median pricing, and
 // comparable sales the analyzer couldn't extract from the disclosure
@@ -32,7 +32,7 @@ type MarketContextInput = {
 const MARKET_CONTEXT_TOOL = {
   name: "submit_market_context",
   description:
-    "Submit the live market context for the buyer's unit. Call this tool exactly once with the data you've gathered from web search. Leave any field null when search results don't reliably support the value — better to omit than to fabricate.",
+    "Submit the live market context for the buyer's unit. Call this tool exactly once with the data you've gathered from web search. Leave any field null when search results don't reliably support the value, better to omit than to fabricate.",
   input_schema: {
     type: "object" as const,
     required: ["summary"],
@@ -40,7 +40,7 @@ const MARKET_CONTEXT_TOOL = {
       summary: {
         type: "string",
         description:
-          "2-3 sentence narrative placing this unit in its sub-segment of the local market — e.g., '1-bedroom condos in the Sierra Crest area are currently listing at a tighter price spread than two-bed plans because the buyer pool is investor-heavy.'",
+          "2-3 sentence narrative placing this unit in its sub-segment of the local market, e.g., '1-bedroom condos in the Sierra Crest area are currently listing at a tighter price spread than two-bed plans because the buyer pool is investor-heavy.'",
       },
       monthly_carrying_cost: {
         type: ["string", "null"],
@@ -64,7 +64,7 @@ const MARKET_CONTEXT_TOOL = {
       comparable_units: {
         type: ["array", "null"],
         description:
-          "3-5 within-complex + adjacent-building comparable units. Each item is a label + status + optional note. Pull from Redfin/Zillow sold listings and current active listings near the subject. ONLY include comps you can actually source — do not invent.",
+          "3-5 within-complex + adjacent-building comparable units. Each item is a label + status + optional note. Pull from Redfin/Zillow sold listings and current active listings near the subject. ONLY include comps you can actually source, do not invent.",
         items: {
           type: "object",
           properties: {
@@ -80,7 +80,7 @@ const MARKET_CONTEXT_TOOL = {
             },
             note: {
               type: ["string", "null"],
-              description: "Optional context — sale date, condition, etc.",
+              description: "Optional context, sale date, condition, etc.",
             },
           },
           required: ["label", "status"],
@@ -92,16 +92,16 @@ const MARKET_CONTEXT_TOOL = {
 
 const MARKET_CONTEXT_SYSTEM = `You are the market-context researcher for Veroax, an AI-powered disclosure analysis tool for California real estate transactions.
 
-Your job is to gather LIVE market data for the buyer's unit using web search, then submit it via the submit_market_context tool. You have access to the web_search tool — use it.
+Your job is to gather LIVE market data for the buyer's unit using web search, then submit it via the submit_market_context tool. You have access to the web_search tool, use it.
 
 What to search for:
 1. Current 30-year fixed mortgage rates in California (Bankrate, NerdWallet, Mortgage News Daily today).
 2. Median price + days-on-market for the unit's segment. Search like: "Santa Clara County 1-bedroom condo median price 2026" or "Bay Area condo sales May 2026".
-3. Comparable sales — within the same complex + adjacent buildings. Search like: "945 Catkin Ct San Jose recent sales" or "Sierra Crest condo sold prices San Jose".
+3. Comparable sales, within the same complex + adjacent buildings. Search like: "945 Catkin Ct San Jose recent sales" or "Sierra Crest condo sold prices San Jose".
 4. Calculate the monthly carrying cost at the list price assuming 20% down, the current 30-year fixed rate range, and the disclosed HOA dues + estimated property tax at the new reassessed value (1.25% of list price annually divided by 12).
 
 Constraints:
-- Source from CURRENT data — anything older than 90 days is stale.
+- Source from CURRENT data, anything older than 90 days is stale.
 - Do NOT fabricate numbers. If a search doesn't return a credible source, leave the field null.
 - Do NOT include comps you can't actually find. 3-5 real comps beats 8 made-up ones.
 - Keep the summary 2-3 sentences. It's a placement paragraph, not a market report.
@@ -120,7 +120,7 @@ export async function fetchMarketContext(
     const result = await runWithWebSearch(userPrompt);
     return result;
   } catch (err) {
-    // Market-context fetch is non-fatal — disclosure analysis must
+    // Market-context fetch is non-fatal, disclosure analysis must
     // proceed even when web search is unavailable. Log + return null.
     console.error(
       "[market-context] fetch failed; falling back to null:",
@@ -210,7 +210,7 @@ async function runWithWebSearch(
     // After a tool_use block we need to provide a user-turn with
     // tool_result blocks. The web_search tool is HOSTED on
     // Anthropic's side, so its results are auto-attached to the
-    // assistant turn — we don't need to provide tool_result. We
+    // assistant turn, we don't need to provide tool_result. We
     // just need a user turn to continue. An empty-content user
     // turn is invalid, so we provide a brief continuation note.
     messages.push({

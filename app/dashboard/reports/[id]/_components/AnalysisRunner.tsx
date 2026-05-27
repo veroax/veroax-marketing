@@ -25,7 +25,7 @@ type StatusResponse = {
 type Props = {
   reportId: string;
   // ISO timestamp of when this analysis started, from the DB. Lets the
-  // elapsed-time display + stuck detection survive page navigations —
+  // elapsed-time display + stuck detection survive page navigations ,
   // without it, every visit resets the timer to 0 and a 30-minute-stuck
   // run looks like it just started.
   analysisStartedAt?: string | null;
@@ -50,7 +50,7 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
   // Seed elapsed from the server-side analysis_started_at so navigating
   // back to this page mid-run resumes the real elapsed time instead of
   // restarting at 0. Falls back to 0 when the field is null (the route
-  // hasn't actually been kicked off yet — runAnalysis below will start it).
+  // hasn't actually been kicked off yet, runAnalysis below will start it).
   const initialElapsedSec = (() => {
     if (!analysisStartedAt) return 0;
     const startedMs = new Date(analysisStartedAt).getTime();
@@ -98,7 +98,7 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
         if (res.status === 202) {
           return;
         }
-        // 409 = report status already past "analyzing" — treat as done.
+        // 409 = report status already past "analyzing", treat as done.
         if (res.status === 409) {
           handleCompletion();
           return;
@@ -165,7 +165,7 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
 
         setProgress(stageFromEvents(data.events));
       } catch {
-        // Swallow polling errors — they're transient.
+        // Swallow polling errors, they're transient.
       }
     }
 
@@ -202,7 +202,7 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
 
   // Stuck-state UI: if we've waited long enough AND haven't seen any new
   // server-side progress in a while, the Vercel function likely died and
-  // the user should restart. Don't return this from a useEffect — render
+  // the user should restart. Don't return this from a useEffect, render
   // it inline so we always evaluate freshly.
   const isStuck =
     phase === "running" &&
@@ -221,7 +221,7 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
             no new server progress in the past few minutes. The most likely
             cause is that the previous Vercel function died (timeout or deploy)
             without recording a failure. Restart to start a fresh multi-pass
-            analysis — the documents are still in storage, no re-upload needed.
+            analysis, the documents are still in storage, no re-upload needed.
           </p>
         </div>
         <button
@@ -478,7 +478,7 @@ function playCompletionChime(): void {
     if (!Ctx) return;
     const ctx = new Ctx();
     const now = ctx.currentTime;
-    // C5, E5, G5 — pleasant rising arpeggio
+    // C5, E5, G5, pleasant rising arpeggio
     const notes = [523.25, 659.25, 783.99];
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator();

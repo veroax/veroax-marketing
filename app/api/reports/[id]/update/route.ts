@@ -16,7 +16,7 @@ import { requireUser } from "@/lib/auth/require";
 //   Today, /api/reports/create does NOT enforce a credit gate
 //   (subscription billing is via Stripe; usage counting lives in the
 //   roadmap, not in code). To preserve parity, /update also does NOT
-//   block — it logs a billable.update_outside_30d event into
+//   block, it logs a billable.update_outside_30d event into
 //   audit_log so usage tracking can settle the balance later. When
 //   /create grows real credit checks, /update will mirror them.
 
@@ -73,7 +73,7 @@ export async function POST(
 
   // ----- Pricing gate ------------------------------------------------
   // Compute days since original analysis. Outside the free window we
-  // log a billable event but don't block today — see header comment.
+  // log a billable event but don't block today, see header comment.
   const createdAtMs = new Date(report.created_at).getTime();
   const ageDays = (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24);
   const insideFreeWindow = ageDays <= FREE_UPDATE_WINDOW_DAYS;
@@ -151,7 +151,7 @@ export async function POST(
         size_kb: Math.round(buffer.length / 1024),
       });
     } catch (err) {
-      // Inventory failure here is non-fatal — the analyze step will
+      // Inventory failure here is non-fatal, the analyze step will
       // still see the file in storage. Log it and continue.
       console.error("[update] page-count failed for", p, err);
       addedFileEntries.push({
@@ -169,7 +169,7 @@ export async function POST(
         size_kb: number;
       }>)
     : [];
-  // Dedupe by filename — if the agent re-uploads a file with the same
+  // Dedupe by filename, if the agent re-uploads a file with the same
   // name, the new metadata overrides the older entry.
   const nameSet = new Set(addedFileEntries.map((e) => e.name));
   const mergedOriginalFiles = [

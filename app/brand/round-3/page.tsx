@@ -241,18 +241,18 @@ export default function Round3Page() {
                 <span>At favicon scale:</span>
                 <div className="bg-white border border-slate-200 rounded p-2 flex items-center justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={o.light} alt="" style={{ height: 24 }} />
+                  <img src={o.light} alt={`${o.name} logo, light variant`} style={{ height: 24 }} />
                 </div>
                 <div
                   className="rounded p-2 flex items-center justify-center"
                   style={{ background: "#0F0E2E" }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={o.dark} alt="" style={{ height: 24 }} />
+                  <img src={o.dark} alt={`${o.name} logo, dark variant on indigo`} style={{ height: 24 }} />
                 </div>
                 <div className="bg-black rounded p-2 flex items-center justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={o.dark} alt="" style={{ height: 24 }} />
+                  <img src={o.dark} alt={`${o.name} logo, dark variant on black`} style={{ height: 24 }} />
                 </div>
               </div>
 

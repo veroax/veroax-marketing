@@ -33,7 +33,7 @@ type Props = {
   };
 };
 
-// Veroax gold — the default accent color. Stored as null in the DB
+// Veroax gold, the default accent color. Stored as null in the DB
 // when the agent hasn't picked one; here in the UI we still show the
 // gold so the preview never looks broken.
 const DEFAULT_ACCENT = "#C9A84C";
@@ -57,12 +57,12 @@ export function SettingsForm({ email, userId, initial }: Props) {
   const [dreLicense, setDreLicense] = useState(initial.dre_license);
   const [brokerage, setBrokerage] = useState(initial.brokerage);
   const [brokerageDre, setBrokerageDre] = useState(initial.brokerage_dre);
-  // Phone is stored formatted — re-format on init so legacy unformatted
+  // Phone is stored formatted, re-format on init so legacy unformatted
   // numbers ("4155550100", "415-555-0100") display correctly.
   const [phone, setPhone] = useState(formatPhone(initial.phone));
   const [displayEmail, setDisplayEmail] = useState(initial.display_email);
 
-  // New branding fields (item 2 stubs — items 3 and 4 will swap the
+  // New branding fields (item 2 stubs, items 3 and 4 will swap the
   // URL inputs for upload widgets and the hex input for a swatch
   // picker. The state shape stays the same).
   const [brokerageLogoUrl, setBrokerageLogoUrl] = useState(
@@ -80,11 +80,11 @@ export function SettingsForm({ email, userId, initial }: Props) {
   // (if set), otherwise fall back to the auth signup email.
   const previewEmail = displayEmail.trim() || email;
   // Preview always paints with SOME accent so the bar doesn't look
-  // broken — fall back to gold when the agent hasn't chosen one.
+  // broken, fall back to gold when the agent hasn't chosen one.
   const previewAccent = brandAccentHex.trim() || DEFAULT_ACCENT;
 
   // Auto-generated default signature for the email-signature
-  // placeholder — keeps the agent oriented on what "leave blank" gets
+  // placeholder, keeps the agent oriented on what "leave blank" gets
   // them. Matches the structure of formatSignoff() in
   // /api/reports/[id]/email/draft/route.ts.
   const defaultSignaturePreview = [
@@ -189,7 +189,7 @@ export function SettingsForm({ email, userId, initial }: Props) {
           </Field>
         </Section>
 
-        <Section title="Branding" description="Personal touches that appear on the PDF cover. All optional — the report works without them.">
+        <Section title="Branding" description="Personal touches that appear on the PDF cover. All optional, the report works without them.">
           <ImageUploadField
             name="brokerage_logo_url"
             pathPrefix="brokerage_logo"
@@ -289,7 +289,7 @@ export function SettingsForm({ email, userId, initial }: Props) {
         )}
         {state?.ok && !pending && (
           <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded">
-            Saved. New reports will use this info immediately — re-download
+            Saved. New reports will use this info immediately, re-download
             any existing report to see the update on the cover.
           </p>
         )}
@@ -315,7 +315,7 @@ export function SettingsForm({ email, userId, initial }: Props) {
         </p>
         <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden sticky top-4">
           {/* Accent bar across the top mirrors the cover's vertical
-              gold stripe — exact-match isn't important, just signalling
+              gold stripe, exact-match isn't important, just signalling
               the color choice to the agent before they save. */}
           <div
             className="h-2 w-full"

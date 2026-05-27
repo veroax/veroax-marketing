@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 // Reusable image uploader for the Branding section. Same component
-// handles the brokerage logo and the agent headshot — only the
+// handles the brokerage logo and the agent headshot, only the
 // storage path prefix and the displayed shape (rounded square vs.
 // circle) differ.
 //
@@ -21,7 +21,7 @@ import { createClient } from "@/lib/supabase/client";
 //   - "Remove" zeroes the URL state. The storage object itself isn't
 //     deleted (orphans are cheap and harmless), but the agent's
 //     profile row no longer references it.
-//   - Cache-bust query string on the rendered preview only — the URL
+//   - Cache-bust query string on the rendered preview only, the URL
 //     stored in form state stays clean.
 
 type Props = {
@@ -60,7 +60,7 @@ export function ImageUploadField({
     if (!file) return;
     if (file.size > MAX_BYTES) {
       setError(
-        `File is ${(file.size / 1024 / 1024).toFixed(1)}MB — limit is 2MB.`,
+        `File is ${(file.size / 1024 / 1024).toFixed(1)}MB, limit is 2MB.`,
       );
       return;
     }

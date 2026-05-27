@@ -1,4 +1,4 @@
-// /invite/[token] — invite acceptance landing page.
+// /invite/[token], invite acceptance landing page.
 //
 // Branches by auth state:
 //   1. Not signed in: tell them what the invite is for, send them

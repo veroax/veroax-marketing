@@ -8,14 +8,14 @@ import { PublicReportView } from "./_components/PublicReportView";
 
 // Public report view at /r/{code}.
 //
-// No auth required. The 12-char share code is the access control —
+// No auth required. The 12-char share code is the access control ,
 // long enough to be unguessable, easy to dictate. The agent generates
 // the link from their dashboard and hands it to the buyer. The page
 // resolves the share code via the service-role client (bypassing RLS
 // since the URL itself is the bearer token) and renders a mobile-
 // first responsive view of the report.
 //
-// Re-runs of the same report update what this URL resolves to —
+// Re-runs of the same report update what this URL resolves to ,
 // the share code stays stable across reruns so the agent only has
 // to share the link once. Older versions are accessible to the agent
 // from the dashboard via the version-download path; the public URL
@@ -25,11 +25,11 @@ type Params = Promise<{ code: string }>;
 
 export const dynamic = "force-dynamic";
 
-// Tell search engines not to crawl/index share URLs — these are
+// Tell search engines not to crawl/index share URLs, these are
 // meant to be passed agent-to-buyer, not discovered. Static
 // metadata only (generateMetadata is mutually exclusive in Next 16).
 export const metadata = {
-  title: "Disclosure analysis — Veroax",
+  title: "Disclosure analysis, Veroax",
   robots: { index: false, follow: false },
 };
 
@@ -86,7 +86,7 @@ export default async function PublicReportPage({
 
   // Resolve to 404 if the code doesn't exist, the report isn't ready
   // yet (uploaded/analyzing/failed), or the owner archived it. We
-  // treat archived as "not shareable" — archive is the agent's
+  // treat archived as "not shareable", archive is the agent's
   // "remove from active list" action and they probably don't want
   // the link still working.
   if (!report) notFound();

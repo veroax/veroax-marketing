@@ -36,7 +36,7 @@ export default function UploadPage() {
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
-  // Report metadata (none of these become the property's address —
+  // Report metadata (none of these become the property's address ,
   // the address is derived from the disclosure documents themselves).
   const [reportName, setReportName] = useState("");
   const [clientName, setClientName] = useState("");
@@ -232,7 +232,7 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {/* Report name — agent's label, NOT the property address.
+      {/* Report name, agent's label, NOT the property address.
           The actual address is derived from the disclosure documents. */}
       <div>
         <label
@@ -251,13 +251,13 @@ export default function UploadPage() {
         />
         <p className="text-xs text-gray-500 mt-1">
           A label you&apos;ll recognize in your report list. Use whatever
-          works — client name, property nickname, offer round. The
+          works, client name, property nickname, offer round. The
           property&apos;s actual address gets pulled from the disclosure
           documents.
         </p>
       </div>
 
-      {/* Client name — appears on the cover under "Prepared For". */}
+      {/* Client name, appears on the cover under "Prepared For". */}
       <div>
         <label
           htmlFor="client_name"
@@ -303,7 +303,7 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {/* MLS-printout PDF upload (replaces previous textarea — agents
+      {/* MLS-printout PDF upload (replaces previous textarea, agents
           typically have the printout as a PDF, not pasted text). */}
       <div>
         <label
@@ -360,7 +360,7 @@ export default function UploadPage() {
         </div>
         <p className="text-xs text-gray-500 mt-1">
           Same purpose as the link above. Drop the MLS printout PDF here
-          if you have one — we&apos;ll text-extract it server-side. You
+          if you have one, we&apos;ll text-extract it server-side. You
           can skip both fields; the analysis still runs.
         </p>
       </div>

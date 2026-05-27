@@ -13,10 +13,10 @@ import { ArchiveButton } from "./ArchiveButton";
 type Props = {
   reportId: string;
   userId: string;
-  // Days since the original analysis — passed through to the
+  // Days since the original analysis, passed through to the
   // AddDocumentsModal so it can show the free-window notice.
   ageDays: number;
-  // Current archive state — drives the Archive ↔ Restore button label.
+  // Current archive state, drives the Archive ↔ Restore button label.
   archived: boolean;
 };
 
@@ -85,7 +85,7 @@ export function AgentActions({
               ? "inline-flex items-center gap-2 bg-emerald-600 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow-sm"
               : "inline-flex items-center gap-2 bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm hover:bg-indigo-600 disabled:opacity-60"
           }
-          title="Copy a public link to this report — share with your buyer or anyone who needs to see it"
+          title="Copy a public link to this report, share with your buyer or anyone who needs to see it"
         >
           <span className="text-base leading-none">↗</span>
           {shareState.phase === "loading"

@@ -5,7 +5,7 @@
 -- credits / refunds where warranted.
 --
 -- Two tables:
---   report_error_submissions — one row per submitted report
+--   report_error_submissions, one row per submitted report
 --   No additional table for admin review actions; those go through
 --   the existing report_credit_ledger when an admin grants a credit.
 
@@ -15,15 +15,15 @@ create table if not exists public.report_error_submissions (
   -- be reached from outside a specific report context (e.g., the
   -- public share view), but in practice always set.
   report_id          uuid references public.reports(id) on delete set null,
-  -- The submitter — usually the report owner (auth-linked) but the
+  -- The submitter, usually the report owner (auth-linked) but the
   -- public share view collects email + phone for anonymous submitters
   -- too. user_id is null for anonymous submissions.
   user_id            uuid references public.profiles(id) on delete set null,
-  -- Contact info — always collected so we can follow up. Email is
+  -- Contact info, always collected so we can follow up. Email is
   -- required; phone is optional.
   email              text not null,
   phone              text,
-  -- Error category checkboxes — multi-select, jsonb array of
+  -- Error category checkboxes, multi-select, jsonb array of
   -- canonical category keys (see the form for the canonical list).
   -- Examples: "irrelevant_findings", "missed_critical_finding",
   -- "wrong_unit", "incorrect_cost", "broken_links", "other".
@@ -31,10 +31,10 @@ create table if not exists public.report_error_submissions (
   -- Free-form description from the submitter.
   message            text,
   -- Lifecycle:
-  --   "open" — new submission, admin hasn't reviewed
-  --   "acknowledged" — admin saw it but no action taken
-  --   "credit_granted" — admin granted a refund credit
-  --   "dismissed" — admin reviewed and chose no action
+  --   "open", new submission, admin hasn't reviewed
+  --   "acknowledged", admin saw it but no action taken
+  --   "credit_granted", admin granted a refund credit
+  --   "dismissed", admin reviewed and chose no action
   status             text not null default 'open',
   -- When an admin grants a credit, this references the ledger row.
   credit_ledger_id   uuid references public.report_credit_ledger(id) on delete set null,

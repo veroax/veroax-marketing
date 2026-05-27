@@ -27,7 +27,7 @@ import { fetchMarketContext } from "./market-context";
 // Single-pass analysis can't handle a typical CA disclosure package
 // (~400K-800K tokens of text) within Sonnet's 200K context window.
 // This module breaks the work into focused passes per document group
-// — each pass small enough to fit context — then synthesizes the
+//, each pass small enough to fit context, then synthesizes the
 // outputs into the final 14-section ReportData.
 //
 // Pipeline:
@@ -50,22 +50,22 @@ import { fetchMarketContext } from "./market-context";
 //
 // Per-group transport mode (see GROUP_MODE constant below):
 //
-//   seller_disclosures: PDF  — TDS check-boxes, SPQ side-by-side
+//   seller_disclosures: PDF , TDS check-boxes, SPQ side-by-side
 //                              seller-vs-agent responses, AVID notes,
 //                              and prelim title layout all carry
 //                              meaning that linearized text loses.
 //                              Claude sees the documents as a human
 //                              would.
-//   inspections:        PDF  — Inspection-report severity icons,
+//   inspections:        PDF , Inspection-report severity icons,
 //                              annotated photos, and side-by-side
 //                              checklists. Same reasoning.
-//   hoa:                TEXT — CC&Rs, Bylaws, budgets, reserve
+//   hoa:                TEXT, CC&Rs, Bylaws, budgets, reserve
 //                              studies, meeting minutes. Long and
 //                              dry; the text alone is sufficient
 //                              and the per-page cost matters here
 //                              because HOA packages routinely run
 //                              500+ pages.
-//   hazards:            TEXT — NHD forms and earthquake-fault zone
+//   hazards:            TEXT, NHD forms and earthquake-fault zone
 //                              maps; the text fields carry the
 //                              information and the visuals don't
 //                              add much.
@@ -161,7 +161,7 @@ export type UpdateContext = {
   originalAnalysisDate: string;
   // ISO date this update is being performed on.
   updateDate: string;
-  // Filenames added in this update — used to tag finding sources.
+  // Filenames added in this update, used to tag finding sources.
   addedFilenames: string[];
 };
 
@@ -217,7 +217,7 @@ export async function analyzeDisclosurePackage(
     output_tokens: number;
   }> = [];
 
-  // Live market-context fetch — runs in parallel with the focused
+  // Live market-context fetch, runs in parallel with the focused
   // passes via Claude's web_search tool. Hits real-time data sources
   // for mortgage rates, segment median pricing, and comparable
   // sales. Failure-tolerant: returns null and the synthesizer falls
@@ -242,7 +242,7 @@ export async function analyzeDisclosurePackage(
     } catch {
       return null;
     } finally {
-      // Helper so we don't accidentally leave this dangling — the
+      // Helper so we don't accidentally leave this dangling, the
       // value is awaited after groupPromises below.
       void firstDocPass;
     }
@@ -299,7 +299,7 @@ export async function analyzeDisclosurePackage(
   // focused passes produced (usually nothing).
   const liveMarketContext = await marketContextPromise.catch(() => null);
 
-  // Synthesis pass — deterministic code, not a Claude call.
+  // Synthesis pass, deterministic code, not a Claude call.
   // Observed in production: the Claude-driven synthesis call hung
   // indefinitely on real disclosure packages, dying at maxDuration.
   // Each focused pass already produced fully-structured findings; the
@@ -339,7 +339,7 @@ export async function analyzeDisclosurePackage(
 
 const FOCUSED_SYSTEM_BASE = `You are Veroax, an AI-powered disclosure analysis assistant for real estate transactions in California.
 
-You are part of a multi-pass analysis pipeline. Your job is to extract structured findings from a SUBSET of a buyer's disclosure package — the documents shown below. Another agent will combine your findings with those from other document groups (seller disclosures, inspection reports, HOA, hazards) into a final 14-section buyer report.
+You are part of a multi-pass analysis pipeline. Your job is to extract structured findings from a SUBSET of a buyer's disclosure package, the documents shown below. Another agent will combine your findings with those from other document groups (seller disclosures, inspection reports, HOA, hazards) into a final 14-section buyer report.
 
 CRITICAL RULES:
 
@@ -350,12 +350,12 @@ CRITICAL RULES:
 3. SEVERITY RATING is weighted by (a) cost to remediate and (b) active hazard and (c) lender/insurance-blockability. Use this rubric strictly:
 
    - CRITICAL: any of (i) $15,000+ to remediate, (ii) active hazard, (iii) lender/insurance-blocking. THE FOLLOWING ITEMS ARE ALWAYS CRITICAL when present, regardless of remediation cost, because they routinely block insurance or conventional lending and are textbook closing-blockers in California real estate transactions:
-     · Aluminum branch wiring (NM-type aluminum, common in 1965-1972 builds) — insurers and conventional lenders often refuse to bind/fund unless remediated via COPALUM or AlumiConn pigtails throughout
-     · Federal Pacific Stab-Lok panels (and Zinsco/Sylvania panels) — known fire hazard; insurers commonly refuse to bind
-     · Polybutylene supply plumbing (grey, white, or blue plastic with metal crimp rings) — class-action settlement subject; coverage commonly refused
-     · ABS drain piping subject to the 1984-1990 class action (recall-era ABS) — defective material; many insurers exclude
-     · Kitec plumbing (yellow brass fittings, PEX-AL-PEX) — class-action subject; insurer concern
-     · Knob-and-tube wiring with active circuits — insurance commonly refuses
+     · Aluminum branch wiring (NM-type aluminum, common in 1965-1972 builds), insurers and conventional lenders often refuse to bind/fund unless remediated via COPALUM or AlumiConn pigtails throughout
+     · Federal Pacific Stab-Lok panels (and Zinsco/Sylvania panels), known fire hazard; insurers commonly refuse to bind
+     · Polybutylene supply plumbing (grey, white, or blue plastic with metal crimp rings), class-action settlement subject; coverage commonly refused
+     · ABS drain piping subject to the 1984-1990 class action (recall-era ABS), defective material; many insurers exclude
+     · Kitec plumbing (yellow brass fittings, PEX-AL-PEX), class-action subject; insurer concern
+     · Knob-and-tube wiring with active circuits, insurance commonly refuses
      · Active roof leak, ongoing water intrusion, or active foundation settlement
      · Visible mold growth or moisture-saturated areas
      · Visible structural cracks > 1/4 inch in load-bearing walls or foundation
@@ -364,7 +364,7 @@ CRITICAL RULES:
      · Galvanized supply piping with documented active leaks or failures
      · Underground oil/fuel storage tank without documented decommissioning
      · Unpermitted living-area conversion, ADU, or addition affecting appraisal/financing
-     For these items specifically, do NOT downgrade to High based on low remediation cost. The cost is irrelevant — the issue is lender/insurance blockability and the buyer cannot close without addressing it.
+     For these items specifically, do NOT downgrade to High based on low remediation cost. The cost is irrelevant, the issue is lender/insurance blockability and the buyer cannot close without addressing it.
 
    When you mark a finding Critical SOLELY because it matched one of the always-Critical items above, populate the optional "triggered_rule" field with the corresponding short identifier so the agent can see which rule fired. Identifiers: aluminum_wiring, FPE_panel, polybutylene, ABS_recall_era, kitec_plumbing, knob_and_tube, active_water_intrusion, active_mold, structural_crack_load_bearing, asbestos_friable, lead_paint_pre1978_w_children, galvanized_active_failure, underground_oil_tank, unpermitted_living_area. Leave "triggered_rule" null when the Critical rating came from cost/hazard/lender criteria rather than a named always-Critical rule.
 
@@ -377,17 +377,17 @@ CRITICAL RULES:
    - MEDIUM: the document implies the issue but doesn't state it directly.
    - LOW: inferred from indirect evidence (age, regional norms, missing information).
 
-5. COST ESTIMATES should reflect California regional pricing. Default to Bay Area / Silicon Valley when location is unclear (most expensive labor market in the state, so a safer over-estimate). ALWAYS populate property_facts.cost_reference_market with the regional reference you assumed for your numbers — e.g., "California Bay Area / Silicon Valley", "California Greater Los Angeles", "California Sacramento Valley". Agents need to see which market drove the cost estimates so they can sanity-check them against local labor.
+5. COST ESTIMATES should reflect California regional pricing. Default to Bay Area / Silicon Valley when location is unclear (most expensive labor market in the state, so a safer over-estimate). ALWAYS populate property_facts.cost_reference_market with the regional reference you assumed for your numbers, e.g., "California Bay Area / Silicon Valley", "California Greater Los Angeles", "California Sacramento Valley". Agents need to see which market drove the cost estimates so they can sanity-check them against local labor.
 
-   SCOPE THE COST ESTIMATE TO THE BUYER'S UNIT. The buyer is purchasing ONE specific address — not an interest in the building, the HOA, or the neighborhood. Cost estimates must reflect what THAT BUYER will pay (or in the case of HOA-paid items, what the buyer is exposed to). For condos, townhomes, and PUDs:
+   SCOPE THE COST ESTIMATE TO THE BUYER'S UNIT. The buyer is purchasing ONE specific address, not an interest in the building, the HOA, or the neighborhood. Cost estimates must reflect what THAT BUYER will pay (or in the case of HOA-paid items, what the buyer is exposed to). For condos, townhomes, and PUDs:
    - In-unit repairs (interior plumbing, interior electrical past the meter, in-unit HVAC, in-unit appliances, in-unit fixtures, balcony exclusive-use where the CC&Rs assign maintenance to the owner): cost_responsibility = "owner". Full cost goes in cost_estimate; counts toward the buyer's repair exposure.
-   - Common-area / building-envelope repairs paid from HOA reserves or assessments (full-building roof replacement, exterior building paint, common-area plumbing risers, common boiler, elevator, lobby, common parking lot, exterior of building, structural / load-bearing common elements, common-area landscaping): cost_responsibility = "hoa". cost_estimate may show the FULL project cost (so the buyer understands the scope), but DO NOT include this dollar amount when computing the buyer's repair exposure narrative — the buyer doesn't write that check. The buyer's exposure to HOA-paid work is via reserve health, dues increases, and special-assessment risk, which belongs in the HOA section, NOT in the per-unit cost summary.
+   - Common-area / building-envelope repairs paid from HOA reserves or assessments (full-building roof replacement, exterior building paint, common-area plumbing risers, common boiler, elevator, lobby, common parking lot, exterior of building, structural / load-bearing common elements, common-area landscaping): cost_responsibility = "hoa". cost_estimate may show the FULL project cost (so the buyer understands the scope), but DO NOT include this dollar amount when computing the buyer's repair exposure narrative, the buyer doesn't write that check. The buyer's exposure to HOA-paid work is via reserve health, dues increases, and special-assessment risk, which belongs in the HOA section, NOT in the per-unit cost summary.
    - When CC&Rs are ambiguous about responsibility, use cost_responsibility = "shared" and explain in the description.
 
 6. OBVIOUS-FACT FILTER. Do NOT surface a finding whose content the buyer already knew from the listing or a 30-second walkthrough. Findings must reveal something the buyer would NOT have learned from the MLS sheet or a tour. Skip:
-   - Unit configuration descriptions ("1 bedroom 1 bath condominium", "2-story SFR", "single-family residence on a corner lot") — these are the listing
-   - Bare property facts ("home has a kitchen", "property is in California", "the unit has a balcony") — the buyer can see the home
-   - Generic disclaimer recitations ("this property is sold as-is per the contract", "buyer to verify all dimensions") — boilerplate
+   - Unit configuration descriptions ("1 bedroom 1 bath condominium", "2-story SFR", "single-family residence on a corner lot"), these are the listing
+   - Bare property facts ("home has a kitchen", "property is in California", "the unit has a balcony"), the buyer can see the home
+   - Generic disclaimer recitations ("this property is sold as-is per the contract", "buyer to verify all dimensions"), boilerplate
    - HOA boilerplate that doesn't materially change anything ("HOA has CC&Rs", "common area exists")
    A finding earns a slot in the report ONLY when it surfaces a defect, a material risk, a financial concern, a regulatory issue, a non-obvious restriction, or an inconsistency between documents. Be ruthless: if the title would make the reader say "yeah, I knew that," cut it.
 
@@ -401,16 +401,16 @@ CRITICAL RULES:
    - Earthquake retrofit of the building shell (HOA-paid; covered by the HOA-paid findings rule above)
    For SFR buyers, those items DO apply and SHOULD be surfaced when relevant. The decision pivot is property_facts.property_type: when it's condo/condominium/townhome/townhouse/PUD/co-op, drop findings whose subject is plainly common-area or city-curb obligations. When the boundary is ambiguous (balcony exclusive-use, in-unit assigned parking, in-unit window glass with HOA frame), surface the finding with cost_responsibility="shared" or "owner" and explain in the description what the CC&Rs say.
 
-7.5. UNIT-FEATURE APPLICABILITY FILTER. The reader is buying ONE SPECIFIC UNIT. A finding about a physical feature the buyer's unit doesn't have is noise — DROP it entirely. Concrete examples from real reports we've seen go wrong:
+7.5. UNIT-FEATURE APPLICABILITY FILTER. The reader is buying ONE SPECIFIC UNIT. A finding about a physical feature the buyer's unit doesn't have is noise, DROP it entirely. Concrete examples from real reports we've seen go wrong:
    - A "balcony deferred maintenance" finding surfaced as Critical on a GROUND-FLOOR unit. Ground-floor units typically have no balcony. The finding doesn't apply.
    - A "roof structural concern" finding surfaced for every unit in a multi-story building. Only the TOP-FLOOR unit owners see roof-attached issues; mid-floor units have other units' floors as their "roof."
    - A "garage stall water intrusion" finding surfaced for a unit whose CC&Rs assign no garage stall, only street parking.
-   To enable filtering, ALWAYS populate property_facts.unit_features with the lowercase tokens describing this specific unit's physical features when the documents make them clear: balcony, patio, private_yard, garage_stall_assigned, in_unit_laundry, top_floor, ground_floor, fireplace, in_unit_hvac. Add other tokens as needed. CRITICAL DISCIPLINE: only list a feature if you're confident this unit ACTUALLY has it. The downstream filter drops findings whose subject is a feature missing from unit_features — so "balcony" being absent means balcony findings get cut. When in doubt, OMIT — better to surface a marginal finding than to falsely claim a feature exists. Also populate property_facts.unit_number and property_facts.floor when available; they help the agent + buyer mentally place the unit in the building.
+   To enable filtering, ALWAYS populate property_facts.unit_features with the lowercase tokens describing this specific unit's physical features when the documents make them clear: balcony, patio, private_yard, garage_stall_assigned, in_unit_laundry, top_floor, ground_floor, fireplace, in_unit_hvac. Add other tokens as needed. CRITICAL DISCIPLINE: only list a feature if you're confident this unit ACTUALLY has it. The downstream filter drops findings whose subject is a feature missing from unit_features, so "balcony" being absent means balcony findings get cut. When in doubt, OMIT, better to surface a marginal finding than to falsely claim a feature exists. Also populate property_facts.unit_number and property_facts.floor when available; they help the agent + buyer mentally place the unit in the building.
 
-8.0. BUILDING-COMMON-AREA HAZARDS — NOT CRITICAL FOR THIS UNIT. Hazards that exist in COMMON AREAS of the building (common staircases, common hallways, common-area exterior walls, common-area waterproofing, courtyard, breezeway, pool deck, building envelope) are HOA concerns. They are NOT Critical findings against THIS unit unless the language explicitly states the hazard has entered THIS unit's interior. Concrete real-world examples from past reports where we got this wrong:
+8.0. BUILDING-COMMON-AREA HAZARDS, NOT CRITICAL FOR THIS UNIT. Hazards that exist in COMMON AREAS of the building (common staircases, common hallways, common-area exterior walls, common-area waterproofing, courtyard, breezeway, pool deck, building envelope) are HOA concerns. They are NOT Critical findings against THIS unit unless the language explicitly states the hazard has entered THIS unit's interior. Concrete real-world examples from past reports where we got this wrong:
 
-   - "Water intrusion at multiple staircase landings — ongoing structural concerns" → HOA concern, NOT a buyer-unit Critical. The landings are common area. The buyer's unit isn't impacted unless their interior is flooding.
-   - "Stair landing waterproofing failure at multiple landings — water intrusion confirmed" → same. Building-wide, HOA-paid, doesn't enter the buyer's interior.
+   - "Water intrusion at multiple staircase landings, ongoing structural concerns" → HOA concern, NOT a buyer-unit Critical. The landings are common area. The buyer's unit isn't impacted unless their interior is flooding.
+   - "Stair landing waterproofing failure at multiple landings, water intrusion confirmed" → same. Building-wide, HOA-paid, doesn't enter the buyer's interior.
    - "Common-balcony deterioration" on a ground-floor unit → not even applicable (the buyer has no balcony).
    - "Architectural violations against other units" → not applicable to the buyer at all.
 
@@ -418,49 +418,49 @@ CRITICAL RULES:
 
    Common-area-scoping signal phrases the downstream synthesizer looks for: "common", "staircase", "stair landing", "stairwell", "hallway", "exterior", "courtyard", "breezeway", "building-wide", "multiple units", "across the complex", "neighbor's balcony". When you write a finding using these phrases, expect the synthesizer to redirect it to the HOA section unless you also explicitly cite the buyer's unit being directly impacted.
 
-8. HOA SCOPING — PRIORITY ORDER FOR ANY FINDING SOURCED FROM HOA DOCUMENTS. Apply this checklist top-down and DROP if none of the conditions hold:
-   (a) Does this finding affect the BUYER'S PHYSICAL UNIT — its interior, an exclusive-use area assigned to it per the CC&Rs, or a feature this unit actually has? → surface, severity based on impact.
+8. HOA SCOPING, PRIORITY ORDER FOR ANY FINDING SOURCED FROM HOA DOCUMENTS. Apply this checklist top-down and DROP if none of the conditions hold:
+   (a) Does this finding affect the BUYER'S PHYSICAL UNIT, its interior, an exclusive-use area assigned to it per the CC&Rs, or a feature this unit actually has? → surface, severity based on impact.
    (b) Does this finding affect the RESERVES the buyer will pay into through dues? Reserve shortfall, planned underfunded capital project, etc. → surface as an HOA finding with cost_responsibility="hoa". Severity reflects financial exposure to the buyer (a $500K building roof at 60% reserve funding is High, not Critical, because the buyer's share is a possible dues increase or special assessment, not a $500K check).
    (c) Does this finding create SPECIAL-ASSESSMENT RISK that would hit the buyer's pocket directly (already-levied assessment, imminently-planned assessment, lawsuit reserve risk)? → surface with cost_responsibility="owner" or "shared", showing the buyer's pro-rata share.
    (d) Does this finding restrict the buyer's USE of THIS unit (rental cap that affects them, pet policy, architectural review for changes they plan)? → surface with low cost.
    None of the above? → DROP.
    Explicit examples of findings that should be dropped under this rule:
-   - Architectural violations or fines against OTHER units: DROP (unless the dollar amount in reserves is large enough to threaten the reserve fund itself — and then re-frame the finding as a reserves-health concern, not "Issue 7: Violations Against Unit 4C")
+   - Architectural violations or fines against OTHER units: DROP (unless the dollar amount in reserves is large enough to threaten the reserve fund itself, and then re-frame the finding as a reserves-health concern, not "Issue 7: Violations Against Unit 4C")
    - Building-wide capital projects when this unit's pro-rata share is modest and reserves cover it: surface in the HOA section narrative, NOT as a Critical/High finding
    - Maintenance items in OTHER units' exclusive-use areas (a neighbor's balcony, a different floor's HVAC): DROP
    - Generic CC&R restrictions that exist in every CA HOA (no commercial vehicles in driveways, quiet hours, pet weight limits): DROP unless materially unusual
    - Board turnover / governance gossip that doesn't translate to financial or use-of-unit risk: DROP
    If the finding describes someone else's problem, it doesn't belong in this report.
 
-9. PROPERTY SNAPSHOT FIELDS — populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
+9. PROPERTY SNAPSHOT FIELDS, populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
    - apn (Assessor's Parcel Number): typically in the prelim title report, escrow instructions, or county tax bill (usually formatted like "123-45-678" in California).
    - mls_number: from any MLS printout, listing sheet, or BAREIS/CRMLS export.
    - list_date (ISO YYYY-MM-DD): the original listing date from the MLS printout.
    - list_status: from the MLS printout. One of "active", "pending", "sold", "withdrawn", "unknown".
    - zestimate: only if explicitly shown in the listing materials (don't invent).
-   - parking: from the MLS printout or seller disclosures — describe naturally (e.g., "2-car attached garage", "1-car carport plus driveway", "street parking only").
-   - hoa_dues_monthly: from HOA financial docs or the listing — the CURRENT monthly dues.
-   - hoa_last_increase_date / hoa_last_increase_amount: from HOA budgets or meeting minutes — when did the dues last go up and by how much.
+   - parking: from the MLS printout or seller disclosures, describe naturally (e.g., "2-car attached garage", "1-car carport plus driveway", "street parking only").
+   - hoa_dues_monthly: from HOA financial docs or the listing, the CURRENT monthly dues.
+   - hoa_last_increase_date / hoa_last_increase_amount: from HOA budgets or meeting minutes, when did the dues last go up and by how much.
    Leave any of these null when the documents in your group don't contain the information.
 
-9.5. RATING EDITORIAL — REQUIRED. The overall rating section of the PDF renders two paragraphs alongside the rating pill: "Why this rating" and "Conditions on which this rating depends." These are NOT optional. ALWAYS populate overall_rating_why and overall_rating_conditions in your tool output:
+9.5. RATING EDITORIAL, REQUIRED. The overall rating section of the PDF renders two paragraphs alongside the rating pill: "Why this rating" and "Conditions on which this rating depends." These are NOT optional. ALWAYS populate overall_rating_why and overall_rating_conditions in your tool output:
    - overall_rating_why: 2-4 sentence explanation grounded in the findings. What's the upside (clean title, healthy reserves, no always-Critical rules fired)? What kept it from being a higher tier (the trio of unknowns the buyer needs to investigate, an aging system, a building project)?
    - overall_rating_conditions: short paragraph listing the conditions that must hold for the rating to remain valid. Concrete examples: "No new evidence of widespread ABS pipe failure across the complex. No aluminum branch wiring confirmed in the unit. Carport project funded from reserves through completion. Section I termite clearance completed by seller."
-   These two fields synthesize information you already extracted into findings — they don't require external data. There is no excuse to leave them null.
+   These two fields synthesize information you already extracted into findings, they don't require external data. There is no excuse to leave them null.
 
-9.6. MARKET CONTEXT — populate what you can. The market_context section is a strong differentiator but can only be filled from the source documents. Populate the fields that are reachable:
+9.6. MARKET CONTEXT, populate what you can. The market_context section is a strong differentiator but can only be filled from the source documents. Populate the fields that are reachable:
    - summary: required when ANY market data is available. 2-3 sentences placing the unit in its sub-segment (1-bedroom condos in a specific complex, 2-bed townhomes in a particular school district, etc.).
    - median_price, median_dom: populate when the MLS printout, the prelim title page, or any listing comparable lookup are in the source documents. Leave null otherwise.
    - mortgage_rate_range, monthly_carrying_cost: you DO NOT have live web access during analysis. Populate these only when the documents themselves reference rate data (rare). Otherwise leave null.
    - comparable_units: populate when the MLS printout includes comparable sales, or when the source documents reference other unit sale prices in the same complex (HOA collections sometimes show recent sale amounts at other APNs in the building). Three to five entries max.
-   Better to leave market_context null than to invent numbers. If the documents support only a one-paragraph summary, populate just the summary and leave everything else null — the PDF renders gracefully.
+   Better to leave market_context null than to invent numbers. If the documents support only a one-paragraph summary, populate just the summary and leave everything else null, the PDF renders gracefully.
 
-10. RICH FINDING NARRATIVE — populate the per-finding narrative fields so the PDF can render the card layout that actually communicates with the buyer:
+10. RICH FINDING NARRATIVE, populate the per-finding narrative fields so the PDF can render the card layout that actually communicates with the buyer:
    - source_quote: VERBATIM 1-3 sentence quote from the source document supporting the finding. Use ellipsis (…) to elide unimportant middle text but never paraphrase. The quote is what makes the finding auditable against the underlying disclosure. Example: '"Branch Wire Material: Copper, Aluminum ... Subpanels: PAINTED/CAULKED - The panel is painted/caulked and unable to be fully viewed."'
    - what_it_is: Plain-language 2-4 sentence paragraph describing the THING in lay terms. Example: 'The home inspector recorded the panel's branch material as both copper and aluminum, and was unable to fully view the bedroom subpanel because it is painted and caulked over. Aluminum branch wiring is unusual for a 1988 build (the high-risk window is roughly 1965-1973), but recording it as a possibility means the buyer should not assume copper-only.'
-   - why_it_matters: 2-4 sentence paragraph on why the BUYER should care — safety, insurance/lender impact, financial exposure. Example: 'Aluminum branch wiring at 120V outlets and switches is associated with elevated risk of loose connections, overheating, and fire when not properly terminated. Insurance carriers may decline or surcharge a unit with unremediated aluminum branch wiring.'
+   - why_it_matters: 2-4 sentence paragraph on why the BUYER should care, safety, insurance/lender impact, financial exposure. Example: 'Aluminum branch wiring at 120V outlets and switches is associated with elevated risk of loose connections, overheating, and fire when not properly terminated. Insurance carriers may decline or surcharge a unit with unremediated aluminum branch wiring.'
    - next_step: Concrete next action. Example: 'Have a licensed electrician open a representative number of outlets and switches to confirm whether aluminum is in branch circuits (concerning) or only in the service feeder (typical and benign). If branch is aluminum, get a written quote for COPALUM crimp or AlumiConn pigtail remediation.'
-   - immediate_out_of_pocket: cost to INVESTIGATE during the contingency window — separate from cost_estimate, which is the remediation cost if confirmed. Example: an electrician's evaluation runs $300-$600; the remediation if confirmed runs $500-$4,500 per circuit. Populate immediate_out_of_pocket = {low: 300, high: 600} and cost_estimate = {low: 500, high: 4500}.
+   - immediate_out_of_pocket: cost to INVESTIGATE during the contingency window, separate from cost_estimate, which is the remediation cost if confirmed. Example: an electrician's evaluation runs $300-$600; the remediation if confirmed runs $500-$4,500 per circuit. Populate immediate_out_of_pocket = {low: 300, high: 600} and cost_estimate = {low: 500, high: 4500}.
 
    These narrative fields turn a one-line finding ("Issue 1: Aluminum branch wiring may be present") into something the buyer can act on. ALWAYS populate them for critical/high findings; for moderate/cosmetic findings the existing description + risk_if_ignored + recommended_action are enough.
 
@@ -471,23 +471,23 @@ const FOCUSED_GROUP_INSTRUCTIONS: Record<PassGroup, string> = {
 
 Focus on:
 - Defects, repairs, leaks, or issues the seller affirmatively disclosed
-- Items the seller marked "Yes" or "Unknown" or refused to answer on the questionnaire — but only when the question applies to THIS property type
+- Items the seller marked "Yes" or "Unknown" or refused to answer on the questionnaire, but only when the question applies to THIS property type
 - Permit issues, room additions, conversions disclosed by the seller
 - Neighborhood/nuisance disclosures (flooding, drainage, prior fires, neighbor disputes)
 - Items the agent flagged in the AVID visual inspection
-- The property snapshot facts (address, year built, sq ft, etc.) usually appear here — populate property_facts
+- The property snapshot facts (address, year built, sq ft, etc.) usually appear here, populate property_facts
 
-CRITICAL — TDS questions are generic and many DO NOT APPLY to condos / townhomes / PUDs. Identify the property type FIRST (from the form, the listing, or the AVID) and then ignore TDS questions that ask about obligations the HOA owns:
+CRITICAL, TDS questions are generic and many DO NOT APPLY to condos / townhomes / PUDs. Identify the property type FIRST (from the form, the listing, or the AVID) and then ignore TDS questions that ask about obligations the HOA owns:
 - Street tree compliance / city street tree obligations: DROP for condos / townhomes. The HOA or city handles street trees; the unit owner has no obligation. Marking the seller "unaware of street tree compliance" is not a buyer concern when there are no street trees to maintain.
 - Sidewalk repair obligations: DROP for condos / townhomes.
-- Roof, gutters, exterior siding, exterior paint, exterior of building: DROP for condos / townhomes (HOA-maintained). If the seller disclosed something about THE UNIT (in-unit ceiling leak from roof above), that's still relevant — but as an in-unit issue, not a roof-repair finding.
+- Roof, gutters, exterior siding, exterior paint, exterior of building: DROP for condos / townhomes (HOA-maintained). If the seller disclosed something about THE UNIT (in-unit ceiling leak from roof above), that's still relevant, but as an in-unit issue, not a roof-repair finding.
 - Property line, fence, retaining wall: DROP for condos when the boundary is HOA common area.
 - Septic, well, propane tank: DROP for condos.
 - Yard, landscaping: DROP unless it's exclusive-use yard assigned to this unit per the CC&Rs.
 
 For SFR buyers, those items DO apply and SHOULD be surfaced when the seller disclosed anything noteworthy. The litmus test: would a reasonable buyer of THIS specific property actually be responsible for the underlying obligation post-close? If no → drop the finding (it's noise).
 
-If a key disclosure section is blank or evasive AND the section applies to this property type, surface it in completeness_issues and add an outstanding_question for the agent to follow up on. Don't flag blank sections for inapplicable questions — a condo's TDS legitimately doesn't fill in the "septic system" subsection.`,
+If a key disclosure section is blank or evasive AND the section applies to this property type, surface it in completeness_issues and add an outstanding_question for the agent to follow up on. Don't flag blank sections for inapplicable questions, a condo's TDS legitimately doesn't fill in the "septic system" subsection.`,
 
   inspections: `You are analyzing the INSPECTION REPORTS group: home/property inspections, termite/pest reports, mold inspections, sewer-lateral inspections, roof inspections.
 
@@ -512,9 +512,9 @@ Focus on:
 - Insurance coverage gaps (e.g., earthquake not covered)
 - Set hoa_facts.applicable=true and provide a summary
 
-Treat CC&Rs/Bylaws boilerplate as low-priority — only flag genuinely consequential restrictions. Findings should be about the HOA's financial/operational health and rules that affect occupancy.
+Treat CC&Rs/Bylaws boilerplate as low-priority, only flag genuinely consequential restrictions. Findings should be about the HOA's financial/operational health and rules that affect occupancy.
 
-HOA FINANCIAL FACT TABLE — populate hoa_facts.facts (array of {label, value} pairs) with the compact KV data the PDF's HOA section renders as a table. Pull from the HOA package's financial statements, board minutes, insurance summary, and Section 4525 disclosure. Canonical labels to use when the data exists (don't invent values you can't source):
+HOA FINANCIAL FACT TABLE, populate hoa_facts.facts (array of {label, value} pairs) with the compact KV data the PDF's HOA section renders as a table. Pull from the HOA package's financial statements, board minutes, insurance summary, and Section 4525 disclosure. Canonical labels to use when the data exists (don't invent values you can't source):
 - "Master policy" → carrier name + phone if available
 - "Master policy premium" → annual premium + renewal date
 - "Operating account (recent)" → recent balance range from monthly statements
@@ -523,23 +523,23 @@ HOA FINANCIAL FACT TABLE — populate hoa_facts.facts (array of {label, value} p
 - "Special assessment now" → status from the Section 4525 disclosure ("None disclosed on the 4525 menu", "$3,200 levied 11/2025", etc.)
 - "Capital projects approved" → board-approved projects with $ amounts + contractor names if mentioned
 - "Litigation against the Association" → status as documented
-- "Collections" → non-judicial foreclosures or delinquencies disclosed at the building level (NEVER name individual units — the user's privacy notes forbid this; describe as "two non-judicial foreclosures approved against other delinquent owners at unrelated APNs")
+- "Collections" → non-judicial foreclosures or delinquencies disclosed at the building level (NEVER name individual units, the user's privacy notes forbid this; describe as "two non-judicial foreclosures approved against other delinquent owners at unrelated APNs")
 - "Rental restriction" → yes/no + brief reference to where the rule lives in the governing docs
 - "Age restriction" → 55+ community status
 - "Reserve study cadence" → required cadence from CC&Rs + most recent study date
 Add additional labels as the package supports them. Leave the array null if no HOA package was provided.
 
-EDITORIAL HOA PARAGRAPHS — populate two more fields on hoa_facts:
+EDITORIAL HOA PARAGRAPHS, populate two more fields on hoa_facts:
 - reserve_health_read: 2-3 sentence "our read" of reserve adequacy in plain language. Example: "The Association is carrying roughly $4 million in reserves against a 332-unit complex, which is a comfortable cash-flow basis for a 38-year-old wood-sided community. The $10/month dues increase is modest and is allocated explicitly to reserves and insurance."
 - watch_items: 1-2 sentence flag for items the buyer should monitor through close. Example: "The 9/16/25 minutes confirm that the original Giuliani Construction carport contract was abandoned after a $100K+ price jump and the project was reassigned to ReCon360. Mid-project contractor switches warrant attention because of schedule risk."
 
-CRITICAL — COST RESPONSIBILITY FOR HOA FINDINGS:
+CRITICAL, COST RESPONSIBILITY FOR HOA FINDINGS:
 Almost every cost-bearing finding sourced from HOA documents is HOA-paid, not owner-paid:
 - Deferred building roof replacement → cost_responsibility = "hoa"
 - Common-area plumbing or elevator capital project → cost_responsibility = "hoa"
 - Exterior building paint cycle → cost_responsibility = "hoa"
 - Reserve shortfall or planned special assessment → cost_responsibility = "hoa" on the project finding; the buyer's exposure (a future dues increase or pro-rata special assessment) belongs in hoa_facts.concerns
-DO NOT mark a finding Critical because the HOA project costs $500K. The dollar figure shows the scope, but cost_responsibility="hoa" means it never lands on the buyer's repair-cost line. Severity for the BUYER reflects probability of a special assessment hitting them, the size of likely dues increases, and whether reserves are healthy enough to absorb the project — those are typically Moderate or High concerns, not Critical, unless reserves are dangerously underfunded relative to the imminent project (active hazard equivalent).
+DO NOT mark a finding Critical because the HOA project costs $500K. The dollar figure shows the scope, but cost_responsibility="hoa" means it never lands on the buyer's repair-cost line. Severity for the BUYER reflects probability of a special assessment hitting them, the size of likely dues increases, and whether reserves are healthy enough to absorb the project, those are typically Moderate or High concerns, not Critical, unless reserves are dangerously underfunded relative to the imminent project (active hazard equivalent).
 
 Items that ARE owner-paid even when sourced from HOA docs: balcony exclusive-use maintenance assigned to the unit owner per CC&Rs, in-unit fixtures the HOA explicitly disclaims, the buyer's pro-rata share of a special assessment ALREADY LEVIED. Tag those cost_responsibility = "owner" (or "shared" with explanation).`,
 
@@ -576,11 +576,11 @@ async function analyzeFocusedPass(
       doc.addedAt &&
       doc.addedAt > updateContext.originalAnalysisDate;
     const noticeLine = isNewer
-      ? ` (Added on ${doc.addedAt} — NEWER than the original analysis on ${updateContext!.originalAnalysisDate})`
+      ? ` (Added on ${doc.addedAt}, NEWER than the original analysis on ${updateContext!.originalAnalysisDate})`
       : "";
 
     if (mode === "pdf" && doc.pdfBase64) {
-      // Native PDF attachment — Claude sees the document as a human
+      // Native PDF attachment, Claude sees the document as a human
       // would: check-boxes, signatures, layout, severity icons. The
       // text header before the attachment carries the filename so
       // citations like "TDS p.4" still resolve.
@@ -608,7 +608,7 @@ async function analyzeFocusedPass(
       });
     } else {
       // Text-mode (or PDF-mode fallback when base64 is missing for
-      // whatever reason — the analyzer can still ground in extracted
+      // whatever reason, the analyzer can still ground in extracted
       // text, just with reduced layout fidelity).
       const body = doc.text
         ? doc.text
@@ -630,12 +630,12 @@ async function analyzeFocusedPass(
   }
 
   const updateNotice = updateContext
-    ? `\n\nIMPORTANT — this is an UPDATE to an earlier analysis. The ` +
+    ? `\n\nIMPORTANT, this is an UPDATE to an earlier analysis. The ` +
       `original analysis was run on ${updateContext.originalAnalysisDate}. ` +
       `The agent has added new document(s) (${updateContext.addedFilenames.join(", ")}) ` +
       `and re-requested analysis on the full combined package. ` +
       `Pay attention to whether any new document CONTRADICTS or SUPPLEMENTS ` +
-      `earlier disclosures — surface that in your findings and notes.`
+      `earlier disclosures, surface that in your findings and notes.`
     : "";
 
   content.push({
@@ -670,7 +670,7 @@ async function analyzeFocusedPass(
       // Without this, the same package can flip between "Acceptable"
       // and "Walk Away" across runs because Claude samples differently
       // each time. A 0-temperature run is also a better baseline for
-      // human review — the only source of variation is the documents
+      // human review, the only source of variation is the documents
       // themselves.
       //
       // TODO(admin-settings): expose this value in a future admin
@@ -678,7 +678,7 @@ async function analyzeFocusedPass(
       // temperature without a code change. Default stays at 0
       // (deterministic). The admin path would let us experiment with
       // small non-zero values (0.1–0.2) for novel-form QA workflows
-      // — surfacing alternate interpretations during human review —
+      //, surfacing alternate interpretations during human review ,
       // without affecting the standard deterministic production
       // path. When that admin section ships, this literal becomes
       // a field read from the agent/admin profile or a system-wide
@@ -710,7 +710,7 @@ async function analyzeFocusedPass(
 }
 
 // ============================================================================
-// Code-based synthesis — combines focused-pass outputs into ReportData.
+// Code-based synthesis, combines focused-pass outputs into ReportData.
 // Replaces the Claude-driven synthesis that was hanging in production.
 // ============================================================================
 
@@ -720,7 +720,7 @@ function synthesizeReportInCode(
   updateContext: UpdateContext | null,
   // Optional live market context from the web_search pass. When
   // present, this WINS over what individual focused passes
-  // produced — it's grounded in current rate aggregators and recent
+  // produced, it's grounded in current rate aggregators and recent
   // sales data, which the focused passes can't reach.
   liveMarketContext: ReportData["market_context"] | null = null,
 ): ReportData {
@@ -753,7 +753,7 @@ function synthesizeReportInCode(
   // The prompt asks Claude to honor cost_responsibility, but we belt-
   // and-suspenders it here. Any finding tagged cost_responsibility="hoa"
   // that's Critical AND has no triggered_rule AND has no active-hazard
-  // language gets downgraded to High — the dollar amount drove its
+  // language gets downgraded to High, the dollar amount drove its
   // severity, but the dollars don't hit the buyer's pocket. We KEEP
   // Critical when the finding's narrative implies an active hazard
   // (water intrusion, mold, structural movement) or when a triggered_
@@ -786,7 +786,7 @@ function synthesizeReportInCode(
   // Real-customer issue: a Critical "balcony deferred maintenance"
   // finding appeared on a ground-floor unit that doesn't have a
   // balcony. The prompt asks Claude to drop these, but Claude is
-  // variable on unit-level applicability — building-wide reserve-study
+  // variable on unit-level applicability, building-wide reserve-study
   // items get pulled in as if they affect every unit. The merged
   // property_snapshot includes a unit_features list when the analyzer
   // could pin them down; we use that list to drop findings whose
@@ -834,7 +834,7 @@ function synthesizeReportInCode(
   // has no real owner-pays critical findings. The only HOA-paid items
   // that STAY in critical/high are ones that hit an always-Critical
   // rule (triggered_rule populated) or describe an active hazard /
-  // insurance-blocker — those impact the buyer's deal regardless of
+  // insurance-blocker, those impact the buyer's deal regardless of
   // who writes the repair check.
   const hoaDivertedConcerns: string[] = [];
   const criticalHighRaw = filteredAllFindings.filter(
@@ -846,12 +846,12 @@ function synthesizeReportInCode(
       f.cost_responsibility === "hoa" ||
       (f.cost_responsibility == null &&
         // For legacy findings without cost_responsibility we use a
-        // textual heuristic on the source citation — same approach
+        // textual heuristic on the source citation, same approach
         // as the PDF render's looksHoaPaid().
         /\b(reserve study|reserve fund|hoa reserve|association reserve|board minutes|hoa budget|association budget|special assessment|common area|common element|building exterior|exterior of (the )?building|building envelope|common roof|elevator|lobby|common[\s-]?area plumbing|common boiler|common parking|staircase|stair landing|stairwell|common hallway|common laundry|courtyard|breezeway|pool deck|building exterior)\b/i.test(
           findingText,
         ));
-    if (!isHoa) return true; // owner-pays — keep
+    if (!isHoa) return true; // owner-pays, keep
     // The active-hazard escape preserves Critical when the hazard
     // affects the BUYER'S UNIT directly. Critical real-world
     // example: "active leak in this unit's bedroom ceiling" stays
@@ -863,13 +863,13 @@ function synthesizeReportInCode(
     // physically affected. Customer feedback (2026-05-22): ground-
     // floor unit was rated "Significant Concerns" because Critical
     // findings about COMMON staircase water intrusion were
-    // preserved by the hazard-escape — those don't impact a unit
+    // preserved by the hazard-escape, those don't impact a unit
     // that doesn't use those stairs.
     //
     // Refined rule: keep Critical ONLY when active-hazard language
     // AND the language doesn't ALSO flag the issue as confined to
     // a common area or other building parts. If both signals are
-    // present, the hazard is the BUILDING'S, not this unit's —
+    // present, the hazard is the BUILDING'S, not this unit's ,
     // divert to HOA concerns.
     const isHazardLanguage = mentionsActiveHazardOrInsuranceBlock(
       `${f.title} ${f.description ?? ""} ${f.risk_if_ignored ?? ""}`,
@@ -879,13 +879,13 @@ function synthesizeReportInCode(
 
     if (f.triggered_rule) {
       // Always-Critical rules (FPE, polybutylene, etc.) supersede
-      // everything else — keep regardless of HOA/common-area
+      // everything else, keep regardless of HOA/common-area
       // scoping.
       return true;
     }
     if (isHazardLanguage && (!isBuildingScoped || mentionsThisUnitDirectly)) {
       // Active hazard affecting this unit (or unclear scope that
-      // could affect this unit) — keep Critical.
+      // could affect this unit), keep Critical.
       return true;
     }
     // HOA-paid AND no clear unit-level hazard → divert into HOA
@@ -984,7 +984,7 @@ function synthesizeReportInCode(
   // Property snapshot was computed up above (alongside the unit-feature
   // filter that needs it). The `property` const is in scope here.
 
-  // Document inventory — union docs across passes, then consolidate any
+  // Document inventory, union docs across passes, then consolidate any
   // `{base}_part_N.pdf` split chunks back into a single `{base}.pdf` entry
   // with the page counts summed. The user only ever uploaded the original
   // file; the parts are an internal processing artifact and shouldn't
@@ -1001,17 +1001,17 @@ function synthesizeReportInCode(
     documents_missing: detectMissingDocuments(consolidated),
   };
 
-  // Completeness audit — concat issues across passes.
+  // Completeness audit, concat issues across passes.
   const completenessIssues = focused.flatMap((p) => p.completeness_issues ?? []);
   const completenessSummary =
     completenessIssues.length === 0
       ? "Disclosure package appears complete based on the documents reviewed."
       : `${completenessIssues.length} completeness issue${completenessIssues.length === 1 ? "" : "s"} identified across the disclosure package. Review each item before proceeding.`;
 
-  // HOA — take the HOA pass's facts, fall back to "not applicable" if no
+  // HOA, take the HOA pass's facts, fall back to "not applicable" if no
   // HOA pass populated it. Also merge in the enriched HOA narrative
   // fields (financial fact table, reserve-health read, watch items)
-  // from whichever pass populated them — typically the same HOA pass
+  // from whichever pass populated them, typically the same HOA pass
   // but the schema allows any pass to contribute.
   const hoaSource = focused.find(
     (p) => p.hoa_facts && (p.hoa_facts.summary || p.hoa_facts.concerns?.length),
@@ -1057,7 +1057,7 @@ function synthesizeReportInCode(
     concerns: dedupeStrings(mergedConcerns),
   };
 
-  // Environmental — take the hazards pass's content.
+  // Environmental, take the hazards pass's content.
   const environmentalHazards = focused.flatMap(
     (p) => p.environmental_hazards ?? [],
   );
@@ -1069,7 +1069,7 @@ function synthesizeReportInCode(
     hazards: environmentalHazards,
   };
 
-  // Permit compliance — combine summaries and findings.
+  // Permit compliance, combine summaries and findings.
   const permitSummaries = focused
     .map((p) => p.permit_compliance?.summary)
     .filter((s): s is string => !!s);
@@ -1081,7 +1081,7 @@ function synthesizeReportInCode(
     findings: sortFindings(filteredPermitFindings),
   };
 
-  // Insurance / lender risk — sort notes into the two buckets via
+  // Insurance / lender risk, sort notes into the two buckets via
   // simple keyword classification.
   const insuranceConcerns: string[] = [];
   const lenderConcerns: string[] = [];
@@ -1095,7 +1095,7 @@ function synthesizeReportInCode(
       if (looksLender && !looksInsurance) lenderConcerns.push(note);
       else if (looksInsurance && !looksLender) insuranceConcerns.push(note);
       else {
-        // Default to both buckets for ambiguous items — better to
+        // Default to both buckets for ambiguous items, better to
         // surface twice than to drop.
         insuranceConcerns.push(note);
         lenderConcerns.push(note);
@@ -1111,7 +1111,7 @@ function synthesizeReportInCode(
     lender_concerns: dedupeStrings(lenderConcerns),
   };
 
-  // Outstanding questions — dedupe, normalize, cap to a handful.
+  // Outstanding questions, dedupe, normalize, cap to a handful.
   //
   // We were generating 20+ questions per report and the agent feedback
   // was clear: a wall of questions overwhelms the buyer and the goal is
@@ -1121,7 +1121,7 @@ function synthesizeReportInCode(
   //
   // Ranking heuristics (we don't have semantic understanding here):
   //   1. Questions that mention a critical/high finding title get
-  //      priority — those questions are directly tied to closing-
+  //      priority, those questions are directly tied to closing-
   //      blocking concerns.
   //   2. Questions that contain "?" near the end and look like real
   //      open-ended buyer questions go next.
@@ -1160,10 +1160,10 @@ function synthesizeReportInCode(
     .map((x) => x.q);
   const outstandingQuestions = rankedQuestions;
 
-  // Negotiation leverage — high-confidence critical/high findings.
+  // Negotiation leverage, high-confidence critical/high findings.
   const leveragePoints = criticalFindings
     .filter((f) => f.confidence === "high")
-    .map((f) => `${f.title} — ${f.recommended_action}`);
+    .map((f) => `${f.title}, ${f.recommended_action}`);
 
   const negotiation = {
     summary:
@@ -1173,7 +1173,7 @@ function synthesizeReportInCode(
     leverage_points: leveragePoints,
   };
 
-  // Overall rating — rule-based on FILTERED finding counts so obvious-
+  // Overall rating, rule-based on FILTERED finding counts so obvious-
   // fact junk and HOA-downgraded items don't tilt the rating. Also
   // pulls in the analyzer's editorial narrative when populated.
   //
@@ -1195,7 +1195,7 @@ function synthesizeReportInCode(
     cosmeticCount: cosmeticFindings.length,
   });
   // Code-side fallback for the editorial fields. Claude is asked to
-  // populate these in the prompt but doesn't always — and they're
+  // populate these in the prompt but doesn't always, and they're
   // synthesizable from data we already have, so the report shouldn't
   // ship with them blank. Fallback is conservative and clearly
   // generic when used; the real value still comes from the analyzer.
@@ -1214,7 +1214,7 @@ function synthesizeReportInCode(
     conditions_on_which_this_depends: ratingConditionsText ?? fallbackConditions,
   };
 
-  // Inspection follow-ups, market context, title & vesting — each
+  // Inspection follow-ups, market context, title & vesting, each
   // analyzer pass may populate one or more of these. Take the first
   // populated value across passes (typically seller_disclosures sees
   // the prelim and the MLS, so it's the natural source).
@@ -1237,7 +1237,7 @@ function synthesizeReportInCode(
     null;
 
   // Human-readable update note. Counts filtered findings whose source
-  // cited an added document — gives the agent (and the email/dashboard
+  // cited an added document, gives the agent (and the email/dashboard
   // summary) a one-liner explaining what this re-analysis actually
   // changed.
   const updateNote = composeUpdateNote(
@@ -1258,7 +1258,7 @@ function synthesizeReportInCode(
   if (missedRules.length > 0) {
     for (const r of missedRules) {
       completenessIssues.push(
-        `Possible missed always-Critical signal: ${r.label}. The source documents mentioned this but the analyzer didn't surface a finding. Review manually — re-running the analysis often resolves it.`,
+        `Possible missed always-Critical signal: ${r.label}. The source documents mentioned this but the analyzer didn't surface a finding. Review manually, re-running the analysis often resolves it.`,
       );
     }
   }
@@ -1353,7 +1353,7 @@ function dedupeStrings(arr: string[]): string[] {
   return result;
 }
 
-// Identify findings that just describe what the listing already says —
+// Identify findings that just describe what the listing already says ,
 // e.g. "1 Bedroom, 1 Bath Condominium". The prompt's OBVIOUS-FACT FILTER
 // asks Claude to skip these, but Claude is variable; this is the belt-
 // and-suspenders pattern match. We look for telltale shapes:
@@ -1395,7 +1395,7 @@ function isObviousFactFinding(f: Finding): boolean {
     /\bsquare footage approximate\b/i,
   ];
   // Boilerplate only counts as "obvious" when it's the ENTIRE substance
-  // of the finding — short titles that are basically just the cliché.
+  // of the finding, short titles that are basically just the cliché.
   if (titleLower.length < 80) {
     for (const re of boilerplatePatterns) {
       if (re.test(titleLower)) return true;
@@ -1415,7 +1415,7 @@ function isObviousFactFinding(f: Finding): boolean {
 // only, etc.), define a text pattern that signals the finding's
 // subject. If the finding's title/description matches the pattern AND
 // the property's unit_features set does NOT contain the feature, drop.
-// Only runs when we have a populated unit_features list — without it
+// Only runs when we have a populated unit_features list, without it
 // we can't make the call confidently, so we keep the finding.
 //
 // For SFR property types we skip this filter entirely (single-family
@@ -1441,7 +1441,7 @@ function mismatchesUnitFeatures(
   unitFeatures: Set<string>,
   propertyType: string | null,
 ): boolean {
-  // No filter for SFRs — they're presumed to have all common features.
+  // No filter for SFRs, they're presumed to have all common features.
   const typeLower = (propertyType ?? "").toLowerCase();
   const isCondoLike =
     typeLower.includes("condo") ||
@@ -1451,7 +1451,7 @@ function mismatchesUnitFeatures(
     typeLower.includes("coop");
   if (!isCondoLike) return false;
   // No filter when we have no signal about what features the unit
-  // has — better to keep the finding than guess wrong.
+  // has, better to keep the finding than guess wrong.
   if (unitFeatures.size === 0) return false;
 
   const blob = `${f.title ?? ""} ${f.description ?? ""} ${f.risk_if_ignored ?? ""} ${f.recommended_action ?? ""}`;
@@ -1466,7 +1466,7 @@ function mismatchesUnitFeatures(
 }
 
 // Compose a generic "Why this rating" paragraph when the analyzer
-// didn't supply one. The text is intentionally neutral — it describes
+// didn't supply one. The text is intentionally neutral, it describes
 // what's in the file without imagining details. The analyzer's
 // editorial is always preferable when populated.
 function composeFallbackRatingWhy(
@@ -1505,7 +1505,7 @@ function composeFallbackRatingConditions(critical: Finding[]): string {
   const lines = critical.slice(0, 5).map((f) => {
     const action = f.next_step?.trim() || f.recommended_action?.trim() || "";
     if (!action) return `${f.title} closes out cleanly.`;
-    // Keep the line short — first sentence of next_step.
+    // Keep the line short, first sentence of next_step.
     const firstSentence = action.split(/\.\s+/)[0].trim().replace(/\.$/, "");
     return `${firstSentence}.`;
   });
@@ -1513,13 +1513,13 @@ function composeFallbackRatingConditions(critical: Finding[]): string {
 }
 
 // Safety-net scanner: scans the entire focused-pass output for
-// always-Critical-rule keywords and detects "missed" findings — cases
+// always-Critical-rule keywords and detects "missed" findings, cases
 // where the source documents clearly contain a triggering condition
 // but Claude didn't surface a Critical for it. Real-world example
 // (2026-05-22): a re-run dropped the "ABS drain piping in 1984-1990
 // class-action window" finding even though the previous run had it
 // and the source inspection report still mentioned ABS pipe. Claude
-// is stochastic — we can't guarantee every run catches every
+// is stochastic, we can't guarantee every run catches every
 // trigger. This scanner doesn't add findings (that requires real
 // reasoning) but DOES surface a guardrail audit-log entry so the
 // agent + admin can spot the gap during QA.
@@ -1625,7 +1625,7 @@ function mentionsBuildingCommonArea(text: string): boolean {
 
 // Does the finding language explicitly call out the BUYER'S
 // specific unit (the unit they're purchasing) as affected? Used as
-// the counterweight to mentionsBuildingCommonArea — if the finding
+// the counterweight to mentionsBuildingCommonArea, if the finding
 // scope flags BOTH common-area AND this-unit, we keep Critical
 // because the hazard reaches into the buyer's interior even though
 // the source is the common area.
@@ -1639,7 +1639,7 @@ function mentionsTheBuyersUnit(text: string): boolean {
 // Decide whether finding language indicates an active hazard, water
 // intrusion, structural issue, or insurance/lender-blocking condition.
 // Used to PROTECT a Critical finding from the auto-downgrade we apply
-// when cost_responsibility="hoa" — if the HOA project addresses an
+// when cost_responsibility="hoa", if the HOA project addresses an
 // active hazard (active leaks, mold, structural movement) we keep
 // Critical because the issue, not the cost, is what makes it urgent.
 function mentionsActiveHazardOrInsuranceBlock(text: string): boolean {
@@ -1663,7 +1663,7 @@ function mergeProperty(
     list_price: null,
     days_on_market: null,
     market_region: null,
-    // Optional extensions — populated by whichever focused pass found
+    // Optional extensions, populated by whichever focused pass found
     // the source document (APN/title → seller_disclosures, MLS/list →
     // seller_disclosures or whatever pass got the MLS printout, etc.).
     apn: null,
@@ -1699,7 +1699,7 @@ function mergeProperty(
   // If the agent supplied a hint, it wins over what passes extracted.
   if (hint && hint.trim()) merged.address = hint.trim();
   // Cost-reference market always gets a default so the PDF cover never
-  // shows an empty value here — agents should always see which market
+  // shows an empty value here, agents should always see which market
   // drove the cost estimates.
   if (!merged.cost_reference_market) {
     merged.cost_reference_market = "California Bay Area / Silicon Valley";
@@ -1755,7 +1755,7 @@ function detectMissingDocuments(
   // ("Prelim Package", "Preliminary Title", "Title Report", etc.)
   // so a strict substring match on STANDARD_CA_DISCLOSURE_TYPES
   // frequently misses real documents. We supplement with
-  // classifyDocument on the filename — a file named "4._Prelim_
+  // classifyDocument on the filename, a file named "4._Prelim_
   // Package.pdf" classifies cleanly as "title" regardless of what
   // Claude called its type, so the "Preliminary Title Report"
   // requirement is satisfied.
@@ -1820,7 +1820,7 @@ function determineOverallRating(counts: {
 }): ReportData["overall_rating"] {
   const { criticalCount, highCount, moderateCount } = counts;
 
-  // "Walk Away" — multiple compounding criticals.
+  // "Walk Away", multiple compounding criticals.
   if (criticalCount >= 3) {
     return {
       label: "Walk Away",
@@ -1830,7 +1830,7 @@ function determineOverallRating(counts: {
     };
   }
 
-  // "Significant Concerns" — one or more criticals, but addressable.
+  // "Significant Concerns", one or more criticals, but addressable.
   if (criticalCount >= 1) {
     return {
       label: "Significant Concerns",
@@ -1840,7 +1840,7 @@ function determineOverallRating(counts: {
     };
   }
 
-  // "Acceptable" — meaningful but bounded.
+  // "Acceptable", meaningful but bounded.
   if (highCount >= 2 || moderateCount >= 4) {
     return {
       label: "Acceptable",
@@ -1850,7 +1850,7 @@ function determineOverallRating(counts: {
     };
   }
 
-  // "Good" — minor findings.
+  // "Good", minor findings.
   if (highCount >= 1 || moderateCount >= 1) {
     return {
       label: "Good",
@@ -1860,7 +1860,7 @@ function determineOverallRating(counts: {
     };
   }
 
-  // "Excellent" — nothing of consequence.
+  // "Excellent", nothing of consequence.
   return {
     label: "Excellent",
     summary:
@@ -1871,7 +1871,7 @@ function determineOverallRating(counts: {
 }
 
 // ============================================================================
-// Synthesis pass (legacy Claude-driven — kept for reference; not used)
+// Synthesis pass (legacy Claude-driven, kept for reference; not used)
 // ============================================================================
 
 const SYNTHESIS_SYSTEM = `You are Veroax, an AI-powered disclosure analysis assistant. You are the SYNTHESIS step in a multi-pass analysis pipeline.
@@ -1880,7 +1880,7 @@ You receive structured findings from several focused passes (seller disclosures,
 
 CRITICAL RULES:
 
-1. PRESERVE EVERY FINDING from the focused passes. Do not silently drop findings. If two passes report the same issue, dedupe by combining them into one finding with both citations. Do not invent new findings — work with what the focused passes provided.
+1. PRESERVE EVERY FINDING from the focused passes. Do not silently drop findings. If two passes report the same issue, dedupe by combining them into one finding with both citations. Do not invent new findings, work with what the focused passes provided.
 
 2. SORT FINDINGS by severity into the report sections:
    - critical_findings: all severity="critical"
@@ -1900,7 +1900,7 @@ CRITICAL RULES:
    - "Significant Concerns": one or more Critical findings AND addressable
    - "Walk Away": multiple Critical findings AND compounding
 
-5. NEGOTIATION LEVERAGE should identify findings that give the buyer real negotiating power — typically Critical and High findings with high-confidence sourcing.
+5. NEGOTIATION LEVERAGE should identify findings that give the buyer real negotiating power, typically Critical and High findings with high-confidence sourcing.
 
 6. PROPERTY SNAPSHOT comes from any pass's property_facts. Prefer the most complete and consistent. If facts disagree across passes, surface the disagreement in completeness_audit.
 
@@ -1918,7 +1918,7 @@ CRITICAL RULES:
 
 CALL THE submit_disclosure_report TOOL EXACTLY ONCE with the complete merged report.`;
 
-// (Legacy synthesizeReport removed — replaced by synthesizeReportInCode.
+// (Legacy synthesizeReport removed, replaced by synthesizeReportInCode.
 // The Claude-driven call hung in production; deterministic code synthesis
 // is faster and 100% reliable.)
 
@@ -1954,7 +1954,7 @@ function splitDocumentsForBudget(
   }
 
   // Defensive: if any single document exceeds budget on its own, we
-  // still keep it as its own batch — it will likely get truncated by
+  // still keep it as its own batch, it will likely get truncated by
   // Anthropic with a clear error rather than silently fail.
   return batches.map((b) => b.docs);
 }
@@ -1966,7 +1966,7 @@ function splitDocumentsForBudget(
 // splitDocumentsForBudget: largest-first placement, open a new batch
 // when nothing fits. PDFs that exceed PDF_PASS_PAGE_BUDGET on their
 // own (e.g. an unsplit 90-page inspection report) get their own
-// dedicated batch and that batch only — the bin-packer can't shrink
+// dedicated batch and that batch only, the bin-packer can't shrink
 // a single document. lib/pdf/split.ts caps individual PDFs at 90
 // pages (Claude's per-document limit); the per-CALL budget here is
 // what protects against multiple smaller PDFs packing into a single
@@ -2023,7 +2023,7 @@ async function callWithRateLimitRetry<T>(fn: () => Promise<T>): Promise<T> {
       if (totalWaitedSec + waitSec > MAX_RETRY_WAIT_SECONDS) {
         throw new Error(
           `Anthropic rate limit (429) exceeded. Required wait (${waitSec}s) ` +
-            `would exceed our retry budget. Upgrading your Anthropic tier resolves this — ` +
+            `would exceed our retry budget. Upgrading your Anthropic tier resolves this, ` +
             `see https://console.anthropic.com/settings/limits.`,
         );
       }

@@ -46,7 +46,7 @@ const REQUIRED_PRICE_ENVS: Array<{ envName: string; label: string }> = [
 ];
 
 function fmtAmount(cents: number | null, currency: string): string {
-  if (cents === null) return "—";
+  if (cents === null) return ",";
   const dollars = cents / 100;
   return `${dollars.toLocaleString("en-US", {
     style: "currency",
@@ -274,10 +274,10 @@ export default async function BillingReadinessPage() {
                       {p.envName}
                     </td>
                     <td className="px-3 py-2 text-slate-900 font-mono">
-                      {p.amount ?? "—"}
+                      {p.amount ?? ","}
                     </td>
                     <td className="px-3 py-2 text-slate-700">
-                      {p.interval ?? "—"}
+                      {p.interval ?? ","}
                     </td>
                     <td className="px-3 py-2">
                       <PriceStatusPill ok={p.ok} detail={p.detail} value={p.value} />

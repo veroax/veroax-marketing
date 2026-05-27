@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/auth/require";
 //
 // Admin-only. Grants N credits to a user's account:
 //   - type="trial" increments profiles.trial_credits_remaining
-//     (reports produced will be watermarked SAMPLE — VEROAX TRIAL)
+//     (reports produced will be watermarked SAMPLE, VEROAX TRIAL)
 //   - type="oneoff" increments profiles.report_credits_balance
 //     (full-quality reports, don't expire)
 //
@@ -89,9 +89,9 @@ export async function POST(
       .eq("id", targetUserId);
   }
 
-  // Ledger row — the agent's billing dashboard shows this with the
+  // Ledger row, the agent's billing dashboard shows this with the
   // "Grant" pill, including the notes for transparency. (Notes are
-  // visible to the recipient — they need to know what they're being
+  // visible to the recipient, they need to know what they're being
   // granted and why.)
   await admin.from("report_credit_ledger").insert({
     user_id: targetUserId,

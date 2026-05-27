@@ -377,7 +377,7 @@ export default async function AdminHealthPage() {
         />
         <StatusCard
           label="Avg run (7d)"
-          value={successWindowCount > 0 ? formatDuration(avgMs) : "—"}
+          value={successWindowCount > 0 ? formatDuration(avgMs) : ","}
           sublabel={
             successWindowCount > 0
               ? `${successWindowCount} sample${successWindowCount === 1 ? "" : "s"}`
@@ -387,7 +387,7 @@ export default async function AdminHealthPage() {
         />
         <StatusCard
           label="P95 run (7d)"
-          value={successWindowCount > 0 ? formatDuration(p95Ms) : "—"}
+          value={successWindowCount > 0 ? formatDuration(p95Ms) : ","}
           sublabel={
             p95Ms > 600_000
               ? "near 800s timeout"
@@ -853,7 +853,7 @@ function ErrorRateSparkline({ buckets }: { buckets: Bucket[] }) {
                 rx={1.5}
                 fill={color}
               >
-                <title>{tooltipLines.join(" — ").replace(/ — /g, " · ")}</title>
+                <title>{tooltipLines.join(", ").replace(/, /g, " · ")}</title>
               </rect>
             </g>
           );
@@ -1015,7 +1015,7 @@ function HeartbeatTile({
             Last
           </p>
           <p className="text-slate-900 font-mono">
-            {latest ? formatAgo(Date.now() - new Date(latest.ran_at).getTime()) : "—"}
+            {latest ? formatAgo(Date.now() - new Date(latest.ran_at).getTime()) : ","}
           </p>
         </div>
         <div>
@@ -1023,7 +1023,7 @@ function HeartbeatTile({
             P50
           </p>
           <p className="text-slate-900 font-mono">
-            {p50_latency_ms !== null ? `${p50_latency_ms}ms` : "—"}
+            {p50_latency_ms !== null ? `${p50_latency_ms}ms` : ","}
           </p>
         </div>
         <div>
@@ -1033,7 +1033,7 @@ function HeartbeatTile({
           <p className="text-slate-900 font-mono">
             {sample_count > 0
               ? `${Math.round(success_rate * 100)}%`
-              : "—"}
+              : ","}
           </p>
         </div>
       </div>

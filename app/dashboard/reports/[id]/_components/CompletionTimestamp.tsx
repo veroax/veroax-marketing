@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 // Renders an ISO timestamp in the BROWSER's local timezone. The
 // surrounding page is a server component, so server-side rendering
 // would freeze the time at whatever the Vercel function's timezone
-// is (UTC) — which is technically correct but unfriendly for an
+// is (UTC), which is technically correct but unfriendly for an
 // agent skimming "Analysis completed Mar 14 at 2:47 PM" against
 // their own clock.
 //

@@ -1,6 +1,6 @@
 // Audit log viewer. Reads the most recent N events with optional
 // filters for event_type and user_id. Renders metadata as a small
-// pretty-printed JSON block on each row — most events have 3-6
+// pretty-printed JSON block on each row, most events have 3-6
 // key/value pairs that fit on a couple of lines and tell the story
 // without an extra click. For deeper inspection the user_id and
 // report_id are clickable to /admin/users/[id] and /dashboard/
@@ -8,14 +8,14 @@
 //
 // The audit_log table is meant for compliance retention per the
 // privacy policy (7 years documented; not yet enforced as a backend
-// policy). This viewer is purely read-only — no edit/delete actions
+// policy). This viewer is purely read-only, no edit/delete actions
 // because the audit log should be append-only by contract.
 
 import Link from "next/link";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const metadata = {
-  title: "Audit log — Admin",
+  title: "Audit log, Admin",
 };
 
 type SearchParams = Promise<{
@@ -76,7 +76,7 @@ export default async function AdminAuditPage({
   const events = (eventsData ?? []) as AuditRow[];
 
   // Pull the distinct event_type list separately (no filter) for the
-  // dropdown options. Capped to a sane number — beyond ~40 we'd want
+  // dropdown options. Capped to a sane number, beyond ~40 we'd want
   // a different UI than a select.
   const { data: distinctEvents } = await admin
     .from("audit_log")
@@ -156,7 +156,7 @@ export default async function AdminAuditPage({
           <input
             name="user"
             defaultValue={userFilter}
-            placeholder="UUID — exact match"
+            placeholder="UUID, exact match"
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono"
           />
         </div>
@@ -167,7 +167,7 @@ export default async function AdminAuditPage({
           <input
             name="report"
             defaultValue={reportFilter}
-            placeholder="UUID — exact match"
+            placeholder="UUID, exact match"
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono"
           />
         </div>

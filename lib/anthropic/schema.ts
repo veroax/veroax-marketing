@@ -24,7 +24,7 @@ export type Finding = {
   // Verbatim quote pulled directly from the source document. Surfaced
   // in the PDF inside a "From the source document:" quote block so the
   // finding is auditable against the underlying disclosure. Keep this
-  // SHORT — 1-3 sentences max; the full document is still available
+  // SHORT, 1-3 sentences max; the full document is still available
   // for deeper reads. Null when no clean quote is available.
   source_quote?: string | null;
   // Plain-language "what is this thing." Different from description in
@@ -33,7 +33,7 @@ export type Finding = {
   // verified"), while description states the observation. Renders as
   // its own paragraph in the new finding card layout.
   what_it_is?: string | null;
-  // Why the buyer should care — consequences, insurance/lender impact,
+  // Why the buyer should care, consequences, insurance/lender impact,
   // safety risk. Renders as "Why it matters" paragraph.
   why_it_matters?: string | null;
   // Concrete next step the buyer/agent should take to resolve the
@@ -60,7 +60,7 @@ export type Finding = {
   //       They may still be Critical from active hazard or lender/
   //       insurance blockability, but the dollar threshold doesn't
   //       apply because the buyer never writes that check.
-  // Null/absent on older reports — render code treats "missing" as
+  // Null/absent on older reports, render code treats "missing" as
   // "owner" so the legacy behavior stays put for existing report_data.
   cost_responsibility?: "owner" | "hoa" | "shared" | null;
   // When the finding's source document was added to the report AFTER
@@ -75,7 +75,7 @@ export type Finding = {
   // a short identifier for the rule that fired. Surfaced as a small
   // badge on the dashboard so agents can sanity-check WHY something
   // is flagged critical. Null/absent when no always-Critical rule
-  // applies — most findings won't have this.
+  // applies, most findings won't have this.
   triggered_rule?: string | null;
 };
 
@@ -117,7 +117,7 @@ export type ReportData = {
     // Floor number for stacked condos / townhomes. Null for SFRs and
     // for condos where the floor isn't documented. Drives the
     // "is this finding about a feature this unit physically has?"
-    // post-process filter — e.g., roof or top-floor balcony findings
+    // post-process filter, e.g., roof or top-floor balcony findings
     // don't apply to a ground-floor unit.
     floor?: number | null;
     // Physical features the BUYER'S SPECIFIC UNIT has, populated
@@ -127,7 +127,7 @@ export type ReportData = {
     // lowercase strings; canonical tokens include: balcony, patio,
     // private_yard, garage_stall_assigned, in_unit_laundry,
     // top_floor, ground_floor, fireplace, in_unit_hvac. Add more as
-    // the analyzer encounters them — order doesn't matter.
+    // the analyzer encounters them, order doesn't matter.
     unit_features?: string[] | null;
   };
   document_inventory: {
@@ -158,16 +158,16 @@ export type ReportData = {
     // missing fields just don't render. Free-form key/value strings so
     // we can add new facts without a schema migration.
     facts?: Array<{ label: string; value: string }> | null;
-    // "Reserve health, our read" — a 2-3 sentence editorial paragraph
+    // "Reserve health, our read", a 2-3 sentence editorial paragraph
     // about whether reserves are adequate, what the current path is
     // (assessments planned, dues trajectory), and how that compares
     // to typical CA HOAs of this age + unit count. Renders as its own
     // titled paragraph below the facts table.
     reserve_health_read?: string | null;
-    // "Watch items" — a 1-2 sentence prose flag for HOA items the
+    // "Watch items", a 1-2 sentence prose flag for HOA items the
     // buyer should monitor through close (mid-project contractor
     // switches, unit-by-unit water-intrusion patterns, etc.). NOT a
-    // hard finding — it's a heads-up for the agent's diligence list.
+    // hard finding, it's a heads-up for the agent's diligence list.
     watch_items?: string | null;
   };
   environmental: {
@@ -196,7 +196,7 @@ export type ReportData = {
   // Numbered checklist of specialists the buyer should engage during
   // their contingency period to close the largest unknowns in the
   // disclosure package. Renders as a clean numbered table with
-  // Specialist / Reason / Approx. cost columns. Optional — when
+  // Specialist / Reason / Approx. cost columns. Optional, when
   // empty (e.g., legacy reports) the section is skipped.
   inspection_follow_ups?: Array<{
     specialist: string;
@@ -233,7 +233,7 @@ export type ReportData = {
     label: "Excellent" | "Good" | "Acceptable" | "Significant Concerns" | "Walk Away";
     summary: string;
     contingency_advice: string;
-    // Optional "Why this rating" narrative — 2-4 sentences explaining
+    // Optional "Why this rating" narrative, 2-4 sentences explaining
     // the rating drivers and the major conditions that need to hold
     // for the rating to remain valid. Renders below the rating pill
     // in the new layout.
@@ -253,7 +253,7 @@ export type ReportData = {
 };
 
 // ============================================================================
-// Focused-pass schema — used by per-document-group analysis calls in the
+// Focused-pass schema, used by per-document-group analysis calls in the
 // multi-pass pipeline. Each focused pass returns a subset of fields the
 // synthesis pass later merges into the full ReportData.
 // ============================================================================
@@ -284,7 +284,7 @@ export type FocusedAnalysis = {
   };
   insurance_lender_notes?: string[];
   outstanding_questions: string[];
-  // Optional rich sections — any pass can contribute these, but the
+  // Optional rich sections, any pass can contribute these, but the
   // expected source is the seller_disclosures pass (which sees the MLS
   // printout, the TDS, and the prelim title report). The synthesizer
   // takes the first populated value across all passes.
@@ -324,7 +324,7 @@ export const FOCUSED_TOOL_SCHEMA = {
     "A separate synthesis step will combine your findings with focused analyses of " +
     "other document groups to produce the final 14-section buyer report. Call this " +
     "tool exactly once. Populate only the fields relevant to the documents you were " +
-    "given — leave others as empty arrays or null.",
+    "given, leave others as empty arrays or null.",
   input_schema: {
     type: "object" as const,
     required: ["findings", "document_inventory", "completeness_issues", "outstanding_questions"],
@@ -394,7 +394,7 @@ export const FOCUSED_TOOL_SCHEMA = {
           unit_features: {
             type: ["array", "null"],
             items: { type: "string" },
-            description: "Lowercase tokens describing physical features THIS specific unit has. Canonical tokens: balcony, patio, private_yard, garage_stall_assigned, in_unit_laundry, top_floor, ground_floor, fireplace, in_unit_hvac. Add more as needed. CRITICAL: only include a feature when you're confident this unit actually has it — the downstream filter drops findings about features missing from this list (so a 'balcony repair' finding gets dropped if 'balcony' isn't here, on a first-floor unit that doesn't have one).",
+            description: "Lowercase tokens describing physical features THIS specific unit has. Canonical tokens: balcony, patio, private_yard, garage_stall_assigned, in_unit_laundry, top_floor, ground_floor, fireplace, in_unit_hvac. Add more as needed. CRITICAL: only include a feature when you're confident this unit actually has it, the downstream filter drops findings about features missing from this list (so a 'balcony repair' finding gets dropped if 'balcony' isn't here, on a first-floor unit that doesn't have one).",
           },
         },
       },
@@ -482,7 +482,7 @@ export const FOCUSED_TOOL_SCHEMA = {
       },
       hoa_financial_facts: {
         type: "array",
-        description: "Populate when this pass is analyzing HOA financial data — see the analyzer rule on HOA fact extraction for the canonical label set.",
+        description: "Populate when this pass is analyzing HOA financial data, see the analyzer rule on HOA fact extraction for the canonical label set.",
         items: {
           type: "object",
           properties: {
@@ -515,7 +515,7 @@ export const FOCUSED_TOOL_SCHEMA = {
       },
       market_context: {
         type: "object",
-        description: "Market context for the unit's sub-segment — median pricing, days on market, mortgage rate range, monthly carrying cost, and comparable units. Populate when the analyzer can ground these in the MLS printout, the listing materials, and current rate knowledge.",
+        description: "Market context for the unit's sub-segment, median pricing, days on market, mortgage rate range, monthly carrying cost, and comparable units. Populate when the analyzer can ground these in the MLS printout, the listing materials, and current rate knowledge.",
         properties: {
           summary: { type: "string" },
           monthly_carrying_cost: { type: ["string", "null"] },
@@ -548,7 +548,7 @@ export const FOCUSED_TOOL_SCHEMA = {
       },
       overall_rating_why: {
         type: "string",
-        description: "2-4 sentence narrative explaining the rating drivers — what's the major upside, what kept it from being a higher tier.",
+        description: "2-4 sentence narrative explaining the rating drivers, what's the major upside, what kept it from being a higher tier.",
       },
       overall_rating_conditions: {
         type: "string",
@@ -570,17 +570,17 @@ export const FOCUSED_TOOL_SCHEMA = {
           triggered_rule: {
             type: ["string", "null"],
             description:
-              "OPTIONAL — when this finding's severity was upgraded to Critical because it matches an always-CRITICAL rule (FPE_panel, aluminum_wiring, polybutylene, knob_and_tube, active_mold, lead_paint_pre1978_w_children, ABS_recall_era, kitec_plumbing, asbestos_friable, underground_oil_tank, unpermitted_living_area, active_water_intrusion, structural_crack_load_bearing), set this to the short rule identifier. Leave null otherwise. Used for transparency so agents can see which rule fired.",
+              "OPTIONAL, when this finding's severity was upgraded to Critical because it matches an always-CRITICAL rule (FPE_panel, aluminum_wiring, polybutylene, knob_and_tube, active_mold, lead_paint_pre1978_w_children, ABS_recall_era, kitec_plumbing, asbestos_friable, underground_oil_tank, unpermitted_living_area, active_water_intrusion, structural_crack_load_bearing), set this to the short rule identifier. Leave null otherwise. Used for transparency so agents can see which rule fired.",
           },
           cost_responsibility: {
             type: ["string", "null"],
             enum: ["owner", "hoa", "shared", null],
             description:
-              "Who actually pays this bill if the repair gets done. 'owner' = the buyer of this specific unit/property pays out of pocket; 'hoa' = the HOA/condo association covers it from reserves or assessments (the buyer never writes a check); 'shared' = both contribute. Default to 'owner' unless the source documents indicate the work is in a common area, on the building exterior, in shared mechanical systems, or otherwise the HOA's responsibility per the CC&Rs / governing docs. CRITICAL: if cost_responsibility = 'hoa' you must NOT mark the finding Critical based on the cost threshold alone — the dollar amount doesn't hit the buyer's pocket. The finding can still be Critical for an active hazard or insurance/lender blockability.",
+              "Who actually pays this bill if the repair gets done. 'owner' = the buyer of this specific unit/property pays out of pocket; 'hoa' = the HOA/condo association covers it from reserves or assessments (the buyer never writes a check); 'shared' = both contribute. Default to 'owner' unless the source documents indicate the work is in a common area, on the building exterior, in shared mechanical systems, or otherwise the HOA's responsibility per the CC&Rs / governing docs. CRITICAL: if cost_responsibility = 'hoa' you must NOT mark the finding Critical based on the cost threshold alone, the dollar amount doesn't hit the buyer's pocket. The finding can still be Critical for an active hazard or insurance/lender blockability.",
           },
           source_quote: {
             type: ["string", "null"],
-            description: "VERBATIM 1-3 sentence quote from the source document supporting this finding. Renders in a 'From the source document:' quote block on the PDF. Use ellipsis (…) for elided middle text. Don't paraphrase — the quote is what makes the finding auditable against the underlying document.",
+            description: "VERBATIM 1-3 sentence quote from the source document supporting this finding. Renders in a 'From the source document:' quote block on the PDF. Use ellipsis (…) for elided middle text. Don't paraphrase, the quote is what makes the finding auditable against the underlying document.",
           },
           what_it_is: {
             type: ["string", "null"],
@@ -764,7 +764,7 @@ export const REPORT_TOOL_SCHEMA = {
           facts: {
             type: ["array", "null"],
             description:
-              "Compact KV facts from the HOA package — Master policy carrier + phone, Master policy premium, Operating account range, Reserves range, Dues, Special assessment status, Capital projects approved, Litigation, Collections, Rental restriction, Age restriction, Reserve study cadence, etc. Free-form label/value pairs so we can add more without a schema change.",
+              "Compact KV facts from the HOA package, Master policy carrier + phone, Master policy premium, Operating account range, Reserves range, Dues, Special assessment status, Capital projects approved, Litigation, Collections, Rental restriction, Age restriction, Reserve study cadence, etc. Free-form label/value pairs so we can add more without a schema change.",
             items: {
               type: "object",
               properties: {
@@ -782,7 +782,7 @@ export const REPORT_TOOL_SCHEMA = {
           watch_items: {
             type: ["string", "null"],
             description:
-              "1-2 sentence prose flag for HOA items the buyer should monitor through close (mid-project contractor switches, unit-by-unit water-intrusion patterns, etc.). Not a hard finding — a heads-up for the diligence list.",
+              "1-2 sentence prose flag for HOA items the buyer should monitor through close (mid-project contractor switches, unit-by-unit water-intrusion patterns, etc.). Not a hard finding, a heads-up for the diligence list.",
           },
         },
         required: ["applicable", "summary", "concerns"],
@@ -882,7 +882,7 @@ export const REPORT_TOOL_SCHEMA = {
       market_context: {
         type: ["object", "null"],
         description:
-          "Market context for the unit's sub-segment: median pricing, days on market, mortgage rate environment, monthly carrying cost, and comparable units. Optional — populate when the documents + analyzer's knowledge are sufficient.",
+          "Market context for the unit's sub-segment: median pricing, days on market, mortgage rate environment, monthly carrying cost, and comparable units. Optional, populate when the documents + analyzer's knowledge are sufficient.",
         properties: {
           summary: {
             type: "string",
@@ -923,7 +923,7 @@ export const REPORT_TOOL_SCHEMA = {
       title_vesting: {
         type: ["object", "null"],
         description:
-          "Title & vesting summary from the preliminary title report. Captures how the unit is vested, liens of note, and recorded matters touching the project. Optional — populate when the prelim title document is in the package.",
+          "Title & vesting summary from the preliminary title report. Captures how the unit is vested, liens of note, and recorded matters touching the project. Optional, populate when the prelim title document is in the package.",
         properties: {
           vesting_summary: {
             type: "string",
@@ -931,11 +931,11 @@ export const REPORT_TOOL_SCHEMA = {
           },
           liens_summary: {
             type: ["string", "null"],
-            description: "Liens of note from the prelim — first deed of trust (lender + original principal), second mortgages, PACE/HERO, mechanic's liens, notices of default.",
+            description: "Liens of note from the prelim, first deed of trust (lender + original principal), second mortgages, PACE/HERO, mechanic's liens, notices of default.",
           },
           recorded_matters: {
             type: ["string", "null"],
-            description: "Recorded matters touching the project — prior litigation settlements, easements (Comcast, PG&E), CC&R recording details, etc.",
+            description: "Recorded matters touching the project, prior litigation settlements, easements (Comcast, PG&E), CC&R recording details, etc.",
           },
         },
         required: ["vesting_summary"],
@@ -994,17 +994,17 @@ export const REPORT_TOOL_SCHEMA = {
           triggered_rule: {
             type: ["string", "null"],
             description:
-              "OPTIONAL — when this finding's severity was upgraded to Critical because it matches an always-CRITICAL rule (FPE_panel, aluminum_wiring, polybutylene, knob_and_tube, active_mold, lead_paint_pre1978_w_children, ABS_recall_era, kitec_plumbing, asbestos_friable, underground_oil_tank, unpermitted_living_area, active_water_intrusion, structural_crack_load_bearing), set this to the short rule identifier. Leave null otherwise. Used for transparency so agents can see which rule fired.",
+              "OPTIONAL, when this finding's severity was upgraded to Critical because it matches an always-CRITICAL rule (FPE_panel, aluminum_wiring, polybutylene, knob_and_tube, active_mold, lead_paint_pre1978_w_children, ABS_recall_era, kitec_plumbing, asbestos_friable, underground_oil_tank, unpermitted_living_area, active_water_intrusion, structural_crack_load_bearing), set this to the short rule identifier. Leave null otherwise. Used for transparency so agents can see which rule fired.",
           },
           cost_responsibility: {
             type: ["string", "null"],
             enum: ["owner", "hoa", "shared", null],
             description:
-              "Who actually pays this bill if the repair gets done. 'owner' = the buyer of this specific unit/property pays out of pocket; 'hoa' = the HOA/condo association covers it from reserves or assessments (the buyer never writes a check); 'shared' = both contribute. Default to 'owner' unless the source documents indicate the work is in a common area, on the building exterior, in shared mechanical systems, or otherwise the HOA's responsibility per the CC&Rs / governing docs. CRITICAL: if cost_responsibility = 'hoa' you must NOT mark the finding Critical based on the cost threshold alone — the dollar amount doesn't hit the buyer's pocket. The finding can still be Critical for an active hazard or insurance/lender blockability.",
+              "Who actually pays this bill if the repair gets done. 'owner' = the buyer of this specific unit/property pays out of pocket; 'hoa' = the HOA/condo association covers it from reserves or assessments (the buyer never writes a check); 'shared' = both contribute. Default to 'owner' unless the source documents indicate the work is in a common area, on the building exterior, in shared mechanical systems, or otherwise the HOA's responsibility per the CC&Rs / governing docs. CRITICAL: if cost_responsibility = 'hoa' you must NOT mark the finding Critical based on the cost threshold alone, the dollar amount doesn't hit the buyer's pocket. The finding can still be Critical for an active hazard or insurance/lender blockability.",
           },
           source_quote: {
             type: ["string", "null"],
-            description: "VERBATIM 1-3 sentence quote from the source document supporting this finding. Renders in a 'From the source document:' quote block on the PDF. Use ellipsis (…) for elided middle text. Don't paraphrase — the quote is what makes the finding auditable against the underlying document.",
+            description: "VERBATIM 1-3 sentence quote from the source document supporting this finding. Renders in a 'From the source document:' quote block on the PDF. Use ellipsis (…) for elided middle text. Don't paraphrase, the quote is what makes the finding auditable against the underlying document.",
           },
           what_it_is: {
             type: ["string", "null"],

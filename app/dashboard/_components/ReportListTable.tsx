@@ -19,7 +19,7 @@ export type ReportRow = {
 // "qa_pending" is the DB status set by performAnalysis the moment Claude
 // finishes. It was originally placed there for a future human-QA gate
 // (someone reviews before the report is marked "delivered" to the agent),
-// but that workflow doesn't exist — nothing in the codebase ever moves
+// but that workflow doesn't exist, nothing in the codebase ever moves
 // a report past qa_pending. So as far as the agent is concerned, qa_pending
 // means "ready to use." Label and tone reflect that. The legacy
 // qa_approved / delivered statuses still get green labels in case the
@@ -44,7 +44,7 @@ type Props = {
   sortKey: SortKey;
   sortDir: SortDir;
   // Base path (e.g. "/dashboard" or "/dashboard/archive") for the
-  // clickable column headers — they preserve the current search but
+  // clickable column headers, they preserve the current search but
   // toggle/replace the sort.
   basePath: string;
   searchQuery: string;
@@ -67,7 +67,7 @@ export function ReportListTable({
     params.set("sort", targetKey);
     // Click the active column to flip direction; click a different
     // column to switch to it with default desc (created/most-recent)
-    // or asc (property/A-Z, status/A-Z) — small UX nicety.
+    // or asc (property/A-Z, status/A-Z), small UX nicety.
     if (sortKey === targetKey) {
       params.set("dir", sortDir === "asc" ? "desc" : "asc");
     } else {
@@ -103,7 +103,7 @@ export function ReportListTable({
               activeDir={sortDir}
               href={sortHref("created")}
             />
-            {/* Actions column has no sort header — just a quiet label.
+            {/* Actions column has no sort header, just a quiet label.
                 Right-aligned so the buttons sit near the screen edge. */}
             <th className="text-right font-semibold px-6 py-3 text-slate-600">
               Actions

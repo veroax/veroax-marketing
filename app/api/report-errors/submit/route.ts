@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // Resolve the user if signed in — auto-attaches their user_id to
+  // Resolve the user if signed in, auto-attaches their user_id to
   // the submission. Public/anonymous submitters skip this step.
   const supabase = await createClient();
   const {

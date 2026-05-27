@@ -10,7 +10,7 @@ export default function CheckoutCancel() {
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-950 via-indigo-900 to-slate-900 text-white px-6 py-24">
       <div className="max-w-lg w-full text-center space-y-6">
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-          No worries — nothing was charged.
+          No worries, nothing was charged.
         </h1>
         <p className="text-indigo-200 leading-relaxed">
           You canceled out of checkout before completing your subscription.

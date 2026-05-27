@@ -85,7 +85,7 @@ export default async function AdminUserDetail({
     } | null;
   };
 
-  // Their reports — most recent 30, plus aggregate counts by status.
+  // Their reports, most recent 30, plus aggregate counts by status.
   const [{ data: reportsData }, { data: statusBuckets }] = await Promise.all([
     admin
       .from("reports")

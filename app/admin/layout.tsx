@@ -1,13 +1,13 @@
 // Admin shell. Two gates: middleware authenticates the user, the layout
 // then redirects non-admins back to /dashboard. The redirect on this
-// layout is the canonical access check — individual page files inside
+// layout is the canonical access check, individual page files inside
 // /admin assume the layout has already gated.
 //
 // Visual chrome deliberately mirrors the dashboard's sidebar (so admins
 // don't get disoriented switching contexts) but adds a bold "ADMIN"
 // eyebrow so it's obvious which surface you're on. The sidebar uses a
 // red accent for the eyebrow because admin actions on this section can
-// span all users — destructive operations need visual heat.
+// span all users, destructive operations need visual heat.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -139,7 +139,7 @@ export default async function AdminLayout({
           </form>
         </header>
 
-        {/* Admin-mode banner — narrow strip at the top of every admin
+        {/* Admin-mode banner, narrow strip at the top of every admin
             page so an admin who lands here from a deep link knows
             they're in a privileged surface. */}
         <div className="bg-red-50 border-b border-red-200 px-6 py-2 text-xs text-red-900 flex items-center gap-2">

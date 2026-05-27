@@ -4,7 +4,7 @@
 //
 // Purpose: ground Claude's repair-cost estimates in defensible
 // California regional baselines so the numbers the agent hands to
-// their client are realistic for the property's actual market —
+// their client are realistic for the property's actual market ,
 // not a generic "Bay Area default" applied to a Fresno listing or
 // vice versa.
 //
@@ -26,7 +26,7 @@
 // IMPORTANT: these are BASELINES for typical scope. Finding-specific
 // scope drives the actual estimate. A "sewer lateral" line at
 // $15,000 doesn't mean every sewer-related finding gets that
-// number — it means a typical full-length residential replacement
+// number, it means a typical full-length residential replacement
 // in the region. A spot repair is cheaper, a deep trenchless run
 // up a steep lot is more.
 //
@@ -76,7 +76,7 @@ const COMMON_REPAIR_KEYS = [
 
 export const CALIFORNIA_MARKETS: Record<string, MarketReference> = {
   // ===========================================================================
-  // Bay Area — Silicon Valley (Santa Clara, San Mateo, southern Alameda)
+  // Bay Area, Silicon Valley (Santa Clara, San Mateo, southern Alameda)
   // ===========================================================================
   // Highest labor market in the state. South Bay rates anchor here;
   // mid-Peninsula trends slightly higher on premium-home work.
@@ -111,7 +111,7 @@ export const CALIFORNIA_MARKETS: Record<string, MarketReference> = {
   },
 
   // ===========================================================================
-  // Bay Area — East Bay (Oakland, Berkeley, Hayward, Pleasanton, Walnut Creek)
+  // Bay Area, East Bay (Oakland, Berkeley, Hayward, Pleasanton, Walnut Creek)
   // ===========================================================================
   bay_area_east: {
     slug: "bay_area_east",
@@ -184,7 +184,7 @@ export const CALIFORNIA_MARKETS: Record<string, MarketReference> = {
     label: "Central Valley",
     last_updated: "2026-05-21",
     source_notes:
-      "Fresno / Bakersfield contractor surveys. CA's most affordable labor market — typically 30-40% below Silicon Valley rates.",
+      "Fresno / Bakersfield contractor surveys. CA's most affordable labor market, typically 30-40% below Silicon Valley rates.",
     labor_indices: {
       contractor_hourly: { low: 95, high: 165 },
       electrician_hourly: { low: 80, high: 140 },
@@ -210,7 +210,7 @@ export const CALIFORNIA_MARKETS: Record<string, MarketReference> = {
   },
 
   // ===========================================================================
-  // Greater LA — Westside (Santa Monica, Beverly Hills, West LA, Manhattan Beach)
+  // Greater LA, Westside (Santa Monica, Beverly Hills, West LA, Manhattan Beach)
   // ===========================================================================
   greater_la_westside: {
     slug: "greater_la_westside",
@@ -243,7 +243,7 @@ export const CALIFORNIA_MARKETS: Record<string, MarketReference> = {
   },
 
   // ===========================================================================
-  // Greater LA — Inland (San Fernando Valley, Pasadena, Glendale, Burbank, Inland Empire)
+  // Greater LA, Inland (San Fernando Valley, Pasadena, Glendale, Burbank, Inland Empire)
   // ===========================================================================
   greater_la_inland: {
     slug: "greater_la_inland",
@@ -276,7 +276,7 @@ export const CALIFORNIA_MARKETS: Record<string, MarketReference> = {
   },
 
   // ===========================================================================
-  // San Diego — Coastal (La Jolla, Del Mar, Encinitas, downtown SD, Coronado)
+  // San Diego, Coastal (La Jolla, Del Mar, Encinitas, downtown SD, Coronado)
   // ===========================================================================
   san_diego_coastal: {
     slug: "san_diego_coastal",
@@ -381,7 +381,7 @@ export const CALIFORNIA_MARKETS: Record<string, MarketReference> = {
 //
 // Free-form fuzzy-match a region/address hint to the best matching
 // market entry. Returns Bay Area / Silicon Valley as the default
-// when no signal — that's the most expensive market and biases
+// when no signal, that's the most expensive market and biases
 // over-estimates upward, which is safer for the buyer.
 
 const DEFAULT_MARKET_SLUG = "bay_area_silicon_valley";
@@ -432,14 +432,14 @@ export function selectMarketReference(
 //
 // Renders the selected market reference as a compact text block that
 // the focused-pass system prompt can append. Numbers laid out as a
-// readable table — Claude does fine with ASCII tables and they
+// readable table, Claude does fine with ASCII tables and they
 // compress more cleanly into tokens than JSON.
 
 export function formatMarketReferenceForPrompt(
   ref: MarketReference,
 ): string {
   const lines: string[] = [];
-  lines.push(`REGIONAL PRICING REFERENCE — ${ref.label} (last refreshed ${ref.last_updated})`);
+  lines.push(`REGIONAL PRICING REFERENCE, ${ref.label} (last refreshed ${ref.last_updated})`);
   lines.push(`Source notes: ${ref.source_notes}`);
   lines.push("");
   lines.push("Labor indices (USD per hour):");

@@ -59,7 +59,7 @@ export async function GET(
   // when null we compose from the FK.
   const folder = report.source_file_path ?? `${report.user_id}/${reportId}`;
 
-  // Defensive filename check — block traversal attempts.
+  // Defensive filename check, block traversal attempts.
   if (filename.includes("/") || filename.includes("..") || filename.length > 200) {
     return NextResponse.json(
       { error: "Invalid filename." },
@@ -89,7 +89,7 @@ export async function GET(
   // Try exact match first (fast path for citations that happen to be
   // verbatim filenames). Fall through to token-overlap scoring when
   // the citation is human-readable. `candidate` is a minimal
-  // {name: string} shape — Supabase's FileObject and our matcher's
+  // {name: string} shape, Supabase's FileObject and our matcher's
   // return type share that subset.
   let candidate: { name: string } | undefined =
     allFiles.find((f) => f.name === filename) ??

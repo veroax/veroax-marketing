@@ -14,7 +14,7 @@ import type { ReportData } from "@/lib/anthropic/schema";
 // Streams a downloadable PDF for a finished report. Auth-gated by the
 // user-scoped supabase client; only the owner can fetch its PDF.
 // Renders to a Buffer (simpler than streaming) and returns the bytes
-// directly — fast enough for our document sizes (typically <300 KB).
+// directly, fast enough for our document sizes (typically <300 KB).
 
 export const dynamic = "force-dynamic";
 // PDF rendering can take a few seconds for long reports.
@@ -26,7 +26,7 @@ export async function GET(
 ) {
   const { id: reportId } = await context.params;
 
-  // ?version=N — render a previously-snapshotted version instead of the
+  // ?version=N, render a previously-snapshotted version instead of the
   // current report. The frontend wraps this URL with a confirmation
   // modal so the agent has to explicitly affirm they're downloading a
   // superseded version. Server still validates the param + bounds.
@@ -54,7 +54,7 @@ export async function GET(
     }
     if (!report.report_data) {
       return new Response(
-        "Report has no analysis data yet — wait for the analysis to finish before downloading.",
+        "Report has no analysis data yet, wait for the analysis to finish before downloading.",
         { status: 409 },
       );
     }
@@ -75,7 +75,7 @@ export async function GET(
     if (!profile?.brokerage?.trim()) missing.push("brokerage");
     if (missing.length > 0) {
       return new Response(
-        `Complete your agent profile before downloading reports — missing ${missing.join(", ")}. Visit /dashboard/settings to add them.`,
+        `Complete your agent profile before downloading reports, missing ${missing.join(", ")}. Visit /dashboard/settings to add them.`,
         { status: 412 },
       );
     }
@@ -148,7 +148,7 @@ export async function GET(
       }
       if (!match.report_data) {
         return new Response(
-          `Version ${requestedVersion} has no report data — it was snapshotted before the first analysis completed.`,
+          `Version ${requestedVersion} has no report data, it was snapshotted before the first analysis completed.`,
           { status: 409 },
         );
       }
@@ -158,7 +158,7 @@ export async function GET(
     const reportData = (snapshotInUse?.report_data ?? report.report_data) as ReportData;
     // Source of truth for the cover address is the disclosure documents
     // themselves (property_snapshot.address). property_address is now
-    // deprecated as user-input — we only keep it as a last-resort
+    // deprecated as user-input, we only keep it as a last-resort
     // fallback for legacy reports that pre-date the new upload form.
     const propertyAddress =
       reportData.property_snapshot?.address ??
@@ -184,7 +184,7 @@ export async function GET(
     ) as unknown;
     // Legacy reports persisted original_files without uploaded_at.
     // Fall back to the report's created_at so the new "Uploaded" line
-    // in the Document Inventory section always shows a date — original
+    // in the Document Inventory section always shows a date, original
     // upload predates the per-file timestamp feature.
     const fallbackUploadedAt =
       typeof (report as { created_at?: unknown }).created_at === "string"

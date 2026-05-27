@@ -2,13 +2,13 @@
 -- profiles. Both are nullable-with-default and idempotent, so re-runs
 -- are harmless.
 --
---   reports.archived       boolean  default false — drives the
+--   reports.archived       boolean  default false, drives the
 --                                                   /dashboard vs.
 --                                                   /dashboard/archive
 --                                                   split
---   reports.archived_at    timestamptz nullable — set on archive,
+--   reports.archived_at    timestamptz nullable, set on archive,
 --                                                  cleared on restore
---   profiles.is_admin      boolean  default false — manually flipped
+--   profiles.is_admin      boolean  default false, manually flipped
 --                                                   in SQL by the
 --                                                   product owner;
 --                                                   future: an admin

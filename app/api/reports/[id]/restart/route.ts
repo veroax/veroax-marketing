@@ -33,7 +33,7 @@ export async function POST(
   if (!["analyzing", "failed"].includes(report.status)) {
     return NextResponse.json(
       {
-        error: `Report is ${report.status} — restarting would discard the existing analysis.`,
+        error: `Report is ${report.status}, restarting would discard the existing analysis.`,
         status: report.status,
       },
       { status: 409 },

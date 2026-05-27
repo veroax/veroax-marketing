@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth/require";
 //
 // Returns the report's public share code, generating one on demand
 // when the report doesn't yet have one. Used by the dashboard's
-// "Copy share link" button — agents only see this after the analysis
+// "Copy share link" button, agents only see this after the analysis
 // has completed, but legacy reports (created before commit X) won't
 // have had a share code auto-assigned at completion. This endpoint
 // gives them one without requiring a full re-run.

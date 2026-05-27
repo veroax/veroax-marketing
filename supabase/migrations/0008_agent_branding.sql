@@ -7,37 +7,37 @@
 --
 -- Columns added to public.profiles:
 --
---   brokerage_logo_url  text — public URL for the brokerage's logo.
+--   brokerage_logo_url  text, public URL for the brokerage's logo.
 --                              Rendered prominently on the PDF cover
 --                              and again in the page footer.
 --
---   headshot_url        text — public URL for the agent's headshot.
+--   headshot_url        text, public URL for the agent's headshot.
 --                              36×36pt thumbnail in the cover's
 --                              "Prepared By" panel.
 --
---   brand_accent_hex    text — six-char hex (e.g. '#0F766E') that
+--   brand_accent_hex    text, six-char hex (e.g. '#0F766E') that
 --                              REPLACES the Veroax gold #C9A84C on
 --                              the cover accent bar, eyebrow text,
 --                              and "Prepared By" label. Null = use
 --                              the gold default. We only store the
---                              hex, never a theme name — the picker
+--                              hex, never a theme name, the picker
 --                              is purely a UI helper.
 --
---   tagline             text — short subtitle under the agent's name
+--   tagline             text, short subtitle under the agent's name
 --                              on the cover (e.g. "Bay Area Buyer's
 --                              Agent · 15 years").
 --
---   website_url         text — agent's site, rendered in the page
+--   website_url         text, agent's site, rendered in the page
 --                              footer and as a link in HTML emails.
 --
---   scheduling_url      text — Calendly/Cal.com style URL. Surfaces
+--   scheduling_url      text, Calendly/Cal.com style URL. Surfaces
 --                              as "Schedule a call: …" in the seeded
 --                              client email body when set.
 --
---   office_address      text — multi-line address, rendered in the
+--   office_address      text, multi-line address, rendered in the
 --                              page footer beneath the DRE row.
 --
---   email_signature     text — when set, REPLACES the auto-generated
+--   email_signature     text, when set, REPLACES the auto-generated
 --                              agent signature in the seeded client
 --                              email. The PDF cover always uses the
 --                              structured Name/Brokerage/DRE fields;
@@ -70,7 +70,7 @@ values ('branding', 'branding', true)
 on conflict (id) do update
   set public = excluded.public;
 
--- Anyone can READ — needed for React-PDF and for the dashboard preview.
+-- Anyone can READ, needed for React-PDF and for the dashboard preview.
 drop policy if exists "branding_select_public" on storage.objects;
 create policy "branding_select_public"
   on storage.objects for select

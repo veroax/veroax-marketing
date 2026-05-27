@@ -7,7 +7,7 @@
 --
 -- The subscriptions table from 0001_initial_schema.sql already carries
 -- plan, billing, status, reports_included, current_period_start,
--- current_period_end — no changes needed there. The webhook handler
+-- current_period_end, no changes needed there. The webhook handler
 -- in app/api/webhook/route.ts is updated separately to actually
 -- write to that table on checkout.session.completed and
 -- customer.subscription.{updated,deleted}.
@@ -22,13 +22,13 @@ alter table public.profiles
   add column if not exists stripe_customer_id text;
 
 -- Trial: every new signup gets 1 free trial credit. Reports created
--- with a trial credit produce a watermarked PDF — the agent can see
+-- with a trial credit produce a watermarked PDF, the agent can see
 -- the quality but can't ship the report to their client until they
 -- subscribe.
 --
 -- report_credits_balance: one-off pay-as-you-go purchases. Consumed
 -- AFTER subscription credits are exhausted in the current period.
--- Doesn't expire — these are credits the agent paid for cash.
+-- Doesn't expire, these are credits the agent paid for cash.
 --
 -- stripe_customer_id: stable Stripe customer reference so we can
 -- create portal sessions, look up subscriptions, etc. Synced by the
@@ -41,7 +41,7 @@ create unique index if not exists profiles_stripe_customer_id_unique
 -- ============================================================================
 -- 2. report_credit_ledger: full audit trail of credits
 -- ============================================================================
--- Optional but recommended — every grant and consumption gets a row.
+-- Optional but recommended, every grant and consumption gets a row.
 -- The balance helpers in /lib/billing/credits.ts compute current
 -- state from this ledger + subscription period + profile balance.
 
@@ -78,7 +78,7 @@ create policy "ledger_select_own"
 -- doesn't count against the agent's monthly quota).
 --
 -- watermarked: set true when the consumed credit was a trial credit.
--- The PDF renderer reads this and overlays a "SAMPLE — VEROAX TRIAL"
+-- The PDF renderer reads this and overlays a "SAMPLE, VEROAX TRIAL"
 -- watermark on every page. Agents see what they're buying without
 -- being able to ship a real client deliverable on the free trial.
 
@@ -104,6 +104,6 @@ create index if not exists subscriptions_price_id_idx
 
 -- ============================================================================
 -- 4. Trial-credit grant on new profile (handled by the existing
---    on-signup trigger from 0001_initial_schema.sql — it inserts a
+--    on-signup trigger from 0001_initial_schema.sql, it inserts a
 --    new profile row which gets trial_credits_remaining=1 by default).
 -- ============================================================================
