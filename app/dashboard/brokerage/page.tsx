@@ -19,6 +19,7 @@ import {
   getCurrentUserBrokerageContext,
   isBrokerageAdmin,
 } from "@/lib/brokerage/admin";
+import { RosterManager } from "./_components/RosterManager";
 
 export const metadata = {
   title: "Brokerage, Veroax",
@@ -83,21 +84,28 @@ export default async function DashboardBrokeragePage() {
   const admin = createServiceRoleClient();
 
   // Roster + usage queries.
-  const [adminsRes, teamsRes, directAgentsRes] = await Promise.all([
-    admin
-      .from("brokerage_admins")
-      .select("user_id, role, joined_at")
-      .eq("brokerage_id", brokerage.id),
-    admin
-      .from("teams")
-      .select("id, name, slug, owner_user_id, created_at")
-      .eq("brokerage_id", brokerage.id)
-      .order("created_at", { ascending: true }),
-    admin
-      .from("brokerage_agents")
-      .select("user_id, joined_at")
-      .eq("brokerage_id", brokerage.id),
-  ]);
+  const [adminsRes, teamsRes, directAgentsRes, invitesRes] =
+    await Promise.all([
+      admin
+        .from("brokerage_admins")
+        .select("user_id, role, joined_at")
+        .eq("brokerage_id", brokerage.id),
+      admin
+        .from("teams")
+        .select("id, name, slug, owner_user_id, created_at")
+        .eq("brokerage_id", brokerage.id)
+        .order("created_at", { ascending: true }),
+      admin
+        .from("brokerage_agents")
+        .select("user_id, joined_at")
+        .eq("brokerage_id", brokerage.id),
+      admin
+        .from("brokerage_invites")
+        .select("id, email, role, team_id, created_at, expires_at")
+        .eq("brokerage_id", brokerage.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false }),
+    ]);
 
   const adminRows = (adminsRes.data ?? []) as Array<{
     user_id: string;
@@ -115,27 +123,50 @@ export default async function DashboardBrokeragePage() {
     user_id: string;
     joined_at: string;
   }>;
+  const inviteRows = (invitesRes.data ?? []) as Array<{
+    id: string;
+    email: string;
+    role: string;
+    team_id: string | null;
+    created_at: string;
+    expires_at: string;
+  }>;
 
-  // Per-team member counts.
-  let teamMembersByTeam = new Map<string, number>();
+  // Full team-membership rows so the manager UI can list each agent
+  // with their team affiliation and seed the transfer-owner dropdown.
+  let allTeamMembers: Array<{
+    team_id: string;
+    user_id: string;
+    role: "owner" | "admin" | "agent";
+  }> = [];
   if (teamRows.length > 0) {
     const { data: tm } = await admin
       .from("team_members")
-      .select("team_id")
+      .select("team_id, user_id, role")
       .in(
         "team_id",
         teamRows.map((t) => t.id),
       );
-    const tmRows = (tm ?? []) as Array<{ team_id: string }>;
-    teamMembersByTeam = tmRows.reduce((map, row) => {
-      map.set(row.team_id, (map.get(row.team_id) ?? 0) + 1);
-      return map;
-    }, new Map<string, number>());
+    allTeamMembers = (tm ?? []) as Array<{
+      team_id: string;
+      user_id: string;
+      role: "owner" | "admin" | "agent";
+    }>;
   }
 
-  const totalSeatsUsed =
-    directAgentRows.length +
-    Array.from(teamMembersByTeam.values()).reduce((a, b) => a + b, 0);
+  const teamMembersByTeam = new Map<string, number>();
+  for (const m of allTeamMembers) {
+    teamMembersByTeam.set(
+      m.team_id,
+      (teamMembersByTeam.get(m.team_id) ?? 0) + 1,
+    );
+  }
+
+  // Seat-count math: archived agents do NOT count toward the seat
+  // limit. We resolve archived_at after fetching profiles below and
+  // subtract them from the active total.
+  const grossSeatsUsed =
+    directAgentRows.length + allTeamMembers.length;
 
   // Reports usage for the current month (UTC start of month).
   const periodStart = new Date();
@@ -167,12 +198,15 @@ export default async function DashboardBrokeragePage() {
     team_id: string | null;
   }>;
 
-  // Profile lookup for all rosters.
+  // Profile lookup for all rosters. Now also fetches archived_at +
+  // archived_scope so the manager UI can render the archived
+  // section + skip archived agents from the seat-count math.
   const userIds = Array.from(
     new Set<string>([
       ...adminRows.map((a) => a.user_id),
       ...directAgentRows.map((a) => a.user_id),
       ...teamRows.map((t) => t.owner_user_id),
+      ...allTeamMembers.map((m) => m.user_id),
       ...recentReports.map((r) => r.user_id),
     ]),
   );
@@ -180,20 +214,111 @@ export default async function DashboardBrokeragePage() {
     userIds.length > 0
       ? await admin
           .from("profiles")
-          .select("id, email, full_name")
+          .select(
+            "id, email, full_name, archived_at, archived_scope",
+          )
           .in("id", userIds)
-      : { data: [] as Array<{ id: string; email: string; full_name: string | null }> };
+      : { data: [] as Array<{ id: string; email: string; full_name: string | null; archived_at: string | null; archived_scope: string | null }> };
   const profileMap = new Map<
     string,
-    { id: string; email: string; full_name: string | null }
+    {
+      id: string;
+      email: string;
+      full_name: string | null;
+      archived_at: string | null;
+      archived_scope: "brokerage" | "site" | null;
+    }
   >();
   for (const p of (profilesData ?? []) as Array<{
     id: string;
     email: string;
     full_name: string | null;
+    archived_at: string | null;
+    archived_scope: "brokerage" | "site" | null;
   }>) {
     profileMap.set(p.id, p);
   }
+
+  // Seat-count net of archived agents (matches the SeatLimit
+  // calculation we want to display to the brokerage admin).
+  const archivedSeatCount = [
+    ...allTeamMembers,
+    ...directAgentRows,
+  ].filter((m) => profileMap.get(m.user_id)?.archived_at).length;
+  const totalSeatsUsed = grossSeatsUsed - archivedSeatCount;
+
+  // Build the RosterAgent[] flat list for RosterManager. Combines
+  // team_members + direct agents. Each agent gets:
+  //   team_id / team_name (null for direct agents)
+  //   role_label (the team role or "Direct agent")
+  //   is_team_owner (team.owner_user_id === user_id)
+  //   archived_at + archived_scope (from profile)
+  const teamById = new Map(teamRows.map((t) => [t.id, t]));
+  const rosterAgents: Array<{
+    user_id: string;
+    full_name: string | null;
+    email: string;
+    role_label: string;
+    team_id: string | null;
+    team_name: string | null;
+    is_team_owner: boolean;
+    archived_at: string | null;
+    archived_scope: "brokerage" | "site" | null;
+  }> = [];
+
+  for (const m of allTeamMembers) {
+    const p = profileMap.get(m.user_id);
+    if (!p) continue;
+    const t = teamById.get(m.team_id);
+    rosterAgents.push({
+      user_id: m.user_id,
+      full_name: p.full_name,
+      email: p.email,
+      role_label:
+        m.role === "owner"
+          ? "Team owner"
+          : m.role === "admin"
+            ? "Team admin"
+            : "Team agent",
+      team_id: m.team_id,
+      team_name: t?.name ?? null,
+      is_team_owner: t?.owner_user_id === m.user_id,
+      archived_at: p.archived_at,
+      archived_scope: p.archived_scope,
+    });
+  }
+  for (const a of directAgentRows) {
+    const p = profileMap.get(a.user_id);
+    if (!p) continue;
+    rosterAgents.push({
+      user_id: a.user_id,
+      full_name: p.full_name,
+      email: p.email,
+      role_label: "Direct agent",
+      team_id: null,
+      team_name: null,
+      is_team_owner: false,
+      archived_at: p.archived_at,
+      archived_scope: p.archived_scope,
+    });
+  }
+
+  // Compose RosterTeam[] for the transfer-owner UI.
+  const rosterTeams = teamRows.map((t) => ({
+    id: t.id,
+    name: t.name,
+    owner_user_id: t.owner_user_id,
+    members: allTeamMembers
+      .filter((m) => m.team_id === t.id)
+      .map((m) => {
+        const p = profileMap.get(m.user_id);
+        return {
+          user_id: m.user_id,
+          full_name: p?.full_name ?? null,
+          email: p?.email ?? "",
+        };
+      }),
+  }));
 
   return (
     <div className="space-y-8">
@@ -225,84 +350,15 @@ export default async function DashboardBrokeragePage() {
         />
       </section>
 
-      {/* Teams */}
-      <section>
-        <h2 className="text-xs font-bold tracking-widest text-slate-700 uppercase mb-3">
-          Teams in this brokerage
-        </h2>
-        {teamRows.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 text-sm text-slate-500">
-            No teams yet. Your site admin can invite team owners from
-            the brokerage detail page.
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
-            <table className="w-full text-sm min-w-[480px]">
-              <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
-                <tr>
-                  <th className="text-left font-semibold px-5 py-3">Team</th>
-                  <th className="text-left font-semibold px-5 py-3">Owner</th>
-                  <th className="text-left font-semibold px-5 py-3">Members</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {teamRows.map((t) => {
-                  const owner = profileMap.get(t.owner_user_id);
-                  return (
-                    <tr key={t.id}>
-                      <td className="px-5 py-3 text-slate-900 font-medium">
-                        {t.name}
-                      </td>
-                      <td className="px-5 py-3 text-slate-700">
-                        {owner?.full_name?.trim() ||
-                          owner?.email ||
-                          t.owner_user_id.slice(0, 8)}
-                      </td>
-                      <td className="px-5 py-3 text-slate-700">
-                        {teamMembersByTeam.get(t.id) ?? 0}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* Direct agents */}
-      {directAgentRows.length > 0 ? (
-        <section>
-          <h2 className="text-xs font-bold tracking-widest text-slate-700 uppercase mb-3">
-            Direct agents (no team)
-          </h2>
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <ul className="divide-y divide-slate-100">
-              {directAgentRows.map((a) => {
-                const p = profileMap.get(a.user_id);
-                return (
-                  <li
-                    key={a.user_id}
-                    className="px-5 py-3 flex items-center justify-between"
-                  >
-                    <div>
-                      <p className="font-medium text-slate-900">
-                        {p?.full_name?.trim() ||
-                          p?.email ||
-                          a.user_id.slice(0, 8)}
-                      </p>
-                      <p className="text-[11px] text-slate-500">{p?.email}</p>
-                    </div>
-                    <p className="text-[10px] text-slate-400">
-                      {new Date(a.joined_at).toLocaleDateString()}
-                    </p>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </section>
-      ) : null}
+      {/* Interactive roster manager. Replaces the previous read-only
+          teams + direct-agents sections. Handles per-agent archive,
+          bulk archive, team-owner transfer, invite revocation, and
+          the collapsed archived-agents section. */}
+      <RosterManager
+        agents={rosterAgents}
+        teams={rosterTeams}
+        pendingInvites={inviteRows}
+      />
 
       {/* Recent reports */}
       <section>
