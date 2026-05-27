@@ -217,39 +217,20 @@ export async function analyzeDisclosurePackage(
     output_tokens: number;
   }> = [];
 
-  // Live market-context fetch, runs in parallel with the focused
-  // passes via Claude's web_search tool. Hits real-time data sources
-  // for mortgage rates, segment median pricing, and comparable
-  // sales. Failure-tolerant: returns null and the synthesizer falls
-  // back to whatever the focused passes produced (typically nothing).
-  //
-  // We kick this off BEFORE the focused passes so it has the
-  // longest budget to run in parallel; the await happens after
-  // groupPromises so total wall-clock is max(focused, market) not
-  // sum.
-  const firstDocPass = (input.groups.seller_disclosures ?? [])[0];
-  const marketContextPromise = (async () => {
-    try {
-      return await fetchMarketContext({
-        propertyAddress: input.propertyAddressHint ?? null,
-        marketRegion: null, // synthesizer will set from focused passes later
-        propertyType: null,
-        bedrooms: null,
-        bathrooms: null,
-        squareFeet: null,
-        listPrice: null,
-      });
-    } catch {
-      return null;
-    } finally {
-      // Helper so we don't accidentally leave this dangling, the
-      // value is awaited after groupPromises below.
-      void firstDocPass;
-    }
-  })();
-
   // For each group that has documents, run focused pass(es). Groups can
   // run in parallel.
+  //
+  // Live market-context used to fire IN PARALLEL with the focused
+  // passes, with all metadata fields (property_type, bedrooms,
+  // bathrooms, square_feet, list_price) hardcoded to null. That meant
+  // Claude only had the address string to work with and was prone
+  // to fabricating comps from prompt examples. Now market-context
+  // runs AFTER focused passes complete, seeded with the real
+  // property_facts the focused passes extracted. Costs us 4 to 6
+  // minutes of wall-clock time we used to claw back in parallelism,
+  // but the focused-pass wall clock typically sits at 3 to 5 minutes
+  // and the new market-context cap is 240s, so the total still fits
+  // inside the 800s Vercel maxDuration with comfortable margin.
   const groupKeys: PassGroup[] = ["seller_disclosures", "inspections", "hoa", "hazards"];
   const groupPromises = groupKeys
     .filter((g) => (input.groups[g] ?? []).length > 0)
@@ -293,11 +274,20 @@ export async function analyzeDisclosurePackage(
   const all = (await Promise.all(groupPromises)).flat();
   passResults.push(...all);
 
-  // Resolve the market-context promise that's been running in
-  // parallel since the start. If web_search failed or timed out
-  // this is null and the synthesizer falls back to whatever the
-  // focused passes produced (usually nothing).
-  const liveMarketContext = await marketContextPromise.catch(() => null);
+  // Now run market-context with the real property metadata the
+  // focused passes extracted. Pick the first non-null value across
+  // passes for each metadata field, the focused passes typically
+  // converge on the same answers for these basic facts.
+  const facts = pickFirstFacts(passResults.map((p) => p.analysis));
+  const liveMarketContext = await fetchMarketContext({
+    propertyAddress: input.propertyAddressHint ?? null,
+    marketRegion: facts.market_region ?? null,
+    propertyType: facts.property_type ?? null,
+    bedrooms: facts.bedrooms ?? null,
+    bathrooms: facts.bathrooms ?? null,
+    squareFeet: facts.square_feet ?? null,
+    listPrice: facts.list_price ?? null,
+  }).catch(() => null);
 
   // Synthesis pass, deterministic code, not a Claude call.
   // Observed in production: the Claude-driven synthesis call hung
@@ -1019,10 +1009,12 @@ function synthesizeReportInCode(
   const hoaFinancialFacts =
     focused.find((p) => p.hoa_financial_facts && p.hoa_financial_facts.length > 0)
       ?.hoa_financial_facts ?? null;
-  const hoaReserveHealthRead =
-    focused.find((p) => p.hoa_reserve_health_read)?.hoa_reserve_health_read ?? null;
-  const hoaWatchItems =
-    focused.find((p) => p.hoa_watch_items)?.hoa_watch_items ?? null;
+  const hoaReserveHealthRead = cleanEditorialString(
+    focused.find((p) => p.hoa_reserve_health_read)?.hoa_reserve_health_read,
+  );
+  const hoaWatchItems = cleanEditorialString(
+    focused.find((p) => p.hoa_watch_items)?.hoa_watch_items,
+  );
   const hoaBase = hoaSource?.hoa_facts
     ? {
         ...hoaSource.hoa_facts,
@@ -1182,11 +1174,12 @@ function synthesizeReportInCode(
   // Findings. This matches what the reader sees in the report: the
   // rating reflects findings the BUYER faces, not building-wide HOA
   // business we already redirected into the HOA section.
-  const ratingWhyText =
-    focused.find((p) => p.overall_rating_why)?.overall_rating_why ?? null;
-  const ratingConditionsText =
-    focused.find((p) => p.overall_rating_conditions)?.overall_rating_conditions ??
-    null;
+  const ratingWhyText = cleanEditorialString(
+    focused.find((p) => p.overall_rating_why)?.overall_rating_why,
+  );
+  const ratingConditionsText = cleanEditorialString(
+    focused.find((p) => p.overall_rating_conditions)?.overall_rating_conditions,
+  );
   const baseRating = determineOverallRating({
     criticalCount: criticalFindings.filter((f) => f.severity === "critical")
       .length,
@@ -1649,6 +1642,75 @@ function mentionsActiveHazardOrInsuranceBlock(text: string): boolean {
   );
 }
 
+// Treat common no-data sentinels as actually empty.
+//
+// Background: Claude occasionally returns the literal string "null"
+// (four characters) for editorial paragraph fields it can't fill in,
+// rather than returning JSON null. The PDF renderer's truthiness
+// check ({field ? ... : null}) lets "null" through and the agent
+// sees "Why this rating: null" rendered literally in the report.
+// Filter sentinels at the synthesis step so EVERY render path
+// (PDF download, public share, email attachment) benefits.
+//
+// Casing-insensitive. Trims first so "  null  " also catches.
+function cleanEditorialString(
+  value: string | null | undefined,
+): string | null {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  if (trimmed.length === 0) return null;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === "null" ||
+    lower === "none" ||
+    lower === "n/a" ||
+    lower === "na" ||
+    lower === "undefined" ||
+    lower === "tbd" ||
+    lower === "unknown"
+  ) {
+    return null;
+  }
+  return trimmed;
+}
+
+// Pick the first non-null value across all focused-pass property_facts
+// for each canonical metadata field. Used to seed the market-context
+// fetch with the property characteristics the focused passes extracted.
+// Returns a partial property_snapshot (only fields present in at least
+// one pass).
+function pickFirstFacts(
+  focused: FocusedAnalysis[],
+): Partial<ReportData["property_snapshot"]> {
+  const out: Record<string, unknown> = {};
+  const keys: Array<keyof ReportData["property_snapshot"]> = [
+    "property_type",
+    "year_built",
+    "square_feet",
+    "bedrooms",
+    "bathrooms",
+    "list_price",
+    "days_on_market",
+    "market_region",
+    "apn",
+    "mls_number",
+    "list_date",
+    "list_status",
+    "parking",
+    "hoa_dues_monthly",
+  ];
+  for (const pass of focused) {
+    const facts = pass.property_facts;
+    if (!facts) continue;
+    for (const key of keys) {
+      if (out[key as string] == null && facts[key as keyof typeof facts] != null) {
+        out[key as string] = facts[key as keyof typeof facts];
+      }
+    }
+  }
+  return out as Partial<ReportData["property_snapshot"]>;
+}
+
 function mergeProperty(
   focused: FocusedAnalysis[],
   hint: string | null,
@@ -1704,6 +1766,35 @@ function mergeProperty(
   if (!merged.cost_reference_market) {
     merged.cost_reference_market = "California Bay Area / Silicon Valley";
   }
+
+  // Internal-consistency check: list_date + days_on_market must roughly
+  // line up. The 1544 San Antonio St report shipped with list_date
+  // 3/19/2026 (actually the SPQ signature date) + days_on_market 2 +
+  // analysis date 5/27/2026, which is mathematically impossible (2-day
+  // DOM with a 2.3-month-old list date). When the two disagree by more
+  // than a 3-day fudge factor, we trust days_on_market and null out
+  // list_date so the agent isn't shown a fabricated combination. The
+  // synthesizer's completeness_audit also surfaces the disagreement
+  // when populated.
+  if (merged.list_date && merged.days_on_market != null) {
+    const listMs = Date.parse(String(merged.list_date));
+    if (Number.isFinite(listMs)) {
+      const inferredDom = Math.floor(
+        (Date.now() - listMs) / (24 * 60 * 60 * 1000),
+      );
+      const reportedDom = Number(merged.days_on_market);
+      if (
+        Number.isFinite(reportedDom) &&
+        Math.abs(inferredDom - reportedDom) > 3
+      ) {
+        console.warn(
+          `[analyze] property_snapshot consistency: list_date ${merged.list_date} and days_on_market ${reportedDom} disagree (inferred ${inferredDom}); nulling list_date to avoid showing a fabricated combination`,
+        );
+        merged.list_date = null;
+      }
+    }
+  }
+
   return merged;
 }
 

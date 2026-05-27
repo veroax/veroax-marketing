@@ -90,26 +90,55 @@ const MARKET_CONTEXT_TOOL = {
   },
 };
 
+// CRITICAL PROMPT-DESIGN NOTE: do not include specific addresses,
+// complex names, or county names as "example" searches in this
+// system prompt. Earlier versions of this prompt used real strings
+// like "945 Catkin Ct" and "Sierra Crest condo" as examples; the
+// model parroted them back as if they were real comps for whatever
+// property it was actually analyzing. The 1544 San Antonio St
+// Menlo Park report shipped with hallucinated "Sierra Crest"
+// comps because of this exact pattern.
+//
+// Rule going forward: search examples MUST use placeholder tokens,
+// never real address fragments. Same rule applies to county names.
 const MARKET_CONTEXT_SYSTEM = `You are the market-context researcher for Veroax, an AI-powered disclosure analysis tool for California real estate transactions.
 
-Your job is to gather LIVE market data for the buyer's unit using web search, then submit it via the submit_market_context tool. You have access to the web_search tool, use it.
+Your job is to gather LIVE market data for the SPECIFIC property described in the user message using web search, then submit it via the submit_market_context tool. You have access to the web_search tool, use it.
 
 What to search for:
-1. Current 30-year fixed mortgage rates in California (Bankrate, NerdWallet, Mortgage News Daily today).
-2. Median price + days-on-market for the unit's segment. Search like: "Santa Clara County 1-bedroom condo median price 2026" or "Bay Area condo sales May 2026".
-3. Comparable sales, within the same complex + adjacent buildings. Search like: "945 Catkin Ct San Jose recent sales" or "Sierra Crest condo sold prices San Jose".
-4. Calculate the monthly carrying cost at the list price assuming 20% down, the current 30-year fixed rate range, and the disclosed HOA dues + estimated property tax at the new reassessed value (1.25% of list price annually divided by 12).
+1. Current 30-year fixed mortgage rates in California. Source from Bankrate, NerdWallet, Mortgage News Daily, or similar live-rate aggregators.
+2. Median price and median days-on-market for the unit's specific segment in the unit's actual county. Build the query from the property metadata you were given (county name, property type, bedroom count, current year). Do NOT use county names not present in the user message.
+3. Comparable sales WITHIN THE SAME COMPLEX OR ON THE SAME STREET as the property in the user message. Build queries from the actual street name and city. Do NOT search for streets, complexes, or addresses that weren't in the user message.
+4. Calculate the monthly carrying cost at the list price assuming 20% down, the current 30-year fixed rate range, and the disclosed HOA dues plus estimated property tax at the new reassessed value (1.25% of list price annually divided by 12).
 
-Constraints:
-- Source from CURRENT data, anything older than 90 days is stale.
-- Do NOT fabricate numbers. If a search doesn't return a credible source, leave the field null.
-- Do NOT include comps you can't actually find. 3-5 real comps beats 8 made-up ones.
-- Keep the summary 2-3 sentences. It's a placement paragraph, not a market report.
+ANTI-HALLUCINATION RULES (the analysis is useless if these are violated):
+- Comparable_units entries MUST cite addresses you found via web_search. If web_search returns no useful results for the actual property, return an EMPTY comparable_units array. An empty array is the correct answer when real comps cannot be found, NOT an array of plausible-sounding inventions.
+- The complex name, county, and neighborhood you reference MUST match the user message. If the user message says "San Mateo County" or "Menlo Park", do not say "Santa Clara County" or "San Jose" anywhere in your output.
+- Mortgage rates MUST be cited from a web_search result returned in this session. Do not write a rate range from memory.
+- If web_search fails entirely (no useful results across all 6 allowed searches), submit the tool with summary set to a brief honest sentence ("Live market data unavailable for this address at analysis time") and all numeric fields null. The PDF renders gracefully when fields are null.
 
-Call the submit_market_context tool EXACTLY ONCE when your research is complete. Don't emit any other text output.`;
+Source quality:
+- CURRENT data only, anything older than 90 days is stale.
+- 0 real comps beats 5 invented comps.
+- Keep the summary to 2-3 sentences. It's a placement paragraph, not a market report.
 
-const MAX_TOOL_ITERATIONS = 8;
-const PER_REQUEST_TIMEOUT_MS = 90_000;
+Call the submit_market_context tool EXACTLY ONCE when research is complete. Don't emit any other text output.`;
+
+// Bounded so a misbehaving web_search loop can't burn the entire
+// Vercel analyze maxDuration budget. Previously this allowed
+// 8 iterations x 90s = 720s worst case, which is essentially the
+// whole analyze function's budget. The new bound is ~270s worst case
+// (5 x 50s + a single outer 240s cap, whichever is tighter).
+const MAX_TOOL_ITERATIONS = 5;
+const PER_REQUEST_TIMEOUT_MS = 50_000;
+
+// Hard outer cap on the entire market-context fetch. If web_search
+// is flaky or Claude keeps calling tools without converging on
+// submit_market_context, abandon the whole thing and let the
+// synthesizer render the report without live market data. Sized to
+// leave the focused-pass passes their normal 300 to 600 second
+// wall-clock budget within the 800s analyze.maxDuration.
+const FETCH_HARD_TIMEOUT_MS = 240_000;
 
 export async function fetchMarketContext(
   input: MarketContextInput,
@@ -117,7 +146,21 @@ export async function fetchMarketContext(
   const userPrompt = buildUserPrompt(input);
 
   try {
-    const result = await runWithWebSearch(userPrompt);
+    // Hard outer cap. If runWithWebSearch hasn't returned within
+    // FETCH_HARD_TIMEOUT_MS, the synthesizer falls back to no live
+    // market data. The whole analyze function would die at the
+    // 800s Vercel maxDuration otherwise.
+    const result = await Promise.race<MarketContext | null>([
+      runWithWebSearch(userPrompt),
+      new Promise<null>((resolve) =>
+        setTimeout(() => {
+          console.warn(
+            `[market-context] hard outer timeout after ${FETCH_HARD_TIMEOUT_MS}ms; falling back to null`,
+          );
+          resolve(null);
+        }, FETCH_HARD_TIMEOUT_MS),
+      ),
+    ]);
     return result;
   } catch (err) {
     // Market-context fetch is non-fatal, disclosure analysis must
