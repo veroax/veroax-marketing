@@ -97,11 +97,15 @@ export type ReportData = {
     // ----------------------------------------------------------------
     apn?: string | null;
     mls_number?: string | null;
-    // Optional companion note that renders after the MLS number on
-    // the cover and property snapshot. Populated by the listing-data
-    // reconciliation step when the property has cancelled prior MLS
-    // numbers: "current; prior MLS 82039496 and 82044514 cancelled".
-    // Null when there's only one MLS number in the property's history.
+    // Optional historical note about prior cancelled MLS numbers,
+    // e.g., "current; prior MLS 82039496 and 82044514 cancelled".
+    // Populated by the listing-data reconciliation step. NOT
+    // rendered on the cover or Property Snapshot per the founder
+    // spec (one MLS number on the document); preserved on the
+    // ReportData in case a future UI surface (override workflow,
+    // admin audit view) wants to display it. The full relist
+    // history renders in Market Context's "Listing history"
+    // subsection.
     mls_status_note?: string | null;
     list_date?: string | null;
     list_status?: "active" | "pending" | "sold" | "withdrawn" | "unknown" | null;

@@ -1414,19 +1414,15 @@ function CoverPage({
   if (p?.apn) coverKv.push(["APN", withSoftBreaks(p.apn)]);
   // MLS# is a PERMANENT field on the cover snapshot. The listing-data
   // reconciliation step populates property_snapshot.mls_number from
-  // the live web search (when available) so this is the CURRENT
-  // active MLS, not whatever was in the package's static MLS
-  // print-out. When the property has cancelled prior MLS numbers,
-  // mls_status_note carries the "current; prior MLS X and Y
-  // cancelled" suffix and is appended to the same row so the agent
-  // and buyer see the full historical context. Removed the
+  // the recommended source (default: the agent's listing URL when
+  // sources agree; live web search when they disagree). Removed the
   // previous "only render for active/pending" gate, the buyer needs
-  // to see MLS# on every report regardless of status.
+  // to see MLS# on every report regardless of status. ONE MLS number
+  // per the founder spec; prior cancelled MLS numbers live in the
+  // Market Context "Listing history" subsection, not jammed onto the
+  // cover row.
   if (p?.mls_number) {
-    const mlsValue = p.mls_status_note
-      ? `${p.mls_number} (${p.mls_status_note})`
-      : p.mls_number;
-    coverKv.push(["MLS#", withSoftBreaks(mlsValue)]);
+    coverKv.push(["MLS#", withSoftBreaks(p.mls_number)]);
   }
   if (p?.list_price) {
     const showListDate = p?.list_status === "active" && p?.list_date;
@@ -1865,15 +1861,10 @@ function SectionPropertySnapshot({
   if (p?.market_region) parts.push(p.market_region);
 
   // MLS line renders directly under the section banner, immediately
-  // after where the address appears in the running header. The
-  // reconciliation step populates this with the CURRENT MLS number;
-  // mls_status_note carries the "current; prior MLS X cancelled"
-  // historical context when the property has a relist history.
-  const mlsLine = p?.mls_number
-    ? p.mls_status_note
-      ? `MLS# ${p.mls_number} (${p.mls_status_note})`
-      : `MLS# ${p.mls_number}`
-    : null;
+  // after where the address appears in the running header. ONE MLS
+  // number per the founder spec; prior cancelled MLS numbers live
+  // in the Market Context "Listing history" subsection.
+  const mlsLine = p?.mls_number ? `MLS# ${p.mls_number}` : null;
 
   return (
     <View>

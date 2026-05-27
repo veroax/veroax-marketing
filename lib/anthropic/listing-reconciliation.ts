@@ -262,10 +262,17 @@ PRIOR MLS NUMBERS:
 - prior_mls_numbers = the distinct MLS numbers you saw that are no longer the active listing. Used to render 'current; prior MLS X and Y cancelled' on the property snapshot.
 - Do not include the current live MLS in this list.
 
-RECOMMENDED SOURCE:
-- 'live_search' when source (c) returned a credible result.
+RECOMMENDED SOURCE (founder rule, do NOT deviate):
+
+CASE A, sources agree (has_divergence = false):
+- 'listing_url' when source (b) returned data. Even though (c) is technically fresher, when all sources agree on price/MLS/status, the agent has been working from the Zillow listing they entered on the upload form and that's the report's natural anchor.
+- 'live_search' when (b) is null but (c) returned data.
+- 'package_mls' only when (b) and (c) both failed.
+
+CASE B, sources disagree (has_divergence = true):
+- 'live_search' when source (c) returned a credible result. The freshest signal wins when there's actual conflict.
 - 'listing_url' when (c) failed but (b) is intact.
-- 'package_mls' only when (c) and (b) both failed. This is the "we don't have any current signal" fallback; the agent should be warned.
+- 'package_mls' only when (c) and (b) both failed. The agent should be warned in this case via divergence_note.
 
 ANTI-HALLUCINATION RULES:
 - All MLS numbers, prices, and dates MUST come from a source you actually consulted in this session (the package text, the listing_url page, or a web_search result). Do NOT write numbers from memory.
@@ -422,18 +429,31 @@ async function runReconcile(
 // Compute the `current` block from the recommended source + the
 // matching observation. Centralizes the authority-order logic so
 // every consumer of ListingReconciliation sees the same answer.
+//
+// Server-side override of Claude's recommended_source: if Claude
+// drifted from the founder rule, snap the recommendation back. The
+// rule is:
+//   - No divergence: prefer listing_url > live_search > package_mls
+//   - With divergence: prefer live_search > listing_url > package_mls
+// The Zillow / listing URL is the agent's working anchor; we only
+// override it with the live web search when sources actually
+// disagree.
 function finalize(
   partial: Omit<ListingReconciliation, "current">,
 ): ListingReconciliation {
-  const recommended = partial.recommended_source;
+  const enforced = enforceRecommendation(partial);
+  const final: Omit<ListingReconciliation, "current"> = {
+    ...partial,
+    recommended_source: enforced,
+  };
   let observation: ListingSourceObservation | null = null;
-  if (recommended === "live_search") observation = partial.sources.live_search;
-  else if (recommended === "listing_url") observation = partial.sources.listing_url;
-  else if (recommended === "package_mls") observation = partial.sources.package_mls;
+  if (enforced === "live_search") observation = final.sources.live_search;
+  else if (enforced === "listing_url") observation = final.sources.listing_url;
+  else if (enforced === "package_mls") observation = final.sources.package_mls;
 
   const current = observation
     ? {
-        source: recommended!,
+        source: enforced!,
         mls_number: observation.mls_number,
         list_price: observation.list_price,
         status: observation.status,
@@ -442,7 +462,28 @@ function finalize(
       }
     : null;
 
-  return { ...partial, current };
+  return { ...final, current };
+}
+
+function enforceRecommendation(
+  partial: Omit<ListingReconciliation, "current">,
+): ListingReconciliation["recommended_source"] {
+  const haveListingUrl = partial.sources.listing_url != null;
+  const haveLiveSearch = partial.sources.live_search != null;
+  const havePackageMls = partial.sources.package_mls != null;
+
+  if (partial.has_divergence) {
+    // Disagreement, freshest signal wins.
+    if (haveLiveSearch) return "live_search";
+    if (haveListingUrl) return "listing_url";
+    if (havePackageMls) return "package_mls";
+    return null;
+  }
+  // Sources agree, the agent's listing URL is the natural anchor.
+  if (haveListingUrl) return "listing_url";
+  if (haveLiveSearch) return "live_search";
+  if (havePackageMls) return "package_mls";
+  return null;
 }
 
 // Render helper: produces a short note like "current; prior MLS
