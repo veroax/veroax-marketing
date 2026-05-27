@@ -179,8 +179,19 @@ export function nameMatchesDre(
 
   const normalize = (s: string): string[] =>
     s
+      // Decompose accented characters into base + combining diacritic
+      // ("Jose" with the acute on 'e' becomes "Jose" + the diacritic
+      // codepoint), then strip the diacritics. This keeps real CA
+      // licensees like Jose Hernandez or Munoz matching their plain
+      // ASCII profile entries.
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
-      .replace(/[^a-z\s,]/g, "")
+      // Keep letters, whitespace, commas (the DRE's "Last, First"
+      // separator), apostrophes (O'Connor, D'Angelo), and hyphens
+      // (Mary-Jane, Smith-Hernandez). Earlier versions stripped
+      // these and falsely returned mismatch for licensees with them.
+      .replace(/[^a-z\s,'-]/g, "")
       .replace(/\s+/g, " ")
       .replace(",", " ")
       .trim()
