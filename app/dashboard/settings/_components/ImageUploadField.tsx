@@ -126,7 +126,7 @@ export function ImageUploadField({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={displaySrc}
-              alt=""
+              alt={`${label} preview`}
               className={thumbClass}
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = "none";

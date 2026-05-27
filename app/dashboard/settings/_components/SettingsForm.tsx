@@ -326,7 +326,7 @@ export function SettingsForm({ email, userId, initial }: Props) {
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={brokerageLogoUrl}
-                alt=""
+                alt={brokerage ? `${brokerage} logo` : "Brokerage logo"}
                 className="max-h-12 mb-3"
                 onError={(e) => {
                   // Hide on load failure so a typo doesn't break the
@@ -346,7 +346,7 @@ export function SettingsForm({ email, userId, initial }: Props) {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={headshotUrl}
-                  alt=""
+                  alt={fullName ? `${fullName} headshot` : "Agent headshot"}
                   className="w-9 h-9 rounded-full object-cover border border-slate-200 mt-0.5 shrink-0"
                   onError={(e) => {
                     (e.currentTarget as HTMLImageElement).style.display = "none";
