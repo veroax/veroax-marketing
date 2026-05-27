@@ -89,7 +89,14 @@ export default async function DashboardPage({
             >
               Archive
             </Link>
-            {" "}to view them.
+            {" "}to view them, or{" "}
+            <Link
+              href="/dashboard/bulk-archive"
+              className="text-indigo-700 underline underline-offset-2 hover:text-indigo-900"
+            >
+              bulk archive
+            </Link>
+            {" "}old ones.
           </p>
         </div>
         <Link
