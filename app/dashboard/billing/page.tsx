@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { balanceForUser } from "@/lib/billing/credits";
 import Stripe from "stripe";
 
+import { SUPPORT } from "@/lib/site";
 export const metadata = {
   title: "Billing, Veroax",
 };
@@ -135,10 +136,10 @@ export default async function BillingPage() {
             need. No credit consumption, no billing. If you have
             questions about your VIP status reach out to{" "}
             <a
-              href="mailto:support@veroax.com"
+              href={`mailto:${SUPPORT.email}`}
               className="underline underline-offset-2 font-semibold"
             >
-              support@veroax.com
+              {SUPPORT.email}
             </a>
             .
           </p>

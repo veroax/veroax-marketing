@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FeedbackForm } from "./_components/FeedbackForm";
 
+import { SUPPORT } from "@/lib/site";
 export const metadata = {
   title: "Feedback, Veroax",
   robots: { index: false, follow: false },
@@ -30,17 +31,17 @@ export default function FeedbackPage() {
         <p className="text-xs text-slate-500 mt-6">
           Prefer email? Reach us directly at{" "}
           <a
-            href="mailto:support@veroax.com"
+            href={`mailto:${SUPPORT.email}`}
             className="text-indigo-700 underline underline-offset-2"
           >
-            support@veroax.com
+            {SUPPORT.email}
           </a>{" "}
           or call{" "}
           <a
-            href="tel:+18662478833"
+            href={`tel:${SUPPORT.phoneTel}`}
             className="text-indigo-700 underline underline-offset-2"
           >
-            (866) 247-8833
+            {SUPPORT.phone}
           </a>
           .
         </p>

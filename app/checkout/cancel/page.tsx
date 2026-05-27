@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SUPPORT } from "@/lib/site";
 export const metadata = {
   title: "Checkout canceled, Veroax",
   robots: { index: false, follow: false },
@@ -35,10 +36,10 @@ export default function CheckoutCancel() {
         <p className="text-xs text-indigo-300 pt-2">
           Questions?{" "}
           <a
-            href="mailto:support@veroax.com"
+            href={`mailto:${SUPPORT.email}`}
             className="underline underline-offset-2 hover:text-white"
           >
-            support@veroax.com
+            {SUPPORT.email}
           </a>
         </p>
       </div>

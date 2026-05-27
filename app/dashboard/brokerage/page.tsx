@@ -14,6 +14,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { SUPPORT } from "@/lib/site";
 import {
   getCurrentUserBrokerageContext,
   isBrokerageAdmin,
@@ -40,10 +41,10 @@ export default async function DashboardBrokeragePage() {
             You&apos;re not part of a brokerage. Brokerage accounts are
             site-admin onboarded. Email{" "}
             <a
-              href="mailto:support@veroax.com"
+              href={`mailto:${SUPPORT.email}`}
               className="text-indigo-700 underline"
             >
-              support@veroax.com
+              {SUPPORT.email}
             </a>{" "}
             to talk about brokerage pricing.
           </p>

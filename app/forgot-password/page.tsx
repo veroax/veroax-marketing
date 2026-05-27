@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, FormEvent } from "react";
 
+import { SUPPORT } from "@/lib/site";
 // Public "I forgot my password" form. Submits to
 // /api/auth/forgot-password which fires the Supabase reset email
 // (via Resend SMTP when configured) with a link back to
@@ -83,7 +84,7 @@ export default function ForgotPasswordPage() {
               <p className="text-xs text-gray-500 pt-2">
                 Didn&apos;t get the email? Check spam. Still nothing?{" "}
                 <a
-                  href="mailto:support@veroax.com"
+                  href={`mailto:${SUPPORT.email}`}
                   className="text-indigo-700 underline"
                 >
                   Email support

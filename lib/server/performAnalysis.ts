@@ -37,6 +37,7 @@ import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 import { generateShareCode } from "@/lib/share/code";
 import { consumeReportCredit, freeUpdateWindow } from "@/lib/billing/credits";
+import { SUPPORT } from "@/lib/site";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 
@@ -666,7 +667,7 @@ function buildReportReadyPlainText(args: {
     `Open the full report: ${args.reportUrl}`,
     "",
     ", Veroax",
-    "support@veroax.com · (866) 247-8833",
+    `${SUPPORT.email} · ${SUPPORT.phone}`,
   ].join("\n");
 }
 
@@ -752,7 +753,7 @@ function buildReportReadyHtml(args: {
     </div>
 
     <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;text-align:center;">
-      Veroax, Inc · <a href="mailto:support@veroax.com" style="color:#94a3b8;">support@veroax.com</a> · (866) 247-8833
+      Veroax, Inc &middot; <a href="mailto:${SUPPORT.email}" style="color:#94a3b8;">${SUPPORT.email}</a> &middot; ${SUPPORT.phone}
     </p>
   </div>`;
 }

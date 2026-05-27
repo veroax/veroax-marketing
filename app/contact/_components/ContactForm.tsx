@@ -15,6 +15,7 @@
 import { useActionState, useState } from "react";
 import { submitContactAction, type ContactActionState } from "../actions";
 import { formatUsPhone } from "@/lib/format/phone";
+import { SUPPORT } from "@/lib/site";
 
 type Props = {
   topic: string;
@@ -42,10 +43,10 @@ export function ContactForm({ topic }: Props) {
           We will follow up by phone or email within one business day,
           usually sooner. If you need a faster response, call us at{" "}
           <a
-            href="tel:+18662478833"
+            href={`tel:${SUPPORT.phoneTel}`}
             className="text-indigo-700 underline underline-offset-2"
           >
-            (866) 247-8833
+            {SUPPORT.phone}
           </a>{" "}
           between 8 AM and 8 PM Pacific.
         </p>
@@ -105,7 +106,7 @@ export function ContactForm({ topic }: Props) {
       <Field
         label="Best time to call"
         name="best_time"
-        hint="Optional. We monitor calls 8 AM to 8 PM Pacific, every day."
+        hint={`Optional. We monitor calls ${SUPPORT.hours}.`}
         placeholder="e.g., Weekdays after 2 PM Pacific"
       />
 

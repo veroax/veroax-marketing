@@ -18,6 +18,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ContactForm } from "./_components/ContactForm";
+import { SUPPORT } from "@/lib/site";
 
 export const metadata = {
   title: "Contact sales, Veroax",
@@ -82,11 +83,11 @@ export default async function ContactPage({
                 Call us
               </p>
               <a
-                href="tel:+18662478833"
+                href={`tel:${SUPPORT.phoneTel}`}
                 className="block text-3xl sm:text-4xl font-bold text-indigo-950 hover:text-indigo-800 transition-colors"
-                aria-label="Call Veroax at 866 247 8833"
+                aria-label={`Call Veroax at ${SUPPORT.phone}`}
               >
-                (866) 247-8833
+                {SUPPORT.phone}
               </a>
               <p className="text-sm text-slate-600 mt-2 leading-relaxed">
                 <span className="inline-flex items-center gap-1.5">
@@ -94,7 +95,7 @@ export default async function ContactPage({
                     className="inline-block w-2 h-2 rounded-full bg-emerald-500"
                     aria-hidden="true"
                   />
-                  Monitored 8:00 AM to 8:00 PM Pacific, every day.
+                  Monitored {SUPPORT.hours}.
                 </span>
                 <br />
                 Calls outside those hours go to voicemail and we return
@@ -107,10 +108,10 @@ export default async function ContactPage({
                 Email
               </p>
               <a
-                href="mailto:support@veroax.com"
+                href={`mailto:${SUPPORT.email}`}
                 className="text-lg font-semibold text-indigo-700 hover:text-indigo-900 transition-colors underline underline-offset-2"
               >
-                support@veroax.com
+                {SUPPORT.email}
               </a>
               <p className="text-xs text-slate-500 mt-1">
                 Replies within one business day.
@@ -124,9 +125,9 @@ export default async function ContactPage({
               <address className="not-italic text-sm text-slate-700 leading-relaxed">
                 Veroax, Inc.
                 <br />
-                3964 Rivermark Plaza, Unit #2783
+                {SUPPORT.address.street}
                 <br />
-                Santa Clara, CA 95054
+                {SUPPORT.address.city}, {SUPPORT.address.region} {SUPPORT.address.postalCode}
               </address>
             </div>
           </aside>

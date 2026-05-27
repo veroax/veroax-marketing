@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserBrokerageContext } from "@/lib/brokerage/admin";
+import { SUPPORT } from "@/lib/site";
 import { logoutAction } from "../(auth)/actions";
 
 // Cascades to every page under /dashboard. Authenticated app
@@ -110,16 +111,16 @@ export default async function DashboardLayout({
             Need help?
           </p>
           <a
-            href="tel:+18662478833"
+            href={`tel:${SUPPORT.phoneTel}`}
             className="block text-indigo-100 hover:text-white transition-colors"
           >
-            (866) 247-8833
+            {SUPPORT.phone}
           </a>
           <a
-            href="mailto:support@veroax.com"
+            href={`mailto:${SUPPORT.email}`}
             className="block text-indigo-100 hover:text-white transition-colors underline underline-offset-2 truncate"
           >
-            support@veroax.com
+            {SUPPORT.email}
           </a>
           <a
             href="/feedback"
@@ -188,18 +189,18 @@ export default async function DashboardLayout({
           </div>
           <div className="px-4 pb-2 flex items-center gap-3 text-[11px] text-slate-600">
             <a
-              href="tel:+18662478833"
+              href={`tel:${SUPPORT.phoneTel}`}
               className="hover:text-slate-900"
-              aria-label="Call Veroax support at 866 247 8833"
+              aria-label={`Call Veroax support at ${SUPPORT.phone}`}
             >
-              (866) 247-8833
+              {SUPPORT.phone}
             </a>
             <span className="text-slate-300">·</span>
             <a
-              href="mailto:support@veroax.com"
+              href={`mailto:${SUPPORT.email}`}
               className="hover:text-slate-900 underline underline-offset-2"
             >
-              support@veroax.com
+              {SUPPORT.email}
             </a>
             <span className="text-slate-300">·</span>
             <Link

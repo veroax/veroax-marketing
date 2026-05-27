@@ -6,6 +6,7 @@
 // hydrates as one bundle.
 
 import PricingAndContact from "./_components/PricingAndContact";
+import { SUPPORT } from "@/lib/site";
 
 const features = [
   {
@@ -529,29 +530,29 @@ export default function Home() {
                 style={{ height: 36 }}
               />
               <p className="text-slate-400 leading-relaxed">
-                3964 Rivermark Plaza, Unit #2783<br />
-                Santa Clara, CA 95054
+                {SUPPORT.address.street}<br />
+                {SUPPORT.address.city}, {SUPPORT.address.region} {SUPPORT.address.postalCode}
               </p>
             </div>
             <div className="space-y-2 sm:text-center">
               <p className="text-white font-semibold text-xs uppercase tracking-widest">Contact</p>
               <p>
                 <a
-                  href="tel:+18662478833"
+                  href={`tel:${SUPPORT.phoneTel}`}
                   className="hover:text-white transition-colors"
-                  aria-label="Call Veroax support at 866 247 8833"
+                  aria-label={`Call Veroax support at ${SUPPORT.phone}`}
                 >
                   <span className="font-semibold text-amber-300" aria-hidden="true">(866) AISTUFF</span>
                   <span className="text-slate-500 mx-1.5" aria-hidden="true">·</span>
-                  <span>(866) 247-8833</span>
+                  <span>{SUPPORT.phone}</span>
                 </a>
               </p>
               <p>
                 <a
-                  href="mailto:support@veroax.com"
+                  href={`mailto:${SUPPORT.email}`}
                   className="hover:text-white underline underline-offset-2 transition-colors"
                 >
-                  support@veroax.com
+                  {SUPPORT.email}
                 </a>
               </p>
             </div>

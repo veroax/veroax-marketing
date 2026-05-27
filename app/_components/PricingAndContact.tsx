@@ -15,6 +15,7 @@
 import { useState, FormEvent } from "react";
 import { PLAN_TIERS, type PlanTier } from "@/lib/billing/plans";
 
+import { SUPPORT } from "@/lib/site";
 type PricePoint = {
   price: string;
   billed: string | null;
@@ -472,13 +473,13 @@ export default function PricingAndContact() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-x-8 gap-y-2 pt-3 text-sm text-indigo-200">
               <a
-                href="tel:+18662478833"
+                href={`tel:${SUPPORT.phoneTel}`}
                 className="hover:text-white transition-colors"
-                aria-label="Call Veroax support at 866 247 8833"
+                aria-label={`Call Veroax support at ${SUPPORT.phone}`}
               >
                 <span className="font-semibold text-amber-300" aria-hidden="true">(866) AISTUFF</span>
                 <span className="text-indigo-400 mx-2" aria-hidden="true">·</span>
-                <span>(866) 247-8833</span>
+                <span>{SUPPORT.phone}</span>
               </a>
               <span className="hidden sm:inline text-indigo-500" aria-hidden="true">|</span>
               <span>3964 Rivermark Plaza, Unit #2783, Santa Clara, CA 95054</span>

@@ -5,6 +5,7 @@
 
 import Link from "next/link";
 
+import { SUPPORT } from "@/lib/site";
 export const metadata = {
   title: "Investors, Veroax",
   description:
@@ -162,12 +163,10 @@ export default function InvestorsPage() {
               Open the investor contact form
             </Link>
             <a
-              href="tel:+18662478833"
+              href={`tel:${SUPPORT.phoneTel}`}
               className="inline-block bg-white/10 text-white font-semibold px-6 py-3 rounded-lg hover:bg-white/15"
-              aria-label="Call Veroax at 866 247 8833"
-            >
-              Call (866) 247-8833
-            </a>
+              aria-label={`Call Veroax at ${SUPPORT.phone}`}
+            >Call {SUPPORT.phone}</a>
           </div>
           <p className="text-indigo-300 text-xs mt-5">
             Calls monitored 8:00 AM to 8:00 PM Pacific, every day.

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SUPPORT } from "@/lib/site";
 export const metadata = {
   title: "Privacy Policy, Veroax",
   description: "Privacy Policy for Veroax disclosure analysis software.",
@@ -75,7 +76,7 @@ export default function PrivacyPage() {
               <li>
                 <strong>Your rights:</strong> California residents have rights to know, delete,
                 correct, and opt out of certain processing. Contact{" "}
-                <a href="mailto:support@veroax.com">support@veroax.com</a> to exercise them.
+                <a href={`mailto:${SUPPORT.email}`}>{SUPPORT.email}</a> to exercise them.
               </li>
             </ul>
           </Section>
@@ -272,7 +273,7 @@ export default function PrivacyPage() {
               data stored with our subprocessors. No method of transmission or storage is one
               hundred percent secure. You are responsible for keeping your account credentials
               confidential and for notifying us promptly at{" "}
-              <a href="mailto:support@veroax.com">support@veroax.com</a> if you suspect
+              <a href={`mailto:${SUPPORT.email}`}>{SUPPORT.email}</a> if you suspect
               unauthorized access.
             </p>
           </Section>
@@ -281,7 +282,7 @@ export default function PrivacyPage() {
             <p>
               <strong>Account information.</strong> You may review and update your account
               information at any time, or contact us at{" "}
-              <a href="mailto:support@veroax.com">support@veroax.com</a> for help.
+              <a href={`mailto:${SUPPORT.email}`}>{SUPPORT.email}</a> for help.
             </p>
             <p>
               <strong>Marketing emails.</strong> You may unsubscribe from marketing emails using
@@ -336,7 +337,7 @@ export default function PrivacyPage() {
             </ul>
             <p>
               To exercise these rights, email{" "}
-              <a href="mailto:support@veroax.com">support@veroax.com</a> with the subject line
+              <a href={`mailto:${SUPPORT.email}`}>{SUPPORT.email}</a> with the subject line
               &ldquo;CCPA request.&rdquo; We may need to verify your identity before responding.
               You may also designate an authorized agent to make a request on your behalf,
               subject to verification.
@@ -363,7 +364,7 @@ export default function PrivacyPage() {
               to children under thirteen (13). We do not knowingly collect personal information
               from children under thirteen. If you believe a child under thirteen has provided us
               with personal information, contact us at{" "}
-              <a href="mailto:support@veroax.com">support@veroax.com</a> and we will delete it.
+              <a href={`mailto:${SUPPORT.email}`}>{SUPPORT.email}</a> and we will delete it.
             </p>
           </Section>
 
@@ -395,10 +396,10 @@ export default function PrivacyPage() {
               Santa Clara, CA 95054
               <br />
               Email:{" "}
-              <a href="mailto:support@veroax.com">support@veroax.com</a>
+              <a href={`mailto:${SUPPORT.email}`}>{SUPPORT.email}</a>
               <br />
               Phone:{" "}
-              <a href="tel:+18662478833">(866) AISTUFF · (866) 247-8833</a>
+              <a href={`tel:${SUPPORT.phoneTel}`}>(866) AISTUFF · ${SUPPORT.phone}</a>
             </p>
           </Section>
         </article>

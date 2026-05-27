@@ -7,6 +7,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { SUPPORT } from "@/lib/site";
 export const metadata: Metadata = {
   title: "FAQ, Veroax",
   description:
@@ -105,7 +106,7 @@ const GROUPS: Group[] = [
       },
       {
         q: "Are refunds available?",
-        a: "Yes, on a case-by-case basis. If a report fails to render, comes back materially wrong, or you signed up by mistake, email support@veroax.com and we will refund the credit or the period. We do not bait-and-switch refund policies; if a report did not deliver the value, we make it right.",
+        a: `Yes, on a case-by-case basis. If a report fails to render, comes back materially wrong, or you signed up by mistake, email ${SUPPORT.email} and we will refund the credit or the period. We do not bait-and-switch refund policies; if a report did not deliver the value, we make it right.`,
       },
       {
         q: "Can I get an invoice or receipt?",
@@ -208,11 +209,11 @@ const GROUPS: Group[] = [
     items: [
       {
         q: "What if a report fails or stalls?",
-        a: "Every report status is visible on the dashboard. If a run fails (rare), you will see a clear error and a Retry button. Retries do not consume an additional credit. If you see the same error twice, email support@veroax.com with the report URL and we will investigate. Common causes: scanned-only PDFs with no extractable text, or HOA bundles assembled in unusual ways.",
+        a: `Every report status is visible on the dashboard. If a run fails (rare), you will see a clear error and a Retry button. Retries do not consume an additional credit. If you see the same error twice, email ${SUPPORT.email} with the report URL and we will investigate. Common causes: scanned-only PDFs with no extractable text, or HOA bundles assembled in unusual ways.`,
       },
       {
         q: "How do I contact support?",
-        a: "Phone (866) 247-8833 or email support@veroax.com. Both numbers and the email are linked in the dashboard sidebar on every page and at the bottom of every report. You can also use the Feedback link to log a non-urgent suggestion or bug report.",
+        a: `Phone ${SUPPORT.phone} or email ${SUPPORT.email}. Both numbers and the email are linked in the dashboard sidebar on every page and at the bottom of every report. You can also use the Feedback link to log a non-urgent suggestion or bug report.`,
       },
     ],
   },
@@ -281,17 +282,17 @@ export default function FaqPage() {
             Pick a category, or scroll. Tap any question to expand the
             answer. If something is not here, email{" "}
             <a
-              href="mailto:support@veroax.com"
+              href={`mailto:${SUPPORT.email}`}
               className="text-indigo-700 underline underline-offset-2"
             >
-              support@veroax.com
+              {SUPPORT.email}
             </a>
             {" "}or call{" "}
             <a
-              href="tel:+18662478833"
+              href={`tel:${SUPPORT.phoneTel}`}
               className="text-indigo-700 underline underline-offset-2"
             >
-              (866) 247-8833
+              {SUPPORT.phone}
             </a>
             .
           </p>
@@ -377,18 +378,18 @@ export default function FaqPage() {
           </p>
           <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5 text-sm">
             <a
-              href="tel:+18662478833"
+              href={`tel:${SUPPORT.phoneTel}`}
               className="font-semibold text-indigo-700 hover:text-indigo-900"
-              aria-label="Call Veroax support at 866 247 8833"
+              aria-label={`Call Veroax support at ${SUPPORT.phone}`}
             >
-              (866) 247-8833
+              {SUPPORT.phone}
             </a>
             <span className="hidden sm:inline text-slate-300">·</span>
             <a
-              href="mailto:support@veroax.com"
+              href={`mailto:${SUPPORT.email}`}
               className="text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
             >
-              support@veroax.com
+              {SUPPORT.email}
             </a>
             <span className="hidden sm:inline text-slate-300">·</span>
             <Link

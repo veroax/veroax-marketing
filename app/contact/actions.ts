@@ -7,6 +7,7 @@
 
 import { Resend } from "resend";
 
+import { SUPPORT } from "@/lib/site";
 export type ContactActionState = {
   ok?: boolean;
   error?: string;
@@ -57,7 +58,7 @@ export async function submitContactAction(
   if (!apiKey) {
     return {
       error:
-        "Email sending isn't configured on this deployment. Email support@veroax.com directly, or call (866) 247-8833.",
+        `Email sending is not configured on this deployment. Email ${SUPPORT.email} directly, or call ${SUPPORT.phone}.`,
     };
   }
 

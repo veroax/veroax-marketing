@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SUPPORT } from "@/lib/site";
 export const metadata = {
   title: "Terms of Service, Veroax",
   description: "Terms of Service for Veroax disclosure analysis software.",
@@ -92,7 +93,7 @@ export default function TermsPage() {
               </li>
               <li>
                 You will notify us promptly at{" "}
-                <a href="mailto:support@veroax.com">support@veroax.com</a> if you suspect
+                <a href={`mailto:${SUPPORT.email}`}>{SUPPORT.email}</a> if you suspect
                 unauthorized access.
               </li>
             </ul>
@@ -176,7 +177,7 @@ export default function TermsPage() {
                 Interfere with the Service&rsquo;s operation, attempt to access another user&rsquo;s
                 account, or use the Service to test or exploit security vulnerabilities other than
                 through a responsible disclosure to{" "}
-                <a href="mailto:support@veroax.com">support@veroax.com</a>.
+                <a href={`mailto:${SUPPORT.email}`}>{SUPPORT.email}</a>.
               </li>
               <li>
                 Use the Service to provide legal advice, render a licensed professional opinion
@@ -378,7 +379,7 @@ export default function TermsPage() {
             </p>
             <p>
               Before filing a claim, you agree to first contact us at{" "}
-              <a href="mailto:support@veroax.com">support@veroax.com</a> and attempt in good faith
+              <a href={`mailto:${SUPPORT.email}`}>{SUPPORT.email}</a> and attempt in good faith
               to resolve the dispute informally for at least sixty (60) days.
             </p>
           </Section>
@@ -417,10 +418,10 @@ export default function TermsPage() {
               Santa Clara, CA 95054
               <br />
               Email:{" "}
-              <a href="mailto:support@veroax.com">support@veroax.com</a>
+              <a href={`mailto:${SUPPORT.email}`}>{SUPPORT.email}</a>
               <br />
               Phone:{" "}
-              <a href="tel:+18662478833">(866) AISTUFF · (866) 247-8833</a>
+              <a href={`tel:${SUPPORT.phoneTel}`}>(866) AISTUFF · ${SUPPORT.phone}</a>
             </p>
           </Section>
         </article>

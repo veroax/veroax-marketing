@@ -17,6 +17,7 @@
 //   - Plain-text fallback for clients that don't render HTML
 
 import { Resend } from "resend";
+import { SUPPORT } from "@/lib/site";
 
 export type WelcomeEmailParams = {
   email: string;
@@ -26,10 +27,13 @@ export type WelcomeEmailParams = {
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 
-const SUPPORT_PHONE = "(866) 247-8833";
-const SUPPORT_PHONE_TEL = "+18662478833";
-const SUPPORT_EMAIL = "support@veroax.com";
-const SUPPORT_HOURS = "8:00 AM to 8:00 PM Pacific, every day";
+// Local aliases for SUPPORT.* so the existing template-string usages
+// below stay short. Edit lib/site.ts to change these values across
+// the whole codebase.
+const SUPPORT_PHONE = SUPPORT.phone;
+const SUPPORT_PHONE_TEL = SUPPORT.phoneTel;
+const SUPPORT_EMAIL = SUPPORT.email;
+const SUPPORT_HOURS = SUPPORT.hours;
 
 function escapeHtml(s: string): string {
   return s
@@ -231,7 +235,7 @@ function buildHtml(safeFirstName: string): string {
             <tr>
               <td style="padding:0 40px 28px;text-align:center;">
                 <p style="margin:0;font-size:11px;line-height:18px;color:#94a3b8;">
-                  Veroax, Inc. &middot; 3964 Rivermark Plaza Unit #2783, Santa Clara, CA 95054
+                  Veroax, Inc. &middot; ${SUPPORT.address.street}, ${SUPPORT.address.city}, ${SUPPORT.address.region} ${SUPPORT.address.postalCode}
                 </p>
                 <p style="margin:6px 0 0;font-size:11px;line-height:18px;color:#94a3b8;">
                   You're receiving this because you signed up at
@@ -271,7 +275,7 @@ function buildPlainText(firstName: string): string {
     `  Email: ${SUPPORT_EMAIL} (replies within one business day)`,
     "",
     "Veroax, Inc.",
-    "3964 Rivermark Plaza Unit #2783",
-    "Santa Clara, CA 95054",
+    SUPPORT.address.street,
+    `${SUPPORT.address.city}, ${SUPPORT.address.region} ${SUPPORT.address.postalCode}`,
   ].join("\n");
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SUPPORT } from "@/lib/site";
 export const metadata = {
   title: "Welcome to Veroax",
   robots: { index: false, follow: false },
@@ -35,17 +36,17 @@ export default function CheckoutSuccess() {
         <p className="text-xs text-indigo-300">
           Need help right away?{" "}
           <a
-            href="mailto:support@veroax.com"
+            href={`mailto:${SUPPORT.email}`}
             className="underline underline-offset-2 hover:text-white"
           >
-            support@veroax.com
+            {SUPPORT.email}
           </a>{" "}
           ·{" "}
           <a
-            href="tel:+18662478833"
+            href={`tel:${SUPPORT.phoneTel}`}
             className="underline underline-offset-2 hover:text-white"
           >
-            (866) 247-8833
+            {SUPPORT.phone}
           </a>
         </p>
         <div className="pt-4">

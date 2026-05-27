@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PLAN_TIERS, ONEOFF_REPORT_PRICE_USD } from "@/lib/billing/plans";
 
+import { SUPPORT } from "@/lib/site";
 export const metadata = {
   title: "Pricing, Veroax",
   description:
@@ -110,7 +111,7 @@ export default function PricingPage() {
               <div className="mt-7 space-y-2">
                 {tier.isCustom ? (
                   <a
-                    href="mailto:support@veroax.com?subject=Brokerage%20tier%20inquiry"
+                    href={`mailto:${SUPPORT.email}?subject=Brokerage%20tier%20inquiry`}
                     className="block w-full text-center bg-slate-900 text-white font-semibold py-3 rounded-lg hover:bg-slate-800"
                   >
                     Contact for details
