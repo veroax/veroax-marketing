@@ -79,6 +79,7 @@ export default async function AdminLayout({
         </div>
         <nav className="flex-1 px-3 py-2 space-y-1 text-sm">
           <NavLink href="/admin" label="Dashboard" />
+          <NavLink href="/admin/tasks" label="Tasks" />
           <NavLink href="/admin/users" label="Users" />
           <NavLink href="/admin/brokerages" label="Brokerages" />
           <NavLink href="/admin/reports" label="All reports" />
