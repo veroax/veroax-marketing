@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-// Per-row action chips for the reports list (and archive list). Renders
-// inline text-buttons rather than a dropdown so the actions are
-// immediately visible without a click, there are only two of them and
-// they're both useful. Archive is reversible (lives one click away in
-// the Archive view), so it uses a simple inline confirm. Delete is
-// destructive and unrecoverable, so it opens a modal that requires the
-// agent to type DELETE before the button enables, same pattern other
-// destructive flows in the app use.
+// Per-row action chips for the reports list (and archive list).
+// Renders inline text-buttons rather than a dropdown so the actions
+// are immediately visible without a click, there are only two of
+// them and they're both useful. Both are reversible: Archive moves
+// the report to the Archive view (one click to restore), and
+// Delete moves the row into the deleted bucket for 30 days during
+// which an admin can restore it. After 30 days the daily purge
+// cron permanently removes the row + storage. Modal copy explains
+// the difference so the agent picks the right one.
 
 type Variant = "main" | "archive";
 
@@ -31,7 +32,6 @@ export function RowActions({ reportId, reportLabel, variant }: Props) {
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteTypedConfirm, setDeleteTypedConfirm] = useState("");
 
   async function handleArchive() {
     const isArchiving = variant === "main";
@@ -98,7 +98,6 @@ export function RowActions({ reportId, reportLabel, variant }: Props) {
         <button
           type="button"
           onClick={() => {
-            setDeleteTypedConfirm("");
             setError(null);
             setShowDeleteModal(true);
           }}
@@ -127,27 +126,18 @@ export function RowActions({ reportId, reportLabel, variant }: Props) {
               Delete this report?
             </h3>
             <p className="text-sm text-slate-700 mt-2">
-              Permanently deletes{" "}
+              Removes{" "}
               <span className="font-semibold text-slate-900 break-words">
                 {reportLabel}
               </span>
-              , including every uploaded PDF and the generated analysis. This
-              cannot be undone. Use Archive instead if you only want to hide
-              it from your main list.
+              {" "}from your dashboard, the public share link, and the
+              PDF download. The report goes into a deleted bucket for
+              30 days; during that window, an admin can restore it on
+              request. After 30 days the row and its uploaded PDFs
+              are permanently removed. Use Archive instead if you
+              only want to hide it from your main list, no
+              restoration request needed.
             </p>
-            <label className="block mt-4">
-              <span className="text-xs font-semibold text-slate-700 block mb-1">
-                Type <span className="font-mono text-red-700">DELETE</span> to
-                confirm
-              </span>
-              <input
-                type="text"
-                value={deleteTypedConfirm}
-                onChange={(e) => setDeleteTypedConfirm(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-400"
-                autoFocus
-              />
-            </label>
             {error && (
               <p className="text-xs text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded mt-3">
                 {error}
@@ -165,10 +155,10 @@ export function RowActions({ reportId, reportLabel, variant }: Props) {
               <button
                 type="button"
                 onClick={handleConfirmedDelete}
-                disabled={deleteBusy || deleteTypedConfirm.trim() !== "DELETE"}
-                className="bg-red-600 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={deleteBusy}
+                className="bg-red-700 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {deleteBusy ? "Deleting…" : "Delete permanently"}
+                {deleteBusy ? "Deleting..." : "Delete report"}
               </button>
             </div>
           </div>

@@ -4,20 +4,26 @@ import { requireUser } from "@/lib/auth/require";
 
 // POST /api/reports/[id]/delete
 //
-// Hard-deletes a report: removes the storage objects under
-// disclosures/{user}/{report}/, deletes the reports row (which cascades
-// to email_drafts via FK on delete cascade and sets audit_log.report_id
-// to null via FK on delete set null, so the audit trail survives), and
-// writes a final report.deleted audit_log row.
+// SOFT-DELETE: stamps reports.deleted_at + deleted_by + purge_after
+// (now + 30 days). The row stays in the database and the storage
+// files stay in disclosures/<user>/<report>/ so the row is
+// recoverable from /admin/reports/deleted for the full 30-day
+// grace window. After 30 days the daily
+// /api/cron/purge-deleted-reports cron permanently removes the
+// row and its storage.
 //
-// Owners can delete their own reports. Admins (profiles.is_admin) can
-// delete any report and the audit entry records the admin_actor.
-// Body: nothing required; we still parse it defensively so a curious
-// CLI hit doesn't crash. There is no "confirm" field server-side, the
-// UI handles the type-DELETE-to-confirm gating before calling this.
+// Owners can soft-delete their own reports. Admins
+// (profiles.is_admin) can soft-delete any report. Same endpoint
+// serves both surfaces so the soft-delete pattern stays
+// single-sourced.
+//
+// Optional body: { reason?: string }, an audit-only note.
+// Returns 409 when the report is already in the deleted bucket.
+
+const PURGE_GRACE_DAYS = 30;
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const { id: reportId } = await context.params;
@@ -35,88 +41,81 @@ export async function POST(
     (profile as { is_admin?: boolean } | null)?.is_admin,
   );
 
-  // Admins read via service-role so they can reach any user's report.
-  // Regular users go through their RLS-scoped client.
-  const reader = isAdmin ? createServiceRoleClient() : supabase;
+  const body = (await request.json().catch(() => ({}))) as {
+    reason?: string;
+  };
+  const reason =
+    typeof body.reason === "string"
+      ? body.reason.trim().slice(0, 500) || null
+      : null;
+
+  // Admins read via service-role so they can reach any user's
+  // report; regular users go through their RLS-scoped client.
+  const admin = createServiceRoleClient();
+  const reader = isAdmin ? admin : supabase;
   const { data: report, error: readErr } = await reader
     .from("reports")
-    .select("id, user_id, source_file_path")
+    .select("id, user_id, deleted_at")
     .eq("id", reportId)
     .maybeSingle();
   if (readErr || !report) {
     return NextResponse.json({ error: "Report not found." }, { status: 404 });
   }
 
-  const isOwner = report.user_id === user.id;
+  const isOwner = (report as { user_id: string }).user_id === user.id;
   if (!isOwner && !isAdmin) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
-
-  const admin = createServiceRoleClient();
-
-  // ----- Storage cleanup --------------------------------------------------
-  // Folder structure is disclosures/{user_id}/{report_id}/* . If
-  // source_file_path is set it points at this folder; otherwise compose
-  // from the FK. List the folder and remove every object. Storage list
-  // and remove use the service-role client to bypass per-user policies
-  // when an admin is deleting another user's report.
-  const folder =
-    report.source_file_path ?? `${report.user_id}/${reportId}`;
-  let storageObjectCount = 0;
-  try {
-    const { data: stored } = await admin.storage
-      .from("disclosures")
-      .list(folder, { limit: 1000 });
-    const paths = (stored ?? []).map((f) => `${folder}/${f.name}`);
-    storageObjectCount = paths.length;
-    if (paths.length > 0) {
-      const { error: rmErr } = await admin.storage
-        .from("disclosures")
-        .remove(paths);
-      if (rmErr) {
-        // Don't fail the delete, orphaned storage is a smaller problem
-        // than a report stuck in a half-deleted state. Log it for ops.
-        console.error(
-          `[delete] storage cleanup failed for ${folder}:`,
-          rmErr.message,
-        );
-      }
-    }
-  } catch (err) {
-    console.error(`[delete] storage listing failed for ${folder}:`, err);
+  if ((report as { deleted_at?: string | null }).deleted_at) {
+    return NextResponse.json(
+      { error: "Report is already in the deleted bucket." },
+      { status: 409 },
+    );
   }
 
-  // ----- DB delete --------------------------------------------------------
-  // The owner-path goes through the user-scoped client so RLS double-
-  // checks ownership server-side; admins use the service-role client.
+  const now = new Date();
+  const purgeAt = new Date(
+    now.getTime() + PURGE_GRACE_DAYS * 24 * 60 * 60 * 1000,
+  );
+
+  // Owner-path goes through the user-scoped client so RLS
+  // double-checks ownership server-side; admins use the
+  // service-role client.
   const writer = isOwner ? supabase : admin;
-  const { error: delErr } = await writer
+  const { error: updErr } = await writer
     .from("reports")
-    .delete()
+    .update({
+      deleted_at: now.toISOString(),
+      deleted_by: user.id,
+      deleted_reason: reason,
+      purge_after: purgeAt.toISOString(),
+    })
     .eq("id", reportId);
-  if (delErr) {
+  if (updErr) {
     return NextResponse.json(
-      { error: `Could not delete report: ${delErr.message}` },
+      { error: `Could not delete report: ${updErr.message}` },
       { status: 500 },
     );
   }
 
-  // ----- Audit log (report_id is null because the FK is on delete set null,
-  // so we capture the deleted ID in metadata for forensic searches). -------
+  // Audit trail. Distinguish admin-actor deletes from owner-actor
+  // deletes so the admin-restore view can show the right "deleted
+  // by" attribution. PII rule respected, no property addresses or
+  // client names.
   try {
     await admin.from("audit_log").insert({
-      user_id: report.user_id, // owner of the report, for log searches
+      user_id: (report as { user_id: string }).user_id,
+      report_id: reportId,
       event_type:
-        !isOwner && isAdmin ? "report.deleted_by_admin" : "report.deleted",
-      // PII rule: audit_log never stores property addresses, buyer
-      // names, seller names, financial details, or lender info. Only
-      // operational metadata (who, when, what action, counts).
+        !isOwner && isAdmin
+          ? "report.soft_deleted_by_admin"
+          : "report.soft_deleted_by_owner",
       metadata: {
-        deleted_report_id: reportId,
         actor_user_id: user.id,
         actor_is_admin: isAdmin,
         actor_is_owner: isOwner,
-        storage_objects_deleted: storageObjectCount,
+        reason,
+        purge_after: purgeAt.toISOString(),
       },
     });
   } catch (err) {
@@ -125,7 +124,7 @@ export async function POST(
 
   return NextResponse.json({
     ok: true,
-    deleted_report_id: reportId,
-    storage_objects_deleted: storageObjectCount,
+    deleted_at: now.toISOString(),
+    purge_after: purgeAt.toISOString(),
   });
 }

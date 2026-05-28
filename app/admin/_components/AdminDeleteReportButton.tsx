@@ -31,7 +31,10 @@ export function AdminDeleteReportButton({
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch(`/api/admin/reports/${reportId}/delete`, {
+      // Unified soft-delete endpoint serves both owner + admin
+      // callers. requireUser + inline is_admin check on the
+      // server side; reuses the same audit machinery either way.
+      const res = await fetch(`/api/reports/${reportId}/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: reason.trim() || undefined }),
