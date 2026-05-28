@@ -217,6 +217,27 @@ export type AnalyzeInput = {
     errorMessage: string | null;
     usage: { input_tokens: number; output_tokens: number };
   }) => Promise<void>;
+  // Cost-reference fetch happens SEQUENTIALLY before the focused
+  // passes start, takes 30 to 90 seconds via a web_search Claude
+  // call. Without these callbacks the polling progress block has
+  // no signal for that whole window and the agent / admin sees
+  // a frozen "queued" label.
+  onCostReferenceStarted?: () => Promise<void>;
+  onCostReferenceCompleted?: (params: {
+    succeeded: boolean;
+  }) => Promise<void>;
+  // Market-context fetch + listing reconciliation run IN PARALLEL
+  // after the focused passes complete, both via web_search Claude
+  // calls. Together they consume the 2 to 4 minute "post-focused"
+  // window between the last pass_completed and the
+  // synthesis_started event. Without these callbacks the polling
+  // progress block sat on "Finished {last group}" for that whole
+  // window.
+  onPostFocusedFetchStarted?: () => Promise<void>;
+  onPostFocusedFetchCompleted?: (params: {
+    market_context_ok: boolean;
+    listing_reconciliation_ok: boolean;
+  }) => Promise<void>;
   onSynthesisStarted?: () => Promise<void>;
   onSynthesisCompleted?: (usage: {
     input_tokens: number;
@@ -277,6 +298,7 @@ export async function analyzeDisclosurePackage(
   // every focused pass consumes the reference in its system prompt.
   // The wall-clock cost is roughly 30 to 90 seconds in the happy
   // path, well inside the 800s analyze.maxDuration budget.
+  await input.onCostReferenceStarted?.();
   const liveCost = await fetchLiveCostReference({
     propertyAddressHint: input.propertyAddressHint ?? null,
     marketRegion: null,
@@ -287,6 +309,7 @@ export async function analyzeDisclosurePackage(
       `[analyze] live cost reference fetched: region="${liveCost.region_label}" sources=${liveCost.sources.length}`,
     );
   }
+  await input.onCostReferenceCompleted?.({ succeeded: Boolean(liveCost) });
 
   // For each group that has documents, run focused pass(es). Groups can
   // run in parallel.
@@ -438,6 +461,12 @@ export async function analyzeDisclosurePackage(
   // They're independent so we await them concurrently. Both have
   // their own hard outer timeouts so a single hang can't take the
   // whole analysis down.
+  //
+  // This is the 2-to-4-minute "post-focused" window. Without the
+  // onPostFocusedFetchStarted/Completed callbacks the polling
+  // progress block sits on "Finished {last group}" for the whole
+  // window because no audit_log events fire here.
+  await input.onPostFocusedFetchStarted?.();
   const [liveMarketContext, listingReconciliation] = await Promise.all([
     fetchMarketContext({
       propertyAddress: input.propertyAddressHint ?? null,
@@ -456,6 +485,10 @@ export async function analyzeDisclosurePackage(
       listingUrl: input.listingUrl ?? null,
     }).catch(() => null),
   ]);
+  await input.onPostFocusedFetchCompleted?.({
+    market_context_ok: Boolean(liveMarketContext),
+    listing_reconciliation_ok: Boolean(listingReconciliation),
+  });
 
   // Diagnostic log so we can see what reconciliation produced
   // without having to grep the listing_reconciliation JSON column

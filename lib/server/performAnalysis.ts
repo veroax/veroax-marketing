@@ -409,6 +409,48 @@ export async function performAnalysis(
         },
       });
     },
+    // Cost-reference fetch sits BEFORE focused passes (~30 to 90
+    // seconds). Without these audit rows the progress block has
+    // no signal for that whole window.
+    onCostReferenceStarted: async () => {
+      await admin.from("audit_log").insert({
+        user_id: userId,
+        report_id: reportId,
+        event_type: "analysis.cost_reference_started",
+        metadata: {},
+      });
+    },
+    onCostReferenceCompleted: async (params) => {
+      await admin.from("audit_log").insert({
+        user_id: userId,
+        report_id: reportId,
+        event_type: "analysis.cost_reference_completed",
+        metadata: { succeeded: params.succeeded },
+      });
+    },
+    // Market context + listing reconciliation fire AFTER focused
+    // passes complete (~2 to 4 minutes in parallel). Without these
+    // audit rows the progress block stalled on "Finished {last
+    // group}" for the whole window.
+    onPostFocusedFetchStarted: async () => {
+      await admin.from("audit_log").insert({
+        user_id: userId,
+        report_id: reportId,
+        event_type: "analysis.post_focused_fetch_started",
+        metadata: {},
+      });
+    },
+    onPostFocusedFetchCompleted: async (params) => {
+      await admin.from("audit_log").insert({
+        user_id: userId,
+        report_id: reportId,
+        event_type: "analysis.post_focused_fetch_completed",
+        metadata: {
+          market_context_ok: params.market_context_ok,
+          listing_reconciliation_ok: params.listing_reconciliation_ok,
+        },
+      });
+    },
     onSynthesisStarted: async () => {
       await admin.from("audit_log").insert({
         user_id: userId,

@@ -372,10 +372,24 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
   let synthesisStarted = false;
   let synthesisCompleted = false;
   const passesByKey = new Map<string, PassStatus>();
+  // Long-running web-search phases that sit BEFORE focused passes
+  // (cost reference) or AFTER focused passes (market context +
+  // listing reconciliation). Without these flags the polling block
+  // sat on "All focused passes done; preparing synthesis" for the
+  // entire 2-to-4-minute post-focused window.
+  let costRefInFlight = false;
+  let postFocusedInFlight = false;
+  let verifierCount = 0;
 
   for (const e of events) {
     const md = e.metadata as Record<string, unknown>;
     switch (e.event_type) {
+      case "analysis.cost_reference_started":
+        costRefInFlight = true;
+        break;
+      case "analysis.cost_reference_completed":
+        costRefInFlight = false;
+        break;
       case "analysis.upload_started":
         total = (md.total_files as number) || total;
         break;
@@ -403,8 +417,18 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
         if (existing) existing.completed = true;
         break;
       }
+      case "analysis.verifier_completed":
+        verifierCount += 1;
+        break;
+      case "analysis.post_focused_fetch_started":
+        postFocusedInFlight = true;
+        break;
+      case "analysis.post_focused_fetch_completed":
+        postFocusedInFlight = false;
+        break;
       case "analysis.synthesis_started":
         synthesisStarted = true;
+        postFocusedInFlight = false;
         break;
       case "analysis.synthesis_completed":
         synthesisCompleted = true;
@@ -428,7 +452,15 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
     return {
       label: "Synthesizing the final 14-section report",
       detail:
-        "Combining findings from each document group into the unified report. About 30–60 seconds remaining.",
+        "Combining findings from each document group into the unified report. About 30 to 60 seconds remaining.",
+    };
+  }
+
+  if (postFocusedInFlight) {
+    return {
+      label: "Researching market context and listing history",
+      detail:
+        "Two parallel web searches: comps and mortgage rates for your unit's segment, and the listing's relist history across MLS, Zillow, and the package MLS print-out. Typically 2 to 4 minutes.",
     };
   }
 
@@ -444,12 +476,16 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
           : p.group_label,
       )
       .join(", ");
+    const verifierLine =
+      verifierCount > 0
+        ? ` ${verifierCount} verifier pass${verifierCount === 1 ? "" : "es"} done.`
+        : "";
     return {
       label: `Analyzing your disclosure (${completedPasses} of ${totalPasses} passes complete)`,
       detail:
         inFlight.length > 0
-          ? `Currently running: ${inFlightLabels}. Each pass takes 60–120 seconds.`
-          : "All focused passes done; preparing synthesis.",
+          ? `Currently running: ${inFlightLabels}. Each pass takes 60 to 120 seconds.${verifierLine}`
+          : `All focused passes done; preparing synthesis.${verifierLine}`,
     };
   }
 
@@ -457,6 +493,14 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
     return {
       label: "Preparing focused analysis passes",
       detail: "Grouping documents by type and dispatching parallel analysis calls.",
+    };
+  }
+
+  if (costRefInFlight) {
+    return {
+      label: "Building regional cost reference",
+      detail:
+        "Web-searching current 2026 California regional pricing baselines for the property's market. Typically 30 to 90 seconds.",
     };
   }
 
@@ -469,7 +513,7 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
   if (total > 0) {
     return { label: `Preparing to extract ${total} documents` };
   }
-  return { label: "Starting analysis…" };
+  return { label: "Starting analysis..." };
 }
 
 function formatElapsed(seconds: number): string {

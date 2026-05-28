@@ -217,6 +217,21 @@ function formatElapsed(sec: number): string {
 // full per-pass checklist; the admin just needs to see "something is
 // happening, here's what." This picks the latest meaningful event
 // and converts it to a label.
+//
+// Phase order (and approximate wall clocks):
+//   1. cost_reference_started     -> "Building regional cost reference"
+//   2. claude_started + pass_*    -> "Analyzing {group} (batch X of Y)"
+//      (verifier_completed events interleave; we treat them as
+//      sub-events of the current pass and don't bump the label)
+//   3. post_focused_fetch_started -> "Researching market context and
+//                                    listing history (web search)"
+//   4. synthesis_started          -> "Synthesizing the 14-section report"
+//   5. synthesis_completed        -> "Finalizing"
+//
+// The phase labels are chosen so each one says WHAT the analyzer is
+// doing right now, not just WHEN it last did something. That keeps
+// the polling component honest during the long web_search windows
+// where no per-pass event fires.
 function stageFromEvents(events: StatusEvent[]): {
   label: string;
   detail?: string;
@@ -225,10 +240,21 @@ function stageFromEvents(events: StatusEvent[]): {
   let detail: string | undefined;
   let lastPassLabel: string | null = null;
   let lastPassCompleted = false;
+  let verifierCount = 0;
+  // Phase tracking: which long-running phase is currently in flight.
+  // Set to the phase name on _started, cleared on _completed. The
+  // final label resolution at the bottom picks the latest signal.
+  let inFlight: "cost_reference" | "post_focused" | null = null;
 
   for (const e of events) {
     const md = e.metadata as Record<string, unknown>;
     switch (e.event_type) {
+      case "analysis.cost_reference_started":
+        inFlight = "cost_reference";
+        break;
+      case "analysis.cost_reference_completed":
+        if (inFlight === "cost_reference") inFlight = null;
+        break;
       case "analysis.upload_started":
         label = "Loading documents from storage";
         detail = md.total_files
@@ -262,20 +288,63 @@ function stageFromEvents(events: StatusEvent[]): {
       case "analysis.pass_completed":
         lastPassCompleted = true;
         break;
+      case "analysis.verifier_completed":
+        // Verifier interleaves with pass events. Track the count
+        // so the detail line can show "{N} verifier passes done"
+        // when we're sitting between focused-pass batches.
+        verifierCount += 1;
+        break;
+      case "analysis.post_focused_fetch_started":
+        inFlight = "post_focused";
+        break;
+      case "analysis.post_focused_fetch_completed":
+        if (inFlight === "post_focused") inFlight = null;
+        break;
       case "analysis.synthesis_started":
         label = "Synthesizing the 14-section report";
         detail = undefined;
+        inFlight = null;
         break;
       case "analysis.synthesis_completed":
         label = "Finalizing";
         detail = undefined;
+        inFlight = null;
         break;
     }
   }
-  if (lastPassLabel && !label.startsWith("Synthesiz") && !label.startsWith("Finaliz")) {
-    label = lastPassCompleted
-      ? `Finished ${lastPassLabel}`
-      : `Analyzing ${lastPassLabel}`;
+
+  // Final label resolution. Priority (highest wins):
+  //   1. Synthesis labels (already set in switch above, exit early)
+  //   2. An in-flight long phase (cost_reference or post_focused)
+  //   3. The latest pass label (focused-pass window)
+  if (label.startsWith("Synthesiz") || label.startsWith("Finaliz")) {
+    return { label, detail };
+  }
+  if (inFlight === "cost_reference") {
+    return {
+      label: "Building regional cost reference",
+      detail:
+        "Web-searching current 2026 California regional pricing baselines for the property's market. Typically 30 to 90 seconds.",
+    };
+  }
+  if (inFlight === "post_focused") {
+    return {
+      label: "Researching market context and listing history",
+      detail:
+        "Two parallel web searches: comps + mortgage rates for the unit's segment, and the listing's relist history across MLS, Zillow, and the package MLS print-out. Typically 2 to 4 minutes.",
+    };
+  }
+  if (lastPassLabel) {
+    const verifierDetail =
+      verifierCount > 0
+        ? `${verifierCount} verifier pass${verifierCount === 1 ? "" : "es"} done`
+        : undefined;
+    return {
+      label: lastPassCompleted
+        ? `Finished ${lastPassLabel}`
+        : `Analyzing ${lastPassLabel}`,
+      detail: verifierDetail,
+    };
   }
   return { label, detail };
 }
