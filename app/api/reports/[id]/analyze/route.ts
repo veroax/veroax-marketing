@@ -68,13 +68,28 @@ export async function POST(
     );
   }
 
-  // Take the lock by stamping analysis_started_at.
+  // Take the lock by stamping analysis_started_at AND increment the
+  // run counter. This route only fires for retries (the original
+  // analysis goes through /finalize -> performAnalysis), so we
+  // always increment here when we proceed past the lock check. Use
+  // the embedded SQL expression so the increment is atomic against
+  // concurrent retries; if two retries race, the lock check above
+  // catches the second one anyway.
+  const { data: currentRunRow } = await supabase
+    .from("reports")
+    .select("analysis_run_count")
+    .eq("id", reportId)
+    .single();
+  const nextRunCount =
+    ((currentRunRow as { analysis_run_count?: number } | null)
+      ?.analysis_run_count ?? 1) + 1;
   await supabase
     .from("reports")
     .update({
       status: "analyzing",
       analysis_started_at: new Date().toISOString(),
       failure_reason: null,
+      analysis_run_count: nextRunCount,
     })
     .eq("id", reportId);
 

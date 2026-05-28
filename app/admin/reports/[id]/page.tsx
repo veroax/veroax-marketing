@@ -22,6 +22,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { AdminRerunButton } from "@/app/admin/_components/AdminRerunButton";
+import { AdminAnalysisProgress } from "@/app/admin/_components/AdminAnalysisProgress";
 
 export const metadata = {
   title: "Report detail, Admin",
@@ -48,7 +49,7 @@ export default async function AdminReportDetail({
   const { data: report } = await admin
     .from("reports")
     .select(
-      "id, user_id, status, property_address, client_name, report_name, listing_url, listing_text, created_at, analysis_started_at, analysis_completed_at, failure_reason, original_files, archived, archived_at, watermarked, credit_source, brokerage_id, team_id, listing_reconciliation, listing_source_choice",
+      "id, user_id, status, property_address, client_name, report_name, listing_url, listing_text, created_at, analysis_started_at, analysis_completed_at, failure_reason, original_files, archived, archived_at, watermarked, credit_source, brokerage_id, team_id, listing_reconciliation, listing_source_choice, analysis_run_count",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -128,8 +129,17 @@ export default async function AdminReportDetail({
               </p>
             ) : null}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             <StatusPill status={report.status} />
+            {(report as { analysis_run_count?: number }).analysis_run_count &&
+            (report as { analysis_run_count: number }).analysis_run_count > 1 ? (
+              <span
+                className="text-[10px] uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded font-semibold"
+                title="Number of times this report has been analyzed (original run + retries)"
+              >
+                Run #{(report as { analysis_run_count: number }).analysis_run_count}
+              </span>
+            ) : null}
             {report.archived ? (
               <span className="text-[10px] uppercase tracking-wider text-slate-400 px-2 py-0.5 border border-slate-200 rounded">
                 Archived
@@ -250,6 +260,21 @@ export default async function AdminReportDetail({
           reconciliation steps fire.
         </p>
       </div>
+
+      {/* Live progress block, only renders while the analyzer is
+          running so the admin can see the multi-pass machinery
+          actually doing work after clicking Re-run. Mirrors the
+          agent's AnalysisRunner UX but stripped of agent-facing
+          affordances (no "we'll email you" message, no completion
+          chime, no inline retry button). Server-side condition,
+          shows up below the admin actions box without disturbing
+          the existing layout. */}
+      {report.status === "analyzing" ? (
+        <AdminAnalysisProgress
+          reportId={report.id}
+          analysisStartedAt={report.analysis_started_at ?? null}
+        />
+      ) : null}
 
       {/* Listing reconciliation, when present.
           The agent-facing surfaces (PDF) now treat listing history

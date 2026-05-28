@@ -73,13 +73,25 @@ export async function POST(
     );
   }
 
-  // Take the lock and clear any prior failure reason.
+  // Take the lock, clear any prior failure reason, AND increment
+  // the run counter. Every admin re-run produces a fresh
+  // analysis_run_count value so the report's "Run #N" label tracks
+  // every retry across both agent retries and admin re-runs.
+  const { data: currentRunRow } = await admin
+    .from("reports")
+    .select("analysis_run_count")
+    .eq("id", reportId)
+    .single();
+  const nextRunCount =
+    ((currentRunRow as { analysis_run_count?: number } | null)
+      ?.analysis_run_count ?? 1) + 1;
   await admin
     .from("reports")
     .update({
       status: "analyzing",
       analysis_started_at: new Date().toISOString(),
       failure_reason: null,
+      analysis_run_count: nextRunCount,
     })
     .eq("id", reportId);
 

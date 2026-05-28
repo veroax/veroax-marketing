@@ -35,6 +35,7 @@ type Row = {
   archived: boolean | null;
   analysis_completed_at: string | null;
   failure_reason: string | null;
+  analysis_run_count: number | null;
 };
 
 type ProfileMini = {
@@ -71,7 +72,7 @@ export default async function AdminReportsList({
   let query = admin
     .from("reports")
     .select(
-      "id, user_id, status, property_address, client_name, report_name, created_at, archived, analysis_completed_at, failure_reason",
+      "id, user_id, status, property_address, client_name, report_name, created_at, archived, analysis_completed_at, failure_reason, analysis_run_count",
       { count: "exact" },
     )
     .order(dbCol, { ascending: sortDir === "asc" })
@@ -299,11 +300,21 @@ export default async function AdminReportsList({
                       )}
                     </td>
                     <td className="px-6 py-3">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusTone(r.status)}`}
-                      >
-                        {statusLabel(r.status)}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusTone(r.status)}`}
+                        >
+                          {statusLabel(r.status)}
+                        </span>
+                        {r.analysis_run_count && r.analysis_run_count > 1 ? (
+                          <span
+                            className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200"
+                            title="Number of times this report has been analyzed"
+                          >
+                            Run #{r.analysis_run_count}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-6 py-3 text-slate-500 text-xs">
                       {new Date(r.created_at).toLocaleString(undefined, {
