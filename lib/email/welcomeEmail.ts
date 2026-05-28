@@ -142,9 +142,12 @@ function buildHtml(safeFirstName: string): string {
                               <strong>Run your first analysis.</strong> Upload a
                               disclosure package at
                               <a href="${SITE_URL}/dashboard/upload" style="color:#4f46e5;text-decoration:underline;">/dashboard/upload</a>.
-                              Your first report is free, watermarked so you can
-                              see exactly what your buyer would receive before
-                              you commit.
+                              We'll generate the 14-section report you can
+                              review on your dashboard, send to your buyer
+                              via a private share link, or download as a
+                              branded PDF, your choice. Your first run is
+                              free (watermarked) so you can see exactly what
+                              your buyer would receive before you commit.
                             </p>
                           </td>
                         </tr>
