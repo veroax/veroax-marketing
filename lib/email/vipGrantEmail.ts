@@ -34,6 +34,16 @@ export type VipGrantEmailParams = {
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 
+// Founder gets a blind carbon copy on every VIP grant email so
+// there's always a paper trail of what went out, signed by which
+// admin, to which user. The recipient doesn't see this address
+// (bcc, not cc), so the email still reads as a one-to-one personal
+// note. Hardcoded rather than env-var-driven because (a) it's a
+// specific operational decision the founder made, not a deployment
+// parameter, and (b) it's the same address whether we're in dev,
+// staging, or prod.
+const VIP_GRANT_BCC = "michael@veroax.com";
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -81,9 +91,23 @@ export async function sendVipGrantEmail({
   // generic support inbox. This is a personal email; the
   // recipient should be able to hit reply and get to the real
   // person who granted them VIP.
+  //
+  // BCC the founder's mailbox so there's always a paper trail of
+  // what went out, regardless of which admin granted. The
+  // recipient does not see this address.
+  //
+  // Edge case: if the granting admin IS the BCC mailbox, the BCC
+  // would double-deliver to the same inbox. Drop the BCC in that
+  // case so we don't send the founder two copies of every email
+  // they personally triggered.
+  const bccRecipients =
+    adminEmail.toLowerCase() === VIP_GRANT_BCC.toLowerCase()
+      ? undefined
+      : VIP_GRANT_BCC;
   const result = await sendTransactional({
     to: recipientEmail,
     replyTo: adminEmail,
+    bcc: bccRecipients,
     subject,
     text,
     html,

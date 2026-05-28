@@ -55,6 +55,13 @@ type SendParams = {
   // support staff want to hit Reply once and answer the user
   // directly. Defaults to TRANSACTIONAL_REPLY_TO (support@).
   replyTo?: string | string[];
+  // Optional blind-carbon-copy recipient(s). The "to" recipient
+  // does NOT see this address; useful for cc'ing an operational
+  // mailbox on a personal-feeling email (e.g., the VIP grant
+  // email blind-copies the founder so they always have a record
+  // of what went out to the user, without making the user feel
+  // they got a templated blast).
+  bcc?: string | string[];
 };
 
 export type SendResult = {
@@ -114,6 +121,7 @@ export async function sendTransactional(
       html?: string;
       text?: string;
       replyTo: string | string[];
+      bcc?: string | string[];
     } = {
       from: TRANSACTIONAL_FROM,
       to: params.to,
@@ -122,6 +130,7 @@ export async function sendTransactional(
     };
     if (params.html) payload.html = params.html;
     if (params.text) payload.text = params.text;
+    if (params.bcc) payload.bcc = params.bcc;
     // Resend's createEmail union types html/text as mutually exclusive
     // at the type level, but the API actually accepts both. Cast to
     // the SDK's expected shape to bypass the type-level disjunction.
