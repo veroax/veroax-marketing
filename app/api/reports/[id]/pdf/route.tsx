@@ -44,18 +44,46 @@ export async function GET(
       return new Response("Not authenticated.", { status: 401 });
     }
 
-    const { data: report, error } = await supabase
+    // Admin check up front so we know whether to fall back to the
+    // service-role read when the user-scoped (RLS) read returns
+    // nothing. Owners hit the fast RLS path; admins viewing a
+    // non-owned report hit the service-role fallback.
+    const { data: callerProfile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+    const isAdmin = Boolean(
+      (callerProfile as { is_admin?: boolean } | null)?.is_admin,
+    );
+
+    // Owner-RLS read first.
+    let { data: report, error } = await supabase
       .from("reports")
-      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at, watermarked, credit_source, brokerage_id, team_id, deleted_at")
+      .select("id, user_id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at, watermarked, credit_source, brokerage_id, team_id, deleted_at")
       .eq("id", reportId)
       .maybeSingle();
+
+    // Admin fallback: when the owner-scoped read returned nothing
+    // AND the caller is admin, retry via service-role. Lets admins
+    // download any report's PDF from /admin/reports/<id> without
+    // having to be the owner.
+    if ((!report || error) && isAdmin) {
+      const adminClient = createServiceRoleClient();
+      const { data: adminReport } = await adminClient
+        .from("reports")
+        .select("id, user_id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at, watermarked, credit_source, brokerage_id, team_id, deleted_at")
+        .eq("id", reportId)
+        .maybeSingle();
+      report = adminReport;
+      error = null;
+    }
     if (error || !report) {
       return new Response("Report not found.", { status: 404 });
     }
-    // Soft-deleted reports cannot be downloaded. Even the owning
-    // agent sees a 404 from this surface; the report has moved to
-    // the deleted bucket and is not retrievable as a PDF until an
-    // admin restores it.
+    // Soft-deleted reports cannot be downloaded. Even an admin sees
+    // a 404 here; the deleted bucket's Restore action is the only
+    // path back to PDF-downloadable.
     if ((report as { deleted_at?: string | null }).deleted_at) {
       return new Response("Report not found.", { status: 404 });
     }
@@ -66,23 +94,39 @@ export async function GET(
       );
     }
 
-    const { data: profile } = await supabase
+    // Profile lookup. Always pull the OWNING AGENT's profile (not
+    // the caller's), so the cover always renders the agent's
+    // branding regardless of whether the agent or an admin
+    // requested the download. For owner requests the report.user_id
+    // equals user.id and this picks the same row; for admin
+    // downloads it picks the owner's profile.
+    const ownerUserId = (report as { user_id: string }).user_id;
+    const profileClient = isAdmin && ownerUserId !== user.id
+      ? createServiceRoleClient()
+      : supabase;
+    const { data: profile } = await profileClient
       .from("profiles")
       .select("full_name, brokerage, dre_license, brokerage_dre, phone, display_email, brokerage_logo_url, headshot_url, brand_accent_hex, tagline, website_url, office_address, dre_verification_status, dre_verified_at")
-      .eq("id", user.id)
+      .eq("id", ownerUserId)
       .maybeSingle();
 
     // Profile is a hard precondition for download. Name / DRE /
-    // brokerage are printed on every cover; blanks here would make
-    // the PDF look unfinished. 412 surfaces a clear, actionable error
-    // pointing the agent at /dashboard/settings.
+    // brokerage are printed on every cover; blanks here would
+    // make the PDF look unfinished. 412 surfaces a clear,
+    // actionable error. Owner-self requests get the "fix your
+    // own profile" CTA; admin-on-behalf requests get a tagged
+    // error so the admin sees which fields the agent needs to
+    // populate before the PDF can render.
     const missing: string[] = [];
     if (!profile?.full_name?.trim()) missing.push("full name");
     if (!profile?.dre_license?.trim()) missing.push("DRE license");
     if (!profile?.brokerage?.trim()) missing.push("brokerage");
     if (missing.length > 0) {
+      const isOwnerRequest = ownerUserId === user.id;
       return new Response(
-        `Complete your agent profile before downloading reports, missing ${missing.join(", ")}. Visit /dashboard/settings to add them.`,
+        isOwnerRequest
+          ? `Complete your agent profile before downloading reports, missing ${missing.join(", ")}. Visit /dashboard/settings to add them.`
+          : `Agent profile is incomplete (missing ${missing.join(", ")}). The PDF cover renders the agent's name / DRE / brokerage, so the report cannot be generated until the owning agent fills these in. Ask them to visit /dashboard/settings.`,
         { status: 412 },
       );
     }
@@ -123,7 +167,15 @@ export async function GET(
       profile: profile as Parameters<typeof resolveReportBranding>[0]["profile"],
       brokerage: brokerageBranding,
       team: teamBranding,
-      authEmail: user.email ?? null,
+      // authEmail is only used as a last-resort fallback when the
+      // owner's profile.display_email is null. For owner requests
+      // it's the agent's own auth email. For admin requests against
+      // someone ELSE'S report we'd otherwise leak the admin's
+      // address as the agent's contact, so we pass null instead
+      // and let the renderer fall back gracefully when
+      // display_email is missing.
+      authEmail:
+        ownerUserId === user.id ? user.email ?? null : null,
     });
 
     // If a version was requested, swap in the snapshotted data

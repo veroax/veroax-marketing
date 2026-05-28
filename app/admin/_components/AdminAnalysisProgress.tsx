@@ -174,9 +174,33 @@ export function AdminAnalysisProgress({ reportId, analysisStartedAt }: Props) {
             Multi-pass analysis runs the focused passes + verifier on
             every group, then market-context + listing reconciliation
             + cost-reference web searches. Typical wall clock is 6 to
-            12 minutes on a full California disclosure package; the
-            page auto-refreshes when it lands.
+            12 minutes on a full California disclosure package.
           </p>
+          <div className="mt-3 flex items-start gap-2.5 text-xs text-slate-700 bg-slate-50/60 border border-slate-200 rounded-lg px-3 py-2.5">
+            <svg
+              className="w-4 h-4 mt-0.5 text-emerald-600 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+            <p className="leading-relaxed">
+              <strong className="text-slate-900">
+                Safe to leave this page.
+              </strong>{" "}
+              The analysis keeps running on our servers regardless of
+              whether the admin tab stays open. Come back to{" "}
+              <span className="font-mono">/admin/reports/{"<id>"}</span> any
+              time; the status pill + the report content below will
+              reflect the latest state.
+            </p>
+          </div>
         </div>
       </div>
     </div>

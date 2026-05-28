@@ -24,6 +24,9 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { AdminRerunButton } from "@/app/admin/_components/AdminRerunButton";
 import { AdminAnalysisProgress } from "@/app/admin/_components/AdminAnalysisProgress";
 import { AdminDeleteReportButton } from "@/app/admin/_components/AdminDeleteReportButton";
+import { composeExecutiveNarrative } from "@/lib/reports/narrative";
+import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
+import type { ReportData, Finding } from "@/lib/anthropic/schema";
 
 export const metadata = {
   title: "Report detail, Admin",
@@ -50,7 +53,7 @@ export default async function AdminReportDetail({
   const { data: report } = await admin
     .from("reports")
     .select(
-      "id, user_id, status, property_address, client_name, report_name, listing_url, listing_text, created_at, analysis_started_at, analysis_completed_at, failure_reason, original_files, archived, archived_at, watermarked, credit_source, brokerage_id, team_id, listing_reconciliation, listing_source_choice, analysis_run_count",
+      "id, user_id, status, property_address, client_name, report_name, listing_url, listing_text, created_at, analysis_started_at, analysis_completed_at, failure_reason, original_files, archived, archived_at, watermarked, credit_source, brokerage_id, team_id, listing_reconciliation, listing_source_choice, analysis_run_count, report_data",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -242,12 +245,17 @@ export default async function AdminReportDetail({
             reportId={report.id}
             currentStatus={report.status}
           />
-          <Link
-            href={`/dashboard/reports/${report.id}`}
-            className="text-sm text-slate-600 hover:text-slate-900 px-4 py-2 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors"
-          >
-            Open agent view
-          </Link>
+          {report.report_data ? (
+            <a
+              href={`/api/reports/${report.id}/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-indigo-700 hover:text-indigo-900 px-4 py-2 rounded-lg border border-indigo-300 hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
+              title="Download the report as a PDF. Renders with the owning agent's branding, not yours."
+            >
+              Download PDF
+            </a>
+          ) : null}
           <Link
             href={`/admin/audit?report=${report.id}`}
             className="text-sm text-slate-600 hover:text-slate-900 px-4 py-2 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors"
@@ -281,6 +289,20 @@ export default async function AdminReportDetail({
         <AdminAnalysisProgress
           reportId={report.id}
           analysisStartedAt={report.analysis_started_at ?? null}
+        />
+      ) : null}
+
+      {/* Report content: rendered when the analysis has data,
+          regardless of status. Uses the same narrative + strengths
+          / concerns helpers the agent dashboard uses, so the admin
+          sees what the agent sees without redirecting through
+          /dashboard/reports/<id> (which 404s for non-owners).
+          For the full styled output (cover, all 14 sections, agent
+          branding) the admin can hit the Download PDF button in
+          the actions row above. */}
+      {report.report_data ? (
+        <AdminReportContent
+          reportData={report.report_data as ReportData}
         />
       ) : null}
 
@@ -452,4 +474,326 @@ function StatusPill({ status }: { status: string }) {
       {entry.label}
     </span>
   );
+}
+
+// Admin-facing read of the synthesized report content.
+//
+// Renders the same headline data the agent sees on
+// /dashboard/reports/<id> (executive narrative, strengths,
+// concerns, critical findings, moderate findings, overall rating),
+// but without the agent-action affordances (download PDF lives
+// in the admin actions row above; archive / email-client /
+// share-link don't apply when the caller isn't the owning agent).
+//
+// Uses the existing composeExecutiveNarrative + composeAgentStrengths-
+// AndConcerns helpers so a future change to those helpers shows up
+// here automatically, no second source of truth to maintain.
+function AdminReportContent({ reportData }: { reportData: ReportData }) {
+  const narrative = composeExecutiveNarrative(reportData);
+  const { strengths, concerns } = composeAgentStrengthsAndConcerns(reportData);
+  const property = reportData.property_snapshot;
+  const rating = reportData.overall_rating;
+  const critical = reportData.critical_findings ?? [];
+  const moderate = reportData.moderate_findings ?? [];
+  const grand = reportData.cost_summary?.grand_total ?? null;
+  const hoa = reportData.hoa;
+  const completeness = reportData.completeness_audit;
+
+  return (
+    <section className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-slate-500">
+            Report content
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            What the analyzer produced. The owning agent sees this
+            on their dashboard; the full styled PDF is available
+            from the Download PDF button above.
+          </p>
+        </div>
+        {rating ? (
+          <span
+            className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${overallRatingTone(rating.label)}`}
+          >
+            {rating.label}
+          </span>
+        ) : null}
+      </div>
+
+      {/* Property snapshot, condensed admin view. */}
+      {property ? (
+        <div className="grid sm:grid-cols-3 gap-x-6 gap-y-3 text-sm border-t border-slate-100 pt-5">
+          <Row
+            label="Address"
+            value={
+              property.address ?? (
+                <span className="text-slate-400 italic">
+                  not extracted
+                </span>
+              )
+            }
+          />
+          {property.property_type ? (
+            <Row label="Type" value={property.property_type} />
+          ) : null}
+          {property.year_built ? (
+            <Row label="Year built" value={property.year_built} />
+          ) : null}
+          {property.bedrooms != null || property.bathrooms != null ? (
+            <Row
+              label="Bed / Bath / Sqft"
+              value={`${property.bedrooms ?? "?"} bd / ${property.bathrooms ?? "?"} ba${property.square_feet ? ` / ${property.square_feet.toLocaleString()} sqft` : ""}`}
+            />
+          ) : null}
+          {property.list_price ? (
+            <Row label="List price" value={`$${property.list_price.toLocaleString()}`} />
+          ) : null}
+          {property.days_on_market != null ? (
+            <Row label="Days on market" value={property.days_on_market} />
+          ) : null}
+          {property.mls_number ? (
+            <Row label="MLS#" value={<code className="text-xs">{property.mls_number}</code>} />
+          ) : null}
+          {property.apn ? (
+            <Row label="APN" value={<code className="text-xs">{property.apn}</code>} />
+          ) : null}
+          {grand ? (
+            <Row
+              label="Total exposure"
+              value={
+                <span className="font-bold text-slate-900">
+                  ${grand.low.toLocaleString()} to ${grand.high.toLocaleString()}
+                </span>
+              }
+            />
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Executive narrative, as paragraphs. */}
+      {narrative.length > 0 ? (
+        <div className="border-t border-slate-100 pt-5 space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            Executive narrative
+          </h3>
+          {narrative.map((paragraph, i) => (
+            <p
+              key={i}
+              className="text-sm text-slate-800 leading-relaxed"
+            >
+              {paragraph}
+            </p>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Strengths vs concerns, side by side. */}
+      {(strengths.length > 0 || concerns.length > 0) ? (
+        <div className="border-t border-slate-100 pt-5 grid sm:grid-cols-2 gap-6">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-700 mb-2">
+              Three strengths
+            </h3>
+            <ul className="space-y-1.5 text-sm text-slate-800">
+              {strengths.length === 0 ? (
+                <li className="italic text-slate-400">none surfaced</li>
+              ) : (
+                strengths.map((s, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-emerald-600 font-bold">
+                      {i + 1}.
+                    </span>
+                    <span>{s.text}</span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-red-700 mb-2">
+              Three key concerns
+            </h3>
+            <ul className="space-y-1.5 text-sm text-slate-800">
+              {concerns.length === 0 ? (
+                <li className="italic text-slate-400">none surfaced</li>
+              ) : (
+                concerns.map((c, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-red-700 font-bold">
+                      {i + 1}.
+                    </span>
+                    <span>{c.text}</span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Critical + high findings (top 5 by severity ordering). */}
+      {critical.length > 0 ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-red-700 mb-3">
+            Critical and high-priority findings ({critical.length})
+          </h3>
+          <ul className="space-y-2.5">
+            {critical.slice(0, 8).map((f, i) => (
+              <FindingRow key={i} finding={f} />
+            ))}
+            {critical.length > 8 ? (
+              <li className="text-xs text-slate-500 italic pl-2">
+                ...{critical.length - 8} more, see the PDF for the
+                full set.
+              </li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
+
+      {/* Moderate findings, condensed. */}
+      {moderate.length > 0 ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-amber-700 mb-3">
+            Moderate findings ({moderate.length})
+          </h3>
+          <ul className="space-y-1.5 text-sm text-slate-800">
+            {moderate.slice(0, 10).map((f, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-amber-700">&middot;</span>
+                <span>
+                  {f.title}
+                  {f.cost_estimate &&
+                  (f.cost_estimate.low || f.cost_estimate.high) ? (
+                    <span className="text-slate-500 text-xs ml-2">
+                      ${(f.cost_estimate.low ?? 0).toLocaleString()} to $
+                      {(f.cost_estimate.high ?? 0).toLocaleString()}
+                    </span>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+            {moderate.length > 10 ? (
+              <li className="text-xs text-slate-500 italic pl-2">
+                ...{moderate.length - 10} more in the PDF.
+              </li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
+
+      {/* HOA section summary, when present. */}
+      {hoa && hoa.applicable !== false ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+            HOA review
+          </h3>
+          <p className="text-sm text-slate-800 leading-relaxed">
+            {hoa.summary ?? (
+              <span className="italic text-slate-400">
+                no HOA narrative populated
+              </span>
+            )}
+          </p>
+          {hoa.reserve_health_read ? (
+            <p className="text-sm text-slate-800 leading-relaxed mt-3">
+              <span className="font-semibold">Reserve health, our read:</span>{" "}
+              {hoa.reserve_health_read}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Overall rating narrative. */}
+      {rating ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+            Overall rating
+          </h3>
+          <p className="text-sm text-slate-800 leading-relaxed">
+            {rating.summary ?? rating.contingency_advice ?? (
+              <span className="italic text-slate-400">
+                no narrative populated
+              </span>
+            )}
+          </p>
+          {rating.why_this_rating ? (
+            <p className="text-sm text-slate-800 leading-relaxed mt-3">
+              <span className="font-semibold">Why this rating:</span>{" "}
+              {rating.why_this_rating}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Completeness audit issues, surfaces the stale-package
+          warnings and any other issues the focused passes or
+          defensive override generated. */}
+      {completeness && (completeness.issues?.length ?? 0) > 0 ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+            Completeness audit ({completeness.issues?.length})
+          </h3>
+          <ul className="space-y-1.5 text-xs text-slate-700">
+            {completeness.issues?.map((issue, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-amber-600">&middot;</span>
+                <span>{issue}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function FindingRow({ finding }: { finding: Finding }) {
+  const sevTone =
+    finding.severity === "critical"
+      ? "bg-red-700 text-white"
+      : finding.severity === "high"
+        ? "bg-orange-700 text-white"
+        : "bg-amber-100 text-amber-900";
+  return (
+    <li className="border border-slate-200 rounded-lg p-3 text-sm">
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <p className="font-semibold text-slate-900">{finding.title}</p>
+        <span
+          className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded shrink-0 ${sevTone}`}
+        >
+          {finding.severity}
+        </span>
+      </div>
+      {finding.cost_estimate &&
+      (finding.cost_estimate.low || finding.cost_estimate.high) ? (
+        <p className="text-xs text-slate-600 font-mono">
+          ${(finding.cost_estimate.low ?? 0).toLocaleString()} to $
+          {(finding.cost_estimate.high ?? 0).toLocaleString()}
+        </p>
+      ) : null}
+      {finding.source ? (
+        <p className="text-xs text-slate-500 mt-1">{finding.source}</p>
+      ) : null}
+    </li>
+  );
+}
+
+function overallRatingTone(label: string | null | undefined): string {
+  switch (label) {
+    case "Excellent":
+    case "Good":
+      return "bg-emerald-100 text-emerald-800";
+    case "Acceptable":
+      return "bg-indigo-100 text-indigo-800";
+    case "Manageable Concerns":
+      return "bg-amber-100 text-amber-800";
+    case "Significant Concerns":
+      return "bg-orange-100 text-orange-900";
+    case "Walk Away":
+      return "bg-red-100 text-red-800";
+    default:
+      return "bg-slate-100 text-slate-700";
+  }
 }
