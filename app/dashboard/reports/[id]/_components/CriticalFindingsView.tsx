@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Finding } from "@/lib/anthropic/schema";
+import { slugifyFindingTitle } from "@/lib/reports/summary";
 
 // Critical-findings list on the dashboard report detail page, with
 // click-to-source. Each finding's "Source: X" line is a button that
@@ -144,8 +145,19 @@ function FindingDetail({
   const nextStep =
     finding.next_step?.trim() || finding.recommended_action?.trim() || null;
 
+  // Slug-stable anchor target so the Top Strengths / Top Concerns
+  // link icons up top can jump straight to this card. The slug is
+  // derived from finding.title via the shared helper in
+  // lib/reports/summary so the source (the strengths/concerns
+  // picker) and the target (this card) can never drift apart.
+  // scroll-mt gives the anchored card breathing room from the top
+  // of the viewport instead of butting up against it.
+  const anchorId = `finding-${slugifyFindingTitle(finding.title)}`;
   return (
-    <div className="rounded-xl border border-red-200/60 bg-red-50/40 p-4">
+    <div
+      id={anchorId}
+      className="rounded-xl border border-red-200/60 bg-red-50/40 p-4 scroll-mt-4 target:ring-2 target:ring-red-300"
+    >
       <div className="flex items-start justify-between gap-2 mb-2">
         <p className="font-bold text-red-900 text-sm flex-1 min-w-0">
           {index}. {finding.title}

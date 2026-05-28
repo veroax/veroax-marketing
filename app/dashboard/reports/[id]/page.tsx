@@ -9,7 +9,10 @@ import { AgentActions } from "./_components/AgentActions";
 import { RemoveFileButton } from "./_components/RemoveFileButton";
 import { VersionDownloadButton } from "./_components/VersionDownloadButton";
 import type { ReportData } from "@/lib/anthropic/schema";
-import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
+import {
+  composeAgentStrengthsAndConcerns,
+  slugifyFindingTitle,
+} from "@/lib/reports/summary";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 import { CompletionTimestamp } from "./_components/CompletionTimestamp";
 
@@ -98,46 +101,20 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
 
   return (
     <div className="space-y-6 max-w-5xl">
+      {/* Top chrome: just the back-link + status pill. The full
+          address heading used to live here too, which duplicated
+          the address rendered inside AgentSummary's hero (with
+          "Prepared For" + dates + rating). The duplication cost
+          a row of vertical space and made the page feel
+          repetitive at first glance. */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <Link
-            href="/dashboard"
-            className="text-xs text-gray-500 hover:text-slate-900 mb-2 inline-block"
-          >
-            ← All reports
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-900">
-            {report.property_address?.trim() ||
-              reportData?.property_snapshot?.address?.trim() ||
-              (report as { report_name?: string | null }).report_name?.trim() ||
-              "Untitled report"}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Created{" "}
-            {new Date(report.created_at).toLocaleString("en-US", {
-              timeZone: "America/Los_Angeles",
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
-            {report.analysis_completed_at && (
-              <>
-                {" · Analyzed "}
-                {new Date(report.analysis_completed_at).toLocaleString("en-US", {
-                  timeZone: "America/Los_Angeles",
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
-              </>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Note: the prominent "Download full PDF report" button lives
-              inside AgentSummary's action row below. The top-of-page
-              chrome only shows the status pill now, duplicating the
-              CTA in two places competed for attention. */}
-          <StatusPill status={report.status} />
-        </div>
+        <Link
+          href="/dashboard"
+          className="text-xs text-gray-500 hover:text-slate-900 inline-block"
+        >
+          &larr; All reports
+        </Link>
+        <StatusPill status={report.status} />
       </div>
 
       {/* Analyzing state, render the client runner that triggers + polls.
@@ -194,6 +171,10 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
           }
           createdAt={report.created_at}
           analysisCompletedAt={report.analysis_completed_at ?? null}
+          analysisRunCount={
+            (report as { analysis_run_count?: number | null })
+              .analysis_run_count ?? null
+          }
           lastUpdatedAt={
             (report as { last_updated_at?: string | null }).last_updated_at ??
             null
@@ -436,6 +417,7 @@ function AgentSummary({
   clientName,
   createdAt,
   analysisCompletedAt,
+  analysisRunCount,
   lastUpdatedAt,
   versions,
   archived,
@@ -448,6 +430,11 @@ function AgentSummary({
   clientName: string | null;
   createdAt: string;
   analysisCompletedAt: string | null;
+  // Number of times this report's analysis has been run (original
+  // + retries). Renders in the hero info bar as "Run #N" alongside
+  // the short Report ID so agents can validate they're looking at
+  // the right report and the right analysis revision.
+  analysisRunCount: number | null;
   lastUpdatedAt: string | null;
   versions: ReportVersionSnapshot[];
   archived: boolean;
@@ -486,6 +473,23 @@ function AgentSummary({
           )}
         </div>
         <div className="px-6 py-3 text-xs text-slate-500 flex flex-wrap gap-x-5 gap-y-1.5 bg-slate-50">
+          {/* Report ID + Run number, surfaced so agents can verify
+              they're looking at the right report and the right
+              analysis revision. The short ID matches what's
+              printed on the PDF cover and in the URL bar of the
+              share link, so cross-referencing is unambiguous. */}
+          <span>
+            <span className="font-semibold text-slate-700">Report ID</span>{" "}
+            <span className="font-mono text-slate-900">
+              {reportId.slice(0, 8)}
+            </span>
+          </span>
+          <span>
+            <span className="font-semibold text-slate-700">Version</span>{" "}
+            <span className="font-mono text-slate-900">
+              Run #{analysisRunCount ?? 1}
+            </span>
+          </span>
           <span>
             <span className="font-semibold text-slate-700">Created</span>{" "}
             {formatDate(createdAt)}
@@ -511,7 +515,7 @@ function AgentSummary({
           {grandTotal && grandTotal.high > 0 && (
             <span>
               <span className="font-semibold text-slate-700">Cost exposure</span>{" "}
-              {formatUSD(grandTotal.low)} – {formatUSD(grandTotal.high)}
+              {formatUSD(grandTotal.low)} to {formatUSD(grandTotal.high)}
             </span>
           )}
         </div>
@@ -540,7 +544,15 @@ function AgentSummary({
         </div>
       </div>
 
-      {/* ----- Strengths / Concerns dual block ------------------- */}
+      {/* ----- Strengths / Concerns dual block -------------------
+          Each row with a sourced finding (findingTitle non-null)
+          links to the corresponding finding card in the Critical
+          Findings View further down the page via a hash anchor.
+          The link icon (chain-style) is visible by default so the
+          agent knows the row IS clickable; rows derived from
+          structured non-finding data (hazard zones, package
+          completeness, etc.) render without the icon since there's
+          no finding card to jump to. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
           <h3 className="text-xs font-bold tracking-widest text-emerald-800 uppercase mb-3">
@@ -549,8 +561,20 @@ function AgentSummary({
           <ol className="space-y-2.5 text-sm text-emerald-950">
             {strengths.map((s, i) => (
               <li key={i} className="flex gap-2.5">
-                <span className="font-bold text-emerald-700 shrink-0">{i + 1}.</span>
-                <span>{s.text}</span>
+                <span className="font-bold text-emerald-700 shrink-0">
+                  {i + 1}.
+                </span>
+                <span className="flex-1">{s.text}</span>
+                {s.findingTitle ? (
+                  <a
+                    href={`#finding-${slugifyFindingTitle(s.findingTitle)}`}
+                    className="shrink-0 text-emerald-700 hover:text-emerald-900"
+                    title="Jump to the detailed finding below"
+                    aria-label="View finding details"
+                  >
+                    <LinkIcon />
+                  </a>
+                ) : null}
               </li>
             ))}
           </ol>
@@ -562,7 +586,9 @@ function AgentSummary({
           <ol className="space-y-2.5 text-sm text-red-950">
             {concerns.map((c, i) => (
               <li key={i} className="flex gap-2.5">
-                <span className="font-bold text-red-700 shrink-0">{i + 1}.</span>
+                <span className="font-bold text-red-700 shrink-0">
+                  {i + 1}.
+                </span>
                 <span className="flex-1">
                   {c.text}
                   {c.triggeredRule && (
@@ -579,6 +605,16 @@ function AgentSummary({
                     </span>
                   )}
                 </span>
+                {c.findingTitle ? (
+                  <a
+                    href={`#finding-${slugifyFindingTitle(c.findingTitle)}`}
+                    className="shrink-0 text-red-700 hover:text-red-900"
+                    title="Jump to the detailed finding below"
+                    aria-label="View finding details"
+                  >
+                    <LinkIcon />
+                  </a>
+                ) : null}
               </li>
             ))}
           </ol>
@@ -617,13 +653,33 @@ function AgentSummary({
         )}
       </div>
 
-      {/* ----- Uploaded documents (with per-row Remove) ---------- */}
+      {/* ----- Uploaded documents (collapsed by default) ---------
+          Real CA disclosure packages commonly run 40+ PDFs;
+          rendering all of them expanded made this section
+          dominate the scroll height of the page. Now collapsed
+          into a <details> with the summary showing the count, so
+          agents who don't need to manage files can scroll past
+          and agents who DO need to remove a file click to expand. */}
       {originalFiles.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
-          <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase mb-3">
-            Uploaded documents
-          </h3>
-          <ul className="divide-y divide-slate-100 text-sm">
+        <details className="rounded-2xl border border-slate-200 bg-white px-5 py-4 group">
+          <summary className="cursor-pointer list-none flex items-center justify-between gap-3 hover:text-slate-900">
+            <div className="flex items-center gap-3">
+              <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase">
+                Uploaded documents
+              </h3>
+              <span className="text-xs text-slate-500">
+                {originalFiles.length} file
+                {originalFiles.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <span
+              className="text-slate-400 group-open:rotate-90 transition-transform text-base leading-none"
+              aria-hidden="true"
+            >
+              &rsaquo;
+            </span>
+          </summary>
+          <ul className="divide-y divide-slate-100 text-sm mt-3">
             {originalFiles.map((f) => (
               <li
                 key={f.name}
@@ -654,7 +710,7 @@ function AgentSummary({
             package. The current report is preserved in the version
             history.
           </p>
-        </div>
+        </details>
       )}
 
       {/* ----- Action row (client component for modal state) ---- */}
@@ -716,6 +772,33 @@ function AgentSummary({
 function formatFileSize(sizeKb: number): string {
   if (sizeKb >= 1024) return `${(sizeKb / 1024).toFixed(1)} MB`;
   return `${sizeKb} KB`;
+}
+
+// Small chain-link affordance shown next to a strengths/concerns row
+// when the row is sourced from a specific finding. Clicking the parent
+// <a> jumps the page to the matching finding card (CriticalFindingsView
+// renders an id="finding-<slug>" anchor on each one). The icon is
+// inline-sized at 1em so it sits cleanly against the surrounding
+// 14px text without any explicit width tweaking.
+function LinkIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      width="1em"
+      height="1em"
+      aria-hidden="true"
+      className="inline-block"
+    >
+      <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
 }
 
 function formatDate(iso: string): string {
