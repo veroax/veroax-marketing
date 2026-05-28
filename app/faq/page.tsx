@@ -11,7 +11,7 @@ import { SUPPORT } from "@/lib/site";
 export const metadata: Metadata = {
   title: "FAQ, Veroax",
   description:
-    "Answers about Veroax disclosure analysis: product basics, pricing, the analysis pipeline, brand and PDF customization, privacy, and team accounts.",
+    "Answers about Veroax disclosure analysis: product basics, pricing, the analysis pipeline, report customization and delivery channels, privacy, and team accounts.",
 };
 
 const SITE_URL =
@@ -28,7 +28,7 @@ const GROUPS: Group[] = [
     items: [
       {
         q: "What does Veroax actually do?",
-        a: "You upload a California residential disclosure package (TDS, SPQ, AVID, NHD, HOA documents, inspection reports, and any third-party disclosures). A multi-pass AI pipeline produces a 14-section buyer report: critical findings, cost estimates grounded in regional pricing, HOA review, environmental hazards, negotiation leverage, and an overall property rating. You review the report, make any agent-side corrections, and hand the polished PDF to your buyer client.",
+        a: "You upload a California residential disclosure package (TDS, SPQ, AVID, NHD, HOA documents, inspection reports, and any third-party disclosures). A multi-pass AI pipeline produces a 14-section buyer report: critical findings, cost estimates grounded in regional pricing, HOA review, environmental hazards, negotiation leverage, and an overall property rating. You review the report on your dashboard, make any agent-side corrections, and deliver it to your buyer as a private share link, a downloadable PDF, or both.",
       },
       {
         q: "Who is Veroax for?",
@@ -67,7 +67,7 @@ const GROUPS: Group[] = [
       },
       {
         q: "How do I get my free trial report?",
-        a: "Every California-licensed agent gets one free, watermarked trial report when they sign up, verified by their DRE license number. From the dashboard, click New report, upload a disclosure package, and the analysis runs against your trial credit. The PDF carries a small Veroax watermark; everything else is identical to a paid report.",
+        a: "Every California-licensed agent gets one free, watermarked trial report when they sign up, verified by their DRE license number. From the dashboard, click New report, upload a disclosure package, and the analysis runs against your trial credit. Trial reports carry a Veroax watermark on both the dashboard view and the downloaded PDF; everything else is identical to a paid report.",
       },
       {
         q: "What file formats can I upload?",
@@ -145,26 +145,30 @@ const GROUPS: Group[] = [
       },
       {
         q: "Can I edit findings before sending to the client?",
-        a: "You can correct any finding from the agent QA view before the final PDF is generated. Edits are tracked so you have an audit trail of what was changed and when. The buyer-facing PDF only renders after you approve the report.",
+        a: "You can correct any finding from the agent QA view on your dashboard before anything goes to the client. Edits are tracked so you have an audit trail of what was changed and when. The buyer-facing share link and the downloadable PDF both render the same approved version, so the buyer never sees an unreviewed draft regardless of which channel you use.",
       },
     ],
   },
   {
     id: "reports",
     label: "Reports and deliverables",
-    intro: "The PDF you hand to the buyer, plus sharing and branding.",
+    intro: "What your client receives, plus sharing and branding.",
     items: [
       {
-        q: "Can I customize the PDF with my brand?",
-        a: "Yes. The dashboard settings page lets you upload a headshot, a brokerage logo, and set your name, DRE license, brokerage name, tagline, contact phone, contact email, and an accent color. The PDF cover and the running header on every page pick up your branding. Brokerage plans also support white-label (no Veroax credit at the bottom of the cover).",
+        q: "What does my buyer actually receive?",
+        a: "Three channels, all driven by the same analysis. Default is a private share link at /r/{code} that opens the live web report in any browser, no login required, mobile-first layout. You can also download a branded PDF for email attachments, printing, or offline review. And the built-in email draft sends both at once: the share link in the email body, the PDF attached. You pick the channel that fits the client.",
       },
       {
-        q: "Can I share the report online instead of attaching the PDF?",
-        a: "Yes. Every finished report has a public share link at /r/{code} where {code} is a 12-character unguessable code. The page is mobile-first, looks great on a phone, and shows the full report in HTML alongside a download-the-PDF button. You can revoke the link at any time.",
+        q: "Can I customize the report with my brand?",
+        a: "Yes. The dashboard settings page lets you upload a headshot, a brokerage logo, and set your name, DRE license, brokerage name, tagline, contact phone, contact email, and an accent color. Your branding appears on the live share-link view, the dashboard view, and the PDF cover + running header. Brokerage plans also support white-label (no Veroax credit at the bottom of the cover).",
+      },
+      {
+        q: "How does the live share link work?",
+        a: "Every finished report has a public share link at /r/{code} where {code} is a 12-character unguessable code. The page is mobile-first, looks great on a phone, renders the full 14-section report in HTML, and includes a download-the-PDF button for offline use. You can revoke the link at any time from the report page.",
       },
       {
         q: "Can I send the report directly to the buyer's email?",
-        a: "Yes. From the report page, click Send to client. We render the PDF, draft a buyer-ready email (which you can edit), and send it through Resend from your branded email address. We log the send to the report's history.",
+        a: "Yes. From the report page, click Send to client. We compose a buyer-ready email (which you can edit), put your share link in the body, attach the branded PDF, and send it through Resend from your branded email address. The client opens whichever channel they prefer. We log the send to the report's history.",
       },
     ],
   },
@@ -194,11 +198,11 @@ const GROUPS: Group[] = [
     items: [
       {
         q: "Can my brokerage have multiple agents on one account?",
-        a: "Yes, on the Brokerage plan. The plan includes 30 reports per month pooled across the team, multi-agent admin dashboard, per-agent branding, and per-agent DRE numbers on the PDF cover. Contact us via the homepage form to set up team seats; we onboard each brokerage by hand to make sure the white-label is right.",
+        a: "Yes, on the Brokerage plan. The plan includes 30 reports per month pooled across the team, multi-agent admin dashboard, per-agent branding, and per-agent DRE numbers on both the live share-link view and the PDF cover. Contact us via the homepage form to set up team seats; we onboard each brokerage by hand to make sure the white-label is right.",
       },
       {
         q: "Can I white-label the report?",
-        a: "Yes, on the Brokerage plan. The Veroax wordmark is removed from the PDF and the report becomes a fully branded brokerage deliverable. You keep the analysis quality, the buyer sees your brand.",
+        a: "Yes, on the Brokerage plan. The Veroax wordmark is removed from both the live share-link view and the PDF, and the report becomes a fully branded brokerage deliverable across every channel. You keep the analysis quality, the buyer sees your brand.",
       },
     ],
   },

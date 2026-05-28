@@ -61,7 +61,7 @@ export default function InvestorsPage() {
           />
           <Card
             label="What Veroax does"
-            body="Veroax reads the package end-to-end and produces a buyer-ready report: critical findings up top, source citations on every claim, click-to-source back to the original page, and a polished PDF branded with the agent's or brokerage's logo and DRE."
+            body="Veroax reads the package end-to-end and produces a buyer-ready report: critical findings up top, source citations on every claim, click-to-source back to the original page. Delivered as a live web view the agent shares with the buyer via a private link, plus a downloadable PDF branded with the agent's or brokerage's logo and DRE."
           />
           <Card
             label="Why now"

@@ -19,8 +19,8 @@ export default function DemoPage() {
         </h1>
         <p className="text-slate-600 leading-relaxed">
           We&apos;re assembling a short walkthrough that takes a real CA
-          disclosure package from upload to client-ready PDF in about 90
-          seconds. While we polish it,{" "}
+          disclosure package from upload to a client-ready report in about
+          90 seconds. While we polish it,{" "}
           <a
             href="mailto:support@veroax.com?subject=Book%20a%20Veroax%20demo"
             className="text-indigo-700 underline underline-offset-2"
@@ -38,7 +38,10 @@ export default function DemoPage() {
           <ul className="space-y-1.5 list-disc list-inside text-slate-600">
             <li>14-section disclosure analysis on your actual package</li>
             <li>Critical vs. high vs. moderate severity rubric in practice</li>
-            <li>Branded PDF cover + client email draft</li>
+            <li>
+              Three delivery channels: live web report on your dashboard,
+              private share link for your buyer, branded PDF download
+            </li>
             <li>Add-documents-and-re-analyze workflow</li>
             <li>Pricing model and what credits cover</li>
           </ul>
