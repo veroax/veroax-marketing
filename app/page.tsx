@@ -53,7 +53,17 @@ const features = [
       </svg>
     ),
     title: "Agent QA Before Delivery",
-    desc: "Every report goes through a structured spot-check with the agent before the PDF is generated. No surprises for the client.",
+    desc: "Every report goes through a structured spot-check with the agent before anything goes to the client. No surprises.",
+  },
+  {
+    // Link + paper-stack icon, signals "live web + PDF" together.
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+      </svg>
+    ),
+    title: "Web Report + Shareable Link",
+    desc: "Review the analysis on your dashboard, send your buyer a private share link, or download a branded PDF for email or print. Same 14-section report, three channels.",
   },
   {
     icon: (
@@ -79,8 +89,8 @@ const steps = [
   },
   {
     number: "03",
-    title: "You review, then the client gets a polished PDF",
-    desc: "Before anything goes to the client, you see a structured summary of every critical and high finding. Approve it, make corrections if needed, and your branded PDF is ready to send. We even prepare a client email you can copy straight into your CRM or inbox.",
+    title: "You review, then your client gets the link, the PDF, or both",
+    desc: "Before anything goes to the client, you see a structured summary of every critical and high finding on your dashboard. Approve it, make corrections if needed, and choose how to deliver: send your buyer a private share link to view the live report in their browser, attach a branded PDF, or use our built-in email draft to send both at once. Same report, three channels.",
   },
 ];
 
@@ -178,6 +188,15 @@ export default function Home() {
           <p className="text-xs text-indigo-200 pt-1">
             One free report per DRE license, no credit card required
           </p>
+          {/* Format strip. Sets the agent's expectation up front
+              that the deliverable is a live web report with a
+              shareable link, and that the branded PDF is the
+              optional static channel rather than the default. */}
+          <p className="text-[11px] text-indigo-300/90 tracking-wide pt-3">
+            Live web report for your review &nbsp;&middot;&nbsp;
+            Private share link for your buyer &nbsp;&middot;&nbsp;
+            Branded PDF when you need it
+          </p>
         </div>
       </section>
 
@@ -252,8 +271,15 @@ export default function Home() {
                 <div className="w-3 h-3 rounded-full bg-yellow-400" />
                 <div className="w-3 h-3 rounded-full bg-green-400" />
               </div>
+              {/* URL bar reflects the SHARE LINK shape that buyers
+                  actually receive today (veroax.com/r/<12-char code>).
+                  Previously this read 'Sample_Property_Disclosure_
+                  Analysis.pdf' which set the wrong expectation that
+                  the PDF was the default deliverable. The PDF stays
+                  available as a download; the share link is the
+                  primary channel. */}
               <div className="flex-1 mx-2 bg-white rounded px-3 py-1 text-xs text-gray-400 font-mono truncate">
-                Sample_Property_Disclosure_Analysis.pdf
+                veroax.com/r/sample-report-abc123
               </div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded shrink-0">
                 Fictional Example
@@ -425,6 +451,17 @@ export default function Home() {
 
             </div>
           </div>
+          {/* Channel caption below the sample card. Reinforces the
+              "web is the default, PDF is the download" framing in
+              the context of the artifact the visitor just scrolled
+              through. */}
+          <p className="text-center text-xs text-gray-500 mt-5 leading-relaxed max-w-2xl mx-auto">
+            What your buyer sees when you share the live link.{" "}
+            <span className="text-gray-700 font-semibold">
+              Also downloadable as a branded PDF
+            </span>{" "}
+            for email attachments, printing, or offline review.
+          </p>
         </div>
       </section>
 
