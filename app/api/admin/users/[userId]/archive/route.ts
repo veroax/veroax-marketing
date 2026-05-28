@@ -7,7 +7,7 @@
 // site admin (brokerage admins see them as "Contact support").
 
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/require";
+import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { archiveUser } from "@/lib/server/archiveUser";
 
@@ -17,24 +17,11 @@ export async function POST(
 ) {
   const { userId: targetUserId } = await context.params;
 
-  const auth = await requireUser();
+  const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
   const { user } = auth;
 
   const admin = createServiceRoleClient();
-
-  // Site admin gate.
-  const { data: callerProfile } = await admin
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!(callerProfile as { is_admin?: boolean } | null)?.is_admin) {
-    return NextResponse.json(
-      { error: "Site admin access required." },
-      { status: 403 },
-    );
-  }
 
   // Safety: an admin cannot archive themselves. Avoids a footgun
   // where the only admin locks themselves out and we have to

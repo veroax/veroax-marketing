@@ -2,7 +2,7 @@
 // DELETE /api/admin/tasks/[id]  remove a task entirely
 
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/require";
+import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 const VALID_CATEGORIES = ["now", "beta", "launch", "deferred", "polish"];
@@ -18,24 +18,10 @@ type Body = {
 };
 
 async function gateAsAdmin() {
-  const auth = await requireUser();
+  const auth = await requireAdmin();
   if (!auth.ok) return { ok: false as const, response: auth.response };
   const { user } = auth;
   const admin = createServiceRoleClient();
-  const { data } = await admin
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!(data as { is_admin?: boolean } | null)?.is_admin) {
-    return {
-      ok: false as const,
-      response: NextResponse.json(
-        { error: "Site admin access required." },
-        { status: 403 },
-      ),
-    };
-  }
   return { ok: true as const, user, admin };
 }
 

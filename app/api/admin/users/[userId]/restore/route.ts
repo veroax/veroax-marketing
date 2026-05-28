@@ -5,7 +5,7 @@
 // the scope-respecting rule in restoreUser via callerIsSiteAdmin=true).
 
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/require";
+import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { restoreUser } from "@/lib/server/archiveUser";
 
@@ -15,22 +15,11 @@ export async function POST(
 ) {
   const { userId: targetUserId } = await context.params;
 
-  const auth = await requireUser();
+  const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
   const { user } = auth;
 
   const admin = createServiceRoleClient();
-  const { data: callerProfile } = await admin
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!(callerProfile as { is_admin?: boolean } | null)?.is_admin) {
-    return NextResponse.json(
-      { error: "Site admin access required." },
-      { status: 403 },
-    );
-  }
 
   const result = await restoreUser({
     admin,

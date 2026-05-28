@@ -5,7 +5,7 @@
 // detail page once the row exists.
 
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/require";
+import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 type Body = {
@@ -19,26 +19,14 @@ type Body = {
 };
 
 export async function POST(request: Request) {
-  const auth = await requireUser();
+  // Site admin only. requireAdmin handles both the auth check + the
+  // is_admin lookup in one call; the API route checks this because
+  // the mutation can be hit without the layout having rendered.
+  const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
   const { user } = auth;
 
   const admin = createServiceRoleClient();
-
-  // Gate: site admin only. The /admin layout already checks this for
-  // the page surface; the API route checks it again because the
-  // mutation can be hit without the layout having rendered.
-  const { data: profileRow } = await admin
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!(profileRow as { is_admin?: boolean } | null)?.is_admin) {
-    return NextResponse.json(
-      { error: "Site admin access required." },
-      { status: 403 },
-    );
-  }
 
   const body = (await request.json().catch(() => ({}))) as Body;
   const name = typeof body.name === "string" ? body.name.trim() : "";

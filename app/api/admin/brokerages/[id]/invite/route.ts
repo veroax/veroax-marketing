@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { sendTransactional } from "@/lib/email/sender";
-import { requireUser } from "@/lib/auth/require";
+import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { newInviteToken } from "@/lib/team/membership";
 
@@ -33,24 +33,11 @@ export async function POST(
 ) {
   const { id: brokerageId } = await context.params;
 
-  const auth = await requireUser();
+  const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
   const { user } = auth;
 
   const admin = createServiceRoleClient();
-
-  // Gate: site admin.
-  const { data: profileRow } = await admin
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!(profileRow as { is_admin?: boolean } | null)?.is_admin) {
-    return NextResponse.json(
-      { error: "Site admin access required." },
-      { status: 403 },
-    );
-  }
 
   const body = (await request.json().catch(() => ({}))) as {
     email?: string;

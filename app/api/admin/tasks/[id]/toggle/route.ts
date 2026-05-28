@@ -10,7 +10,7 @@
 // still writes an audit_log entry tagged 'task.uncompleted'.
 
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/require";
+import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function POST(
@@ -19,24 +19,11 @@ export async function POST(
 ) {
   const { id } = await context.params;
 
-  const auth = await requireUser();
+  const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
   const { user } = auth;
 
   const admin = createServiceRoleClient();
-
-  // Site-admin only.
-  const { data: callerProfile } = await admin
-    .from("profiles")
-    .select("is_admin, email")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!(callerProfile as { is_admin?: boolean } | null)?.is_admin) {
-    return NextResponse.json(
-      { error: "Site admin access required." },
-      { status: 403 },
-    );
-  }
 
   // Read current state so we know whether we're checking or unchecking.
   const { data: existing, error: readErr } = await admin
@@ -78,8 +65,7 @@ export async function POST(
       metadata: {
         task_id: task.id,
         task_title: task.title.slice(0, 200),
-        actor_email:
-          (callerProfile as { email?: string } | null)?.email ?? null,
+        actor_email: user.email ?? null,
       },
     });
   } catch (err) {

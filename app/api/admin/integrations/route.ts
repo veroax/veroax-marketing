@@ -6,7 +6,7 @@
 // success so the change becomes visible on the next layout render.
 
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/require";
+import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { invalidateSiteConfigCache, normalizeGaId } from "@/lib/siteConfig";
 
@@ -18,25 +18,14 @@ type Body = {
 };
 
 export async function POST(request: Request) {
-  const auth = await requireUser();
+  // Site admin only. requireAdmin handles auth + is_admin lookup.
+  // Layout-level checks back this up, but mutation endpoints
+  // always re-verify.
+  const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
   const { user } = auth;
 
   const admin = createServiceRoleClient();
-
-  // Gate: site admin only. Layout-level checks back this up, but
-  // mutation endpoints always re-verify.
-  const { data: callerProfile } = await admin
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!(callerProfile as { is_admin?: boolean } | null)?.is_admin) {
-    return NextResponse.json(
-      { error: "Site admin access required." },
-      { status: 403 },
-    );
-  }
 
   const body = (await request.json().catch(() => ({}))) as Body;
 

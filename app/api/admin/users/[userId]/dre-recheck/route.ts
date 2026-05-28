@@ -11,7 +11,7 @@
 // for the result so the UI can show the updated status immediately.
 
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/require";
+import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyDreLicense, persistDreResult } from "@/lib/server/dreVerify";
 
@@ -21,24 +21,11 @@ export async function POST(
 ) {
   const { userId } = await context.params;
 
-  const auth = await requireUser();
+  const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
   const { user } = auth;
 
   const admin = createServiceRoleClient();
-
-  // Gate: site admin only.
-  const { data: callerProfile } = await admin
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!(callerProfile as { is_admin?: boolean } | null)?.is_admin) {
-    return NextResponse.json(
-      { error: "Site admin access required." },
-      { status: 403 },
-    );
-  }
 
   // Pull the target agent's license + name so we can recheck.
   const { data: targetProfile } = await admin
