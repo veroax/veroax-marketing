@@ -188,8 +188,11 @@ export default async function AdminUserDetail({
                 <>
                   Suspended on{" "}
                   {new Date(profileTyped.suspended_at).toLocaleDateString(
-                    undefined,
-                    { dateStyle: "long" },
+                    "en-US",
+                    {
+                      timeZone: "America/Los_Angeles",
+                      dateStyle: "long",
+                    },
                   )}
                   .
                 </>
@@ -241,7 +244,8 @@ export default async function AdminUserDetail({
               <p>
                 <span className="text-slate-500">Joined:</span>{" "}
                 <span className="text-slate-900 font-medium">
-                  {new Date(profile.created_at).toLocaleDateString(undefined, {
+                  {new Date(profile.created_at).toLocaleDateString("en-US", {
+                    timeZone: "America/Los_Angeles",
                     dateStyle: "long",
                   })}
                 </span>
@@ -359,10 +363,10 @@ export default async function AdminUserDetail({
 
           <p className="mt-4 text-[11px] text-slate-500">
             {profileTyped.dre_verification_checked_at
-              ? `Last checked ${new Date(profileTyped.dre_verification_checked_at).toLocaleString()}`
+              ? `Last checked ${new Date(profileTyped.dre_verification_checked_at).toLocaleString("en-US", { timeZone: "America/Los_Angeles" })}`
               : "Never checked. Trigger a recheck or have the user save settings."}
             {profileTyped.dre_verified_at
-              ? `, verified at ${new Date(profileTyped.dre_verified_at).toLocaleString()}.`
+              ? `, verified at ${new Date(profileTyped.dre_verified_at).toLocaleString("en-US", { timeZone: "America/Los_Angeles" })}.`
               : "."}
           </p>
         </div>
@@ -408,7 +412,8 @@ export default async function AdminUserDetail({
                     Period ends{" "}
                     {new Date(
                       subscription.current_period_end,
-                    ).toLocaleDateString(undefined, {
+                    ).toLocaleDateString("en-US", {
+                      timeZone: "America/Los_Angeles",
                       dateStyle: "medium",
                     })}
                   </p>
@@ -540,7 +545,9 @@ export default async function AdminUserDetail({
                     "Untitled report"}
                 </Link>
                 <span className="text-xs text-slate-400 shrink-0">
-                  {new Date(r.created_at).toLocaleDateString()}
+                  {new Date(r.created_at).toLocaleDateString("en-US", {
+                    timeZone: "America/Los_Angeles",
+                  })}
                 </span>
               </li>
             ))}

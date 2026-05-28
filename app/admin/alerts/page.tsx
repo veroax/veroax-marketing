@@ -153,7 +153,8 @@ export default async function AdminAlertsPage() {
               rows.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-50/50 align-top">
                   <td className="px-6 py-3 text-xs text-slate-700 whitespace-nowrap">
-                    {new Date(r.sent_at).toLocaleString(undefined, {
+                    {new Date(r.sent_at).toLocaleString("en-US", {
+                      timeZone: "America/Los_Angeles",
                       dateStyle: "short",
                       timeStyle: "short",
                     })}

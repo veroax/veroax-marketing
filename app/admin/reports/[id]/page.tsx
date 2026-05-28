@@ -172,7 +172,8 @@ export default async function AdminReportDetail({
           />
           <Row
             label="Created"
-            value={new Date(report.created_at).toLocaleString(undefined, {
+            value={new Date(report.created_at).toLocaleString("en-US", {
+              timeZone: "America/Los_Angeles",
               dateStyle: "medium",
               timeStyle: "short",
             })}
@@ -181,7 +182,8 @@ export default async function AdminReportDetail({
             label="Completed"
             value={
               report.analysis_completed_at
-                ? new Date(report.analysis_completed_at).toLocaleString(undefined, {
+                ? new Date(report.analysis_completed_at).toLocaleString("en-US", {
+                    timeZone: "America/Los_Angeles",
                     dateStyle: "medium",
                     timeStyle: "short",
                   })
@@ -191,7 +193,8 @@ export default async function AdminReportDetail({
           {report.analysis_started_at ? (
             <Row
               label="Last analysis started"
-              value={new Date(report.analysis_started_at).toLocaleString(undefined, {
+              value={new Date(report.analysis_started_at).toLocaleString("en-US", {
+                timeZone: "America/Los_Angeles",
                 dateStyle: "medium",
                 timeStyle: "short",
               })}
@@ -389,7 +392,8 @@ export default async function AdminReportDetail({
             {auditRows.map((row, i) => (
               <li key={i} className="py-2 grid grid-cols-[160px_1fr] gap-3">
                 <span className="text-slate-500">
-                  {new Date(row.created_at).toLocaleString(undefined, {
+                  {new Date(row.created_at).toLocaleString("en-US", {
+                    timeZone: "America/Los_Angeles",
                     dateStyle: "short",
                     timeStyle: "short",
                   })}

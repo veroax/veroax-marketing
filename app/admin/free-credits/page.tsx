@@ -224,8 +224,11 @@ export default async function FreeCreditsPage() {
                     </td>
                     <td className="px-6 py-3.5 text-xs text-slate-700">
                       {new Date(agg.last_granted_at).toLocaleDateString(
-                        undefined,
-                        { dateStyle: "medium" },
+                        "en-US",
+                        {
+                          timeZone: "America/Los_Angeles",
+                          dateStyle: "medium",
+                        },
                       )}
                       {agg.last_notes ? (
                         <div

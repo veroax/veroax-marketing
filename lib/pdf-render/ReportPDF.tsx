@@ -1060,7 +1060,14 @@ export function ReportPDF({
         }
       : agent;
   const shortId = reportId.slice(0, 8);
+  // Always format the analysis date in Pacific Time. Server renders
+  // run in Vercel's UTC environment by default, which made "Nov 7,
+  // 2026" show up as "Nov 8, 2026" to a California reader whenever
+  // the render happened after 4:00 PM PST. The PDF is for California
+  // agents and California properties; PST is the only sensible
+  // default.
   const analysisDate = generatedAt.toLocaleDateString("en-US", {
+    timeZone: "America/Los_Angeles",
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -2961,7 +2968,9 @@ function formatAgentFooter(agent: AgentBranding): string {
 function formatIsoDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
+  // Pacific Time per the founder's "all reporting in PST" rule.
   return d.toLocaleDateString("en-US", {
+    timeZone: "America/Los_Angeles",
     month: "short",
     day: "numeric",
     year: "numeric",

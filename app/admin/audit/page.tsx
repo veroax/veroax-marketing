@@ -219,7 +219,8 @@ export default async function AdminAuditPage({
                       {e.event_type}
                     </span>
                     <span className="text-xs text-slate-500 font-mono shrink-0">
-                      {new Date(e.created_at).toLocaleString(undefined, {
+                      {new Date(e.created_at).toLocaleString("en-US", {
+                        timeZone: "America/Los_Angeles",
                         dateStyle: "short",
                         timeStyle: "medium",
                       })}

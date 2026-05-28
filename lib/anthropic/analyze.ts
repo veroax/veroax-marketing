@@ -415,6 +415,22 @@ export async function analyzeDisclosurePackage(
     }).catch(() => null),
   ]);
 
+  // Diagnostic log so we can see what reconciliation produced
+  // without having to grep the listing_reconciliation JSON column
+  // by hand. Includes the key signals: did sources disagree, which
+  // source was recommended, did we get a current price, how many
+  // relist events were reconstructed. Helps diagnose "the report
+  // still shows the stale price" reports quickly from server logs.
+  if (listingReconciliation) {
+    console.log(
+      `[analyze] listing reconciliation: has_divergence=${listingReconciliation.has_divergence} recommended=${listingReconciliation.recommended_source} current_price=${listingReconciliation.current?.list_price ?? "null"} current_mls=${listingReconciliation.current?.mls_number ?? "null"} relist_events=${listingReconciliation.relist_ladder?.length ?? 0} same_agent=${listingReconciliation.same_listing_agent_pattern}`,
+    );
+  } else {
+    console.log(
+      "[analyze] listing reconciliation returned null (no sources or timed out)",
+    );
+  }
+
   // Synthesis pass, deterministic code, not a Claude call.
   // Observed in production: the Claude-driven synthesis call hung
   // indefinitely on real disclosure packages, dying at maxDuration.
@@ -1147,6 +1163,60 @@ function applyListingReconciliation(
     const statusNote = mlsStatusNoteFromReconciliation(recon);
     if (statusNote) {
       report.property_snapshot.mls_status_note = statusNote;
+    }
+  }
+
+  // 2.5: defensive override for stale package-MLS list prices.
+  //
+  // Background: focused passes generate property_facts.list_price
+  // from whatever the disclosure documents say, INCLUDING the
+  // package's MLS print-out. The package MLS print-out is a
+  // historical snapshot; if the listing was cancelled and
+  // re-listed at a lower price after the package was assembled,
+  // the focused passes will happily pull the cancelled price as
+  // the headline list price. The recon.current override above
+  // fixes this WHEN reconciliation surfaces a confirmed current
+  // price, but when the live web search + listing URL both fail
+  // to confirm a current price, the focused passes' stale value
+  // ships unchanged.
+  //
+  // This block catches the case: when the reconciliation's
+  // package_mls source confirms the listing is in a terminal
+  // status (cancelled / withdrawn / sold / expired) AND the
+  // current property_snapshot.list_price still equals that
+  // package source's price (a strong signal the focused passes
+  // pulled from the stale source), null out list_price +
+  // days_on_market + list_date rather than ship a wrong number.
+  // The narrative renderer handles nulls gracefully (omits the
+  // pricePart/domPart).
+  if (report.property_snapshot && recon.sources) {
+    const pkg = recon.sources.package_mls;
+    const pkgStatus = pkg?.status;
+    const pkgIsStale =
+      pkgStatus === "cancelled" ||
+      pkgStatus === "withdrawn" ||
+      pkgStatus === "sold" ||
+      pkgStatus === "expired";
+    const currentPrice = report.property_snapshot.list_price;
+    if (
+      pkgIsStale &&
+      pkg?.list_price != null &&
+      currentPrice === pkg.list_price &&
+      (!recon.current || recon.current.list_price == null)
+    ) {
+      console.warn(
+        `[analyze] property_snapshot.list_price (${currentPrice}) matched the ${pkgStatus} package MLS price; nulling to avoid shipping stale data`,
+      );
+      report.property_snapshot.list_price = null;
+      report.property_snapshot.days_on_market = null;
+      report.property_snapshot.list_date = null;
+      if (
+        report.market_context &&
+        !report.market_context.listing_history_insight
+      ) {
+        report.market_context.listing_history_insight =
+          `The package's MLS print-out shows this listing as ${pkgStatus}. The current active listing's price could not be confirmed from public sources at analysis time. Ask the listing agent to confirm the current price and MLS number before relying on any listing data in this section.`;
+      }
     }
   }
 

@@ -475,7 +475,9 @@ export default async function AdminUsersPage({
                     </td>
                     <td className="px-6 py-3.5 text-slate-500 text-xs">
                       {p.created_at
-                        ? new Date(p.created_at).toLocaleDateString()
+                        ? new Date(p.created_at).toLocaleDateString("en-US", {
+                            timeZone: "America/Los_Angeles",
+                          })
                         : "Unknown"}
                     </td>
                     <td className="px-6 py-3.5 text-right">

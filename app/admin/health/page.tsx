@@ -682,7 +682,8 @@ export default async function AdminHealthPage() {
                           <span className="italic">unknown owner</span>
                         )}
                         {" · "}
-                        {new Date(r.created_at).toLocaleString(undefined, {
+                        {new Date(r.created_at).toLocaleString("en-US", {
+                          timeZone: "America/Los_Angeles",
                           dateStyle: "short",
                           timeStyle: "short",
                         })}
@@ -757,7 +758,8 @@ export default async function AdminHealthPage() {
                       {r.analysis_completed_at
                         ? new Date(
                             r.analysis_completed_at,
-                          ).toLocaleString(undefined, {
+                          ).toLocaleString("en-US", {
+                            timeZone: "America/Los_Angeles",
                             dateStyle: "short",
                             timeStyle: "short",
                           })

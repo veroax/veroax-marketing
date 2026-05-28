@@ -249,10 +249,14 @@ export default async function AdminBrokerageDetailPage({
                       {inv.role}
                     </td>
                     <td className="px-5 py-3 text-xs text-slate-500">
-                      {new Date(inv.created_at).toLocaleDateString()}
+                      {new Date(inv.created_at).toLocaleDateString("en-US", {
+                        timeZone: "America/Los_Angeles",
+                      })}
                     </td>
                     <td className="px-5 py-3 text-xs text-slate-500">
-                      {new Date(inv.expires_at).toLocaleDateString()}
+                      {new Date(inv.expires_at).toLocaleDateString("en-US", {
+                        timeZone: "America/Los_Angeles",
+                      })}
                     </td>
                   </tr>
                 ))}
@@ -316,7 +320,9 @@ function RosterList({
             <div className="text-right whitespace-nowrap">
               <p className="text-xs text-slate-700 capitalize">{r.right}</p>
               <p className="text-[10px] text-slate-400">
-                {new Date(r.joined_at).toLocaleDateString()}
+                {new Date(r.joined_at).toLocaleDateString("en-US", {
+                  timeZone: "America/Los_Angeles",
+                })}
               </p>
             </div>
           </li>

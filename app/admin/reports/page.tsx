@@ -317,7 +317,8 @@ export default async function AdminReportsList({
                       </div>
                     </td>
                     <td className="px-6 py-3 text-slate-500 text-xs">
-                      {new Date(r.created_at).toLocaleString(undefined, {
+                      {new Date(r.created_at).toLocaleString("en-US", {
+                        timeZone: "America/Los_Angeles",
                         dateStyle: "medium",
                         timeStyle: "short",
                       })}
