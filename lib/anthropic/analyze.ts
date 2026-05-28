@@ -1166,29 +1166,33 @@ function applyListingReconciliation(
     }
   }
 
-  // 2.5: defensive override for stale package-MLS list prices.
+  // 2.5: defensive override when the disclosure package's MLS
+  // print-out is in a terminal status (cancelled / withdrawn /
+  // sold / expired).
   //
-  // Background: focused passes generate property_facts.list_price
-  // from whatever the disclosure documents say, INCLUDING the
-  // package's MLS print-out. The package MLS print-out is a
-  // historical snapshot; if the listing was cancelled and
-  // re-listed at a lower price after the package was assembled,
-  // the focused passes will happily pull the cancelled price as
-  // the headline list price. The recon.current override above
-  // fixes this WHEN reconciliation surfaces a confirmed current
-  // price, but when the live web search + listing URL both fail
-  // to confirm a current price, the focused passes' stale value
-  // ships unchanged.
+  // Background: focused passes generate property_facts from
+  // whatever the disclosure documents say, INCLUDING the package's
+  // MLS print-out. The package print-out is a historical snapshot;
+  // when the listing was cancelled and re-listed after the package
+  // was assembled, the focused passes will happily pull the
+  // cancelled-listing facts as the report's headline. The recon.
+  // current override above fixes individual fields WHEN
+  // reconciliation surfaces a confirmed current replacement, but
+  // when the live web search and listing URL both fail to confirm
+  // a current value, the focused passes' stale value ships
+  // unchanged.
   //
-  // This block catches the case: when the reconciliation's
-  // package_mls source confirms the listing is in a terminal
-  // status (cancelled / withdrawn / sold / expired) AND the
-  // current property_snapshot.list_price still equals that
-  // package source's price (a strong signal the focused passes
-  // pulled from the stale source), null out list_price +
-  // days_on_market + list_date rather than ship a wrong number.
-  // The narrative renderer handles nulls gracefully (omits the
-  // pricePart/domPart).
+  // Field-by-field stale check: when the package source is
+  // confirmed stale AND a given property_snapshot field still
+  // equals the stale package source's value AND reconciliation
+  // didn't surface a confirmed current replacement for that
+  // field, null the field. The narrative renderer handles nulls
+  // gracefully (omits the relevant part).
+  //
+  // For sibling facts that change slowly (HOA monthly dues),
+  // surface a completeness_audit issue instead of nulling, so the
+  // agent sees the figure with a "verify against current data"
+  // caveat rather than a blank.
   if (report.property_snapshot && recon.sources) {
     const pkg = recon.sources.package_mls;
     const pkgStatus = pkg?.status;
@@ -1197,25 +1201,94 @@ function applyListingReconciliation(
       pkgStatus === "withdrawn" ||
       pkgStatus === "sold" ||
       pkgStatus === "expired";
-    const currentPrice = report.property_snapshot.list_price;
-    if (
-      pkgIsStale &&
-      pkg?.list_price != null &&
-      currentPrice === pkg.list_price &&
-      (!recon.current || recon.current.list_price == null)
-    ) {
-      console.warn(
-        `[analyze] property_snapshot.list_price (${currentPrice}) matched the ${pkgStatus} package MLS price; nulling to avoid shipping stale data`,
-      );
-      report.property_snapshot.list_price = null;
-      report.property_snapshot.days_on_market = null;
-      report.property_snapshot.list_date = null;
+
+    if (pkgIsStale && pkg) {
+      const ps = report.property_snapshot;
+      let nulledSomething = false;
+
+      // list_price: null when matches stale package AND
+      // reconciliation didn't surface a current price.
       if (
+        pkg.list_price != null &&
+        ps.list_price === pkg.list_price &&
+        (!recon.current || recon.current.list_price == null)
+      ) {
+        console.warn(
+          `[analyze] property_snapshot.list_price (${ps.list_price}) matched the ${pkgStatus} package MLS price; nulling to avoid shipping stale data`,
+        );
+        ps.list_price = null;
+        nulledSomething = true;
+      }
+
+      // days_on_market: same field-by-field check. DOM tied to
+      // the cancelled listing is meaningless once the listing is
+      // re-listed.
+      if (
+        pkg.days_on_market != null &&
+        ps.days_on_market === pkg.days_on_market &&
+        (!recon.current || recon.current.days_on_market == null)
+      ) {
+        console.warn(
+          `[analyze] property_snapshot.days_on_market (${ps.days_on_market}) matched the ${pkgStatus} package MLS DOM; nulling`,
+        );
+        ps.days_on_market = null;
+        nulledSomething = true;
+      }
+
+      // list_date: same field-by-field check. A list_date from
+      // a cancelled listing is the wrong list_date for the
+      // current active listing.
+      if (
+        pkg.list_date != null &&
+        ps.list_date === pkg.list_date &&
+        (!recon.current || recon.current.list_date == null)
+      ) {
+        console.warn(
+          `[analyze] property_snapshot.list_date (${ps.list_date}) matched the ${pkgStatus} package MLS list_date; nulling`,
+        );
+        ps.list_date = null;
+        nulledSomething = true;
+      }
+
+      // When we nulled at least one field AND there's no listing
+      // history insight yet, write a buyer-facing note explaining
+      // the gap. Renders as the Listing History callout in the
+      // Market Context section.
+      if (
+        nulledSomething &&
         report.market_context &&
         !report.market_context.listing_history_insight
       ) {
         report.market_context.listing_history_insight =
-          `The package's MLS print-out shows this listing as ${pkgStatus}. The current active listing's price could not be confirmed from public sources at analysis time. Ask the listing agent to confirm the current price and MLS number before relying on any listing data in this section.`;
+          `The package's MLS print-out shows this listing as ${pkgStatus}. The current active listing's price, MLS number, and days on market could not be confirmed from public sources at analysis time. Ask the listing agent to confirm the current details before relying on any listing data in this section.`;
+      }
+
+      // HOA dues + general sibling-fact caveat. The HOA bundle in
+      // a stale package is itself stale. We keep the dues figure
+      // (HOA dues change rarely) but flag it as needing
+      // verification, AND add a general "verify other facts from
+      // this package" issue to the completeness audit so the
+      // agent sees the broader risk.
+      if (report.completeness_audit) {
+        const issues = report.completeness_audit.issues ?? [];
+        const dues = ps.hoa_dues_monthly;
+        if (dues != null) {
+          issues.push(
+            `HOA monthly dues were extracted from a disclosure package whose MLS print-out is in '${pkgStatus}' status. HOA dues change rarely so the figure is likely still accurate, but verify current dues with the association directly before contingency removal.`,
+          );
+        }
+        issues.push(
+          `The disclosure package's MLS print-out shows the listing as '${pkgStatus}'. Any facts the analyzer pulled from that package (listing agent identity, taxes, prior-sale dates, HOA financials, inspection dates) should be re-verified against the current live listing or directly with the seller's agent before relying on them in negotiations or escrow timelines.`,
+        );
+        report.completeness_audit.issues = issues;
+
+        // Refresh the completeness audit summary count so the
+        // PDF + agent dashboard reflect the new issue count.
+        const n = issues.length;
+        report.completeness_audit.summary =
+          n === 0
+            ? "Disclosure package appears complete."
+            : `${n} completeness issue${n === 1 ? "" : "s"} identified across the disclosure package. Review each item before proceeding.`;
       }
     }
   }
