@@ -23,6 +23,7 @@ import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { AdminRerunButton } from "@/app/admin/_components/AdminRerunButton";
 import { AdminAnalysisProgress } from "@/app/admin/_components/AdminAnalysisProgress";
+import { AdminDeleteReportButton } from "@/app/admin/_components/AdminDeleteReportButton";
 
 export const metadata = {
   title: "Report detail, Admin",
@@ -253,6 +254,10 @@ export default async function AdminReportDetail({
           >
             Full audit log
           </Link>
+          <AdminDeleteReportButton
+            reportId={report.id}
+            reportLabel={display}
+          />
         </div>
         <p className="text-xs text-slate-500 mt-3 leading-relaxed">
           Re-run replaces the current report data with a fresh

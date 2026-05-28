@@ -25,10 +25,15 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
 
   const { data: report } = await supabase
     .from("reports")
-    .select("id, status, property_address, source_file_path, report_data, created_at, analysis_started_at, analysis_completed_at, failure_reason, report_name, client_name, last_updated_at, update_count, versions, original_files, archived")
+    .select("id, status, property_address, source_file_path, report_data, created_at, analysis_started_at, analysis_completed_at, failure_reason, report_name, client_name, last_updated_at, update_count, versions, original_files, archived, deleted_at")
     .eq("id", id)
     .maybeSingle();
   if (!report) notFound();
+  // Soft-deleted reports 404 from the agent's own detail page.
+  // Restoration is admin-only via /admin/reports/deleted, so even
+  // the owning agent does not see the report here until an admin
+  // brings it back.
+  if ((report as { deleted_at?: string | null }).deleted_at) notFound();
 
   // We used to list storage objects here for a top-of-page "Source
   // documents" panel, but the same data renders inside AgentSummary

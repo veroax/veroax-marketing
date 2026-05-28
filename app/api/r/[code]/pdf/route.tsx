@@ -35,7 +35,7 @@ export async function GET(_req: Request, context: { params: Params }) {
   const { data: report, error } = await admin
     .from("reports")
     .select(
-      "id, user_id, status, property_address, report_name, client_name, report_data, share_code, archived, original_files, created_at, watermarked, brokerage_id, team_id",
+      "id, user_id, status, property_address, report_name, client_name, report_data, share_code, archived, original_files, created_at, watermarked, brokerage_id, team_id, deleted_at",
     )
     .eq("share_code", code)
     .maybeSingle();
@@ -44,7 +44,12 @@ export async function GET(_req: Request, context: { params: Params }) {
   }
   if (
     !["qa_pending", "qa_approved", "delivered"].includes(report.status) ||
-    report.archived
+    report.archived ||
+    // Soft-deleted reports must not be downloadable via the public
+    // share link. Same reasoning as the share-link landing page in
+    // app/r/[code]/page.tsx: deletion is the agent's signal that
+    // the report should no longer be visible to anyone.
+    (report as { deleted_at?: string | null }).deleted_at
   ) {
     return NextResponse.json({ error: "Not available." }, { status: 404 });
   }

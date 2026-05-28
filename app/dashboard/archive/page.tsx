@@ -74,6 +74,11 @@ export default async function ArchivePage({
       "id, status, property_address, client_name, report_name, created_at, archived",
     )
     .eq("archived", true)
+    // Soft-deleted reports never appear in the archive view either.
+    // Archive is for "the agent moved this off the main list";
+    // deleted is for "this is going away in 30 days." Two different
+    // states, both excluded here.
+    .is("deleted_at", null)
     .order(dbSortColumn, { ascending: sortDir === "asc" });
 
   if (searchQuery) {

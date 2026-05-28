@@ -75,6 +75,12 @@ export default async function AdminReportsList({
       "id, user_id, status, property_address, client_name, report_name, created_at, archived, analysis_completed_at, failure_reason, analysis_run_count",
       { count: "exact" },
     )
+    // Hard exclusion: soft-deleted reports never appear in the
+    // main admin reports list. They live at /admin/reports/deleted
+    // for the 30-day grace window before the purge cron removes
+    // them permanently. Same filter is applied on the agent's
+    // dashboard list and on the PDF + public-share read paths.
+    .is("deleted_at", null)
     .order(dbCol, { ascending: sortDir === "asc" })
     .limit(200);
 
@@ -129,9 +135,17 @@ export default async function AdminReportsList({
             on a status or recency window.
           </p>
         </div>
-        <div className="text-xs text-slate-500">
-          {count ?? reports.length} match
-          {(count ?? reports.length) === 1 ? "" : "es"}
+        <div className="text-xs text-slate-500 text-right">
+          <p>
+            {count ?? reports.length} match
+            {(count ?? reports.length) === 1 ? "" : "es"}
+          </p>
+          <Link
+            href="/admin/reports/deleted"
+            className="text-red-700 hover:text-red-900 underline underline-offset-2 mt-1 inline-block"
+          >
+            Deleted bucket &rarr;
+          </Link>
         </div>
       </div>
 

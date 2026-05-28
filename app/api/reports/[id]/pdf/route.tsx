@@ -46,10 +46,17 @@ export async function GET(
 
     const { data: report, error } = await supabase
       .from("reports")
-      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at, watermarked, credit_source, brokerage_id, team_id")
+      .select("id, status, property_address, report_data, original_files, report_name, client_name, versions, created_at, watermarked, credit_source, brokerage_id, team_id, deleted_at")
       .eq("id", reportId)
       .maybeSingle();
     if (error || !report) {
+      return new Response("Report not found.", { status: 404 });
+    }
+    // Soft-deleted reports cannot be downloaded. Even the owning
+    // agent sees a 404 from this surface; the report has moved to
+    // the deleted bucket and is not retrievable as a PDF until an
+    // admin restores it.
+    if ((report as { deleted_at?: string | null }).deleted_at) {
       return new Response("Report not found.", { status: 404 });
     }
     if (!report.report_data) {

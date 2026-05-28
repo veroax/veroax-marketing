@@ -57,6 +57,11 @@ export default async function DashboardPage({
       "id, status, property_address, client_name, report_name, created_at",
     )
     .eq("archived", false)
+    // Soft-deleted reports are hidden from the agent's main list.
+    // They live at /admin/reports/deleted (admin view) until the
+    // purge cron permanently removes them after the 30-day grace
+    // window. The agent never sees them again from this surface.
+    .is("deleted_at", null)
     .order(dbSortColumn, { ascending: sortDir === "asc" });
 
   if (searchQuery) {

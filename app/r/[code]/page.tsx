@@ -46,6 +46,7 @@ type ReportRow = {
   archived: boolean | null;
   original_files: unknown;
   created_at: string;
+  deleted_at: string | null;
 };
 
 type ProfileRow = {
@@ -79,7 +80,7 @@ export default async function PublicReportPage({
   const { data: report } = await admin
     .from("reports")
     .select(
-      "id, user_id, status, property_address, report_name, client_name, report_data, share_code, analysis_completed_at, archived, original_files, created_at",
+      "id, user_id, status, property_address, report_name, client_name, report_data, share_code, analysis_completed_at, archived, original_files, created_at, deleted_at",
     )
     .eq("share_code", code)
     .maybeSingle<ReportRow>();
@@ -98,6 +99,11 @@ export default async function PublicReportPage({
     notFound();
   }
   if (report.archived) notFound();
+  // Soft-deleted reports must NOT be reachable via the public share
+  // link. The deletion is precisely the agent's signal that the
+  // report should no longer be visible to anyone the share-code
+  // had been forwarded to.
+  if ((report as { deleted_at?: string | null }).deleted_at) notFound();
 
   const reportData = report.report_data as ReportData | null;
   if (!reportData) notFound();

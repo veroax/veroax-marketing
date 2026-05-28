@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/dre-resweep",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/purge-deleted-reports",
+      "schedule": "0 12 * * *"
     }
   ]
 }
