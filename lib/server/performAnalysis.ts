@@ -384,6 +384,31 @@ export async function performAnalysis(
         },
       });
     },
+    // Verifier audit, fires once per sub-batch right after the
+    // verifier resolves. Lets /admin/health compute the rolling
+    // verifier success rate (ok + empty_delta = success;
+    // no_tool_use + threw = failure). Without this row, the
+    // verifier's outcome would only show up in console.warn
+    // log lines that nobody reads.
+    onVerifyCompleted: async (params) => {
+      await admin.from("audit_log").insert({
+        user_id: userId,
+        report_id: reportId,
+        event_type: "analysis.verifier_completed",
+        metadata: {
+          group: params.group,
+          group_label: DOCUMENT_TYPE_LABEL[params.group],
+          sub_index: params.subIndex,
+          sub_total: params.subTotal,
+          outcome: params.outcome,
+          new_findings_count: params.newFindingsCount,
+          stop_reason: params.stopReason,
+          error_message: params.errorMessage,
+          input_tokens: params.usage.input_tokens,
+          output_tokens: params.usage.output_tokens,
+        },
+      });
+    },
     onSynthesisStarted: async () => {
       await admin.from("audit_log").insert({
         user_id: userId,

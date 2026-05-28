@@ -200,6 +200,23 @@ export type AnalyzeInput = {
     subTotal: number,
     usage: { input_tokens: number; output_tokens: number },
   ) => Promise<void>;
+  // Fired after each verifier sub-batch resolves. Outcome is one of
+  // "ok" (verifier surfaced new findings), "empty_delta" (verifier
+  // ran and confirmed nothing was missed), "no_tool_use" (verifier
+  // failed to emit a tool_use), or "threw" (verifier threw an
+  // exception). performAnalysis uses this to write a per-pass
+  // audit_log row so /admin/health can compute the rolling
+  // verifier success rate.
+  onVerifyCompleted?: (params: {
+    group: PassGroup;
+    subIndex: number;
+    subTotal: number;
+    outcome: "ok" | "empty_delta" | "no_tool_use" | "threw";
+    newFindingsCount: number;
+    stopReason: string | null;
+    errorMessage: string | null;
+    usage: { input_tokens: number; output_tokens: number };
+  }) => Promise<void>;
   onSynthesisStarted?: () => Promise<void>;
   onSynthesisCompleted?: (usage: {
     input_tokens: number;
@@ -334,6 +351,8 @@ export async function analyzeDisclosurePackage(
             // Verifier failures are non-fatal. The first pass's
             // output is what we'd have shipped without the verifier,
             // so on failure we just keep going with that.
+            // outcome="threw" so the audit_log row distinguishes
+            // a throw from the in-band "no_tool_use" outcome.
             console.warn(
               `[verify] ${group} sub-batch ${i + 1}/${subBatches.length} failed; using first-pass output as-is:`,
               err instanceof Error ? err.message : err,
@@ -341,7 +360,30 @@ export async function analyzeDisclosurePackage(
             return {
               analysis: { findings: [] } as unknown as FocusedAnalysis,
               usage: { input_tokens: 0, output_tokens: 0 },
+              outcome: "threw" as const,
+              stop_reason: null,
+              errorMessage:
+                err instanceof Error ? err.message : String(err),
             };
+          });
+
+          // Audit the verifier outcome so /admin/health can compute
+          // the rolling success rate. "ok" and "empty_delta" are both
+          // valid healthy outcomes; "no_tool_use" and "threw" are
+          // failures worth surfacing.
+          await input.onVerifyCompleted?.({
+            group,
+            subIndex: i + 1,
+            subTotal: subBatches.length,
+            outcome: v.outcome ?? "ok",
+            newFindingsCount: Array.isArray(v.analysis.findings)
+              ? v.analysis.findings.length
+              : 0,
+            stopReason: v.stop_reason ?? null,
+            errorMessage:
+              (v as unknown as { errorMessage?: string | null })
+                .errorMessage ?? null,
+            usage: v.usage,
           });
           const combinedUsage = {
             input_tokens: r.usage.input_tokens + v.usage.input_tokens,
@@ -973,6 +1015,21 @@ async function verifyFocusedAnalysis({
 }): Promise<{
   analysis: FocusedAnalysis;
   usage: { input_tokens: number; output_tokens: number };
+  // outcome distinguishes the three valid endings of the verifier
+  // call so the caller can write a meaningful audit_log row:
+  //   "ok"           = verifier returned a tool_use with one or
+  //                    more new findings (real second-look value)
+  //   "empty_delta"  = verifier returned a tool_use but findings
+  //                    array was empty (the correct answer when
+  //                    the first pass was complete)
+  //   "no_tool_use"  = response had no tool_use block, Claude
+  //                    refused or hit max_tokens before tool call
+  //                    (genuine failure mode, NOT silent success)
+  // The caller catches throws separately and tags them as "threw".
+  outcome: "ok" | "empty_delta" | "no_tool_use";
+  // Diagnostic detail when outcome=no_tool_use. Useful for the
+  // audit log so we can see why Claude didn't tool-call.
+  stop_reason?: string | null;
 }> {
   const client = getAnthropicClient();
   const content: Anthropic.Messages.ContentBlockParam[] = [];
@@ -1094,8 +1151,12 @@ async function verifyFocusedAnalysis({
     (c): c is Anthropic.Messages.ToolUseBlock => c.type === "tool_use",
   );
   if (!toolUse) {
-    // Verifier failed to produce a tool_use. Return an empty delta
-    // rather than throwing, the first-pass result still stands.
+    // Verifier failed to produce a tool_use. Return an empty
+    // delta rather than throwing, the first-pass result still
+    // stands. Marked outcome="no_tool_use" so the audit_log row
+    // shows a real failure, not a silent success. The /admin/
+    // health verifier-success-rate panel reads this to compute
+    // the rolling failure rate.
     console.warn(
       `[verify] ${group}: verifier did not return tool_use; treating as empty delta. stop_reason=${response.stop_reason}`,
     );
@@ -1105,11 +1166,22 @@ async function verifyFocusedAnalysis({
         input_tokens: response.usage.input_tokens,
         output_tokens: response.usage.output_tokens,
       },
+      outcome: "no_tool_use",
+      stop_reason: response.stop_reason ?? null,
     };
   }
 
+  const analysis = toolUse.input as FocusedAnalysis;
+  // Distinguish empty findings (correct answer when first pass
+  // was complete) from a non-empty delta (real second-look
+  // value). Lets the audit_log row carry the signal.
+  const outcome: "ok" | "empty_delta" =
+    Array.isArray(analysis.findings) && analysis.findings.length > 0
+      ? "ok"
+      : "empty_delta";
   return {
-    analysis: toolUse.input as FocusedAnalysis,
+    analysis,
+    outcome,
     usage: {
       input_tokens: response.usage.input_tokens,
       output_tokens: response.usage.output_tokens,

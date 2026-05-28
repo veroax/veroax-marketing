@@ -69,6 +69,7 @@ export default async function AdminHealthPage() {
     lastResendRes,
     lastCronRes,
     syntheticRes,
+    verifierRes,
   ] = await Promise.all([
     admin
       .from("reports")
@@ -155,6 +156,18 @@ export default async function AdminHealthPage() {
       .gte("ran_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
       .order("ran_at", { ascending: false })
       .limit(500),
+    // Verifier-pass audit rows, last 24 hours. Each report run
+    // produces multiple of these (one per group sub-batch). We
+    // aggregate in code to render the rolling success rate
+    // panel; ok + empty_delta count as success, no_tool_use +
+    // threw count as failure.
+    admin
+      .from("audit_log")
+      .select("metadata, created_at")
+      .eq("event_type", "analysis.verifier_completed")
+      .gte("created_at", since24h)
+      .order("created_at", { ascending: false })
+      .limit(2000),
   ]);
   const failed24h = failed24hCountRes.count ?? 0;
   const success24h = success24hCountRes.count ?? 0;
@@ -300,6 +313,61 @@ export default async function AdminHealthPage() {
     };
   }
 
+  // ----- Verifier-pass aggregation ------------------------------
+  // Each "analysis.verifier_completed" audit row carries:
+  //   metadata.outcome: "ok" | "empty_delta" | "no_tool_use" | "threw"
+  //   metadata.new_findings_count: number
+  //   metadata.group, sub_index, sub_total: location of the pass
+  //   metadata.error_message: string | null
+  //
+  // ok + empty_delta count as success. ok is the strong signal
+  // (verifier surfaced new findings), empty_delta is also healthy
+  // (verifier ran cleanly and confirmed the first pass was
+  // complete). no_tool_use + threw are failures, the verifier
+  // billed input tokens but produced no second-look value.
+  type VerifierRow = {
+    metadata: Record<string, unknown> | null;
+    created_at: string;
+  };
+  const verifierRows = (verifierRes.data ?? []) as VerifierRow[];
+  let verifierTotal = 0;
+  let verifierOk = 0;
+  let verifierEmpty = 0;
+  let verifierNoToolUse = 0;
+  let verifierThrew = 0;
+  for (const row of verifierRows) {
+    const outcome = String(
+      (row.metadata as { outcome?: string } | null)?.outcome ?? "",
+    );
+    verifierTotal += 1;
+    if (outcome === "ok") verifierOk += 1;
+    else if (outcome === "empty_delta") verifierEmpty += 1;
+    else if (outcome === "no_tool_use") verifierNoToolUse += 1;
+    else if (outcome === "threw") verifierThrew += 1;
+  }
+  const verifierSuccess = verifierOk + verifierEmpty;
+  const verifierFailure = verifierNoToolUse + verifierThrew;
+  const verifierSuccessRate =
+    verifierTotal > 0 ? verifierSuccess / verifierTotal : null;
+  // Recent failure samples for the panel detail (last 5).
+  const verifierFailureSamples = verifierRows
+    .filter((r) => {
+      const o = String((r.metadata as { outcome?: string } | null)?.outcome ?? "");
+      return o === "no_tool_use" || o === "threw";
+    })
+    .slice(0, 5)
+    .map((r) => ({
+      created_at: r.created_at,
+      outcome: String(
+        (r.metadata as { outcome?: string } | null)?.outcome ?? "",
+      ),
+      group: String((r.metadata as { group?: string } | null)?.group ?? ""),
+      stop_reason: (r.metadata as { stop_reason?: string | null } | null)
+        ?.stop_reason,
+      error_message: (r.metadata as { error_message?: string | null } | null)
+        ?.error_message,
+    }));
+
   // Owner lookup for everything visible.
   const userIds = Array.from(
     new Set(
@@ -432,6 +500,109 @@ export default async function AdminHealthPage() {
           <ErrorRateSparkline buckets={buckets} />
         </div>
       </section>
+
+      {/* Verifier-pass rolling success rate.
+          Every focused-pass sub-batch fires a verifier call right
+          after; the verifier writes an "analysis.verifier_completed"
+          audit row tagged with the outcome. Healthy outcomes
+          (ok = found new findings, empty_delta = confirmed nothing
+          missed) count as success. Failures (no_tool_use, threw)
+          mean the second-look value was lost on that pass; the
+          first pass's output still ships, but coverage is reduced.
+          Renders only when at least one verifier ran in the last
+          24h to avoid showing a misleading "no data" zero. */}
+      {verifierTotal > 0 ? (
+        <section className="bg-white rounded-2xl border border-slate-200 p-6">
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">
+                Verifier-pass success rate
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Second-look pass after each focused-pass sub-batch.
+                Last 24 hours, all reports.
+              </p>
+            </div>
+            <div className="text-right">
+              <p
+                className={`text-3xl font-bold ${
+                  (verifierSuccessRate ?? 0) >= 0.95
+                    ? "text-emerald-700"
+                    : (verifierSuccessRate ?? 0) >= 0.85
+                      ? "text-amber-700"
+                      : "text-red-700"
+                }`}
+              >
+                {Math.round((verifierSuccessRate ?? 0) * 100)}%
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {verifierSuccess} of {verifierTotal} runs
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <VerifierStat
+              label="ok"
+              value={verifierOk}
+              tone="emerald"
+              detail="surfaced new findings"
+            />
+            <VerifierStat
+              label="empty delta"
+              value={verifierEmpty}
+              tone="slate"
+              detail="confirmed complete"
+            />
+            <VerifierStat
+              label="no tool use"
+              value={verifierNoToolUse}
+              tone={verifierNoToolUse > 0 ? "amber" : "slate"}
+              detail="Claude refused to call"
+            />
+            <VerifierStat
+              label="threw"
+              value={verifierThrew}
+              tone={verifierThrew > 0 ? "red" : "slate"}
+              detail="network or parse error"
+            />
+          </div>
+
+          {verifierFailureSamples.length > 0 ? (
+            <details className="mt-5 text-xs">
+              <summary className="cursor-pointer text-slate-600 hover:text-slate-900 font-semibold">
+                Recent failures ({verifierFailureSamples.length})
+              </summary>
+              <ul className="mt-3 space-y-1.5 text-slate-700">
+                {verifierFailureSamples.map((f, i) => (
+                  <li key={i} className="font-mono text-[11px]">
+                    {new Date(f.created_at).toLocaleString("en-US", {
+                      timeZone: "America/Los_Angeles",
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}{" "}
+                    &middot; {f.group} &middot; {f.outcome}
+                    {f.stop_reason ? ` (stop=${f.stop_reason})` : ""}
+                    {f.error_message
+                      ? ` (${f.error_message.slice(0, 80)})`
+                      : ""}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+
+          <p className="text-[11px] text-slate-500 mt-4 leading-relaxed">
+            ok and empty delta both count as healthy: the verifier ran
+            cleanly and either surfaced findings or confirmed nothing
+            was missed. no tool use means Claude hit max_tokens or
+            refused to call the tool. threw means the network blipped
+            or the response failed to parse. In either failure case
+            the first-pass result still shipped, but the report
+            missed the second-look coverage.
+          </p>
+        </section>
+      ) : null}
 
       {/* Synthetic heartbeats. Proactive checks fired hourly by
           /api/cron/synthetic-heartbeat against each external
@@ -1231,5 +1402,38 @@ function StatusCard({
     </a>
   ) : (
     card
+  );
+}
+
+
+// Small inline stat tile for the verifier-pass panel. Mirrors the
+// shape of the synthetic heartbeats panel's per-service tiles but
+// keeps the verifier panel self-contained (no risk of changing
+// other panels by tweaking shared styles).
+function VerifierStat({
+  label,
+  value,
+  tone,
+  detail,
+}: {
+  label: string;
+  value: number;
+  tone: "emerald" | "slate" | "amber" | "red";
+  detail: string;
+}) {
+  const toneClass = {
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-900",
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-900",
+    red: "border-red-200 bg-red-50 text-red-900",
+  }[tone];
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${toneClass}`}>
+      <p className="text-[10px] uppercase tracking-wider font-bold opacity-80">
+        {label}
+      </p>
+      <p className="text-xl font-bold mt-0.5">{value}</p>
+      <p className="text-[10px] opacity-75 mt-0.5">{detail}</p>
+    </div>
   );
 }
