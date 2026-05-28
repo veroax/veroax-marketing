@@ -1150,24 +1150,37 @@ function applyListingReconciliation(
     }
   }
 
-  // 3: market_context edits. Only render the relist ladder when it
+  // 3: market_context edits. Render the relist ladder when it
   // contains 2+ events (a single event is just the current listing
-  // and doesn't tell a story). The divergence note renders whenever
-  // sources actually disagreed.
+  // and doesn't tell a story). The buyer-facing listing history
+  // insight + agent talking point render whenever the reconciliation
+  // populated them, regardless of has_divergence, because the
+  // signal is about the listing's history, not about source
+  // disagreement.
+  const hasHistory =
+    (recon.relist_ladder && recon.relist_ladder.length >= 2) ||
+    Boolean(recon.listing_history_insight) ||
+    Boolean(recon.agent_talking_point);
+
   if (report.market_context) {
     if (recon.relist_ladder && recon.relist_ladder.length >= 2) {
       report.market_context.relist_ladder = recon.relist_ladder;
     }
-    if (recon.has_divergence && recon.divergence_note) {
-      report.market_context.listing_divergence_note = recon.divergence_note;
+    if (recon.listing_history_insight) {
+      report.market_context.listing_history_insight =
+        recon.listing_history_insight;
     }
-  } else if (
-    recon.has_divergence ||
-    (recon.relist_ladder && recon.relist_ladder.length >= 2)
-  ) {
+    if (recon.agent_talking_point) {
+      report.market_context.listing_history_talking_point =
+        recon.agent_talking_point;
+    }
+    if (recon.same_listing_agent_pattern) {
+      report.market_context.same_listing_agent_pattern = true;
+    }
+  } else if (hasHistory) {
     // No market_context existed but the reconciliation surfaced
     // signal worth rendering. Spin up a minimal market_context so
-    // the relist ladder and divergence note have a home.
+    // the listing history has a home.
     report.market_context = {
       summary:
         "Listing history reconstructed by the listing-data reconciliation step.",
@@ -1175,8 +1188,24 @@ function applyListingReconciliation(
         recon.relist_ladder && recon.relist_ladder.length >= 2
           ? recon.relist_ladder
           : null,
-      listing_divergence_note: recon.has_divergence ? recon.divergence_note : null,
+      listing_history_insight: recon.listing_history_insight ?? null,
+      listing_history_talking_point: recon.agent_talking_point ?? null,
+      same_listing_agent_pattern: recon.same_listing_agent_pattern ?? null,
     };
+  }
+
+  // Fold the agent talking point into the Negotiation Leverage
+  // section so it surfaces where the agent looks for negotiation
+  // signal. Prepended (not appended) because a relist pattern is
+  // often the strongest leverage on the report.
+  if (recon.agent_talking_point && report.negotiation) {
+    const leverage = Array.isArray(report.negotiation.leverage_points)
+      ? report.negotiation.leverage_points
+      : [];
+    report.negotiation.leverage_points = [
+      `Listing history: ${recon.agent_talking_point}`,
+      ...leverage,
+    ];
   }
 
   return report;

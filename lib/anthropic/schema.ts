@@ -247,13 +247,35 @@ export type ReportData = {
         | "sold";
       narrative: string;
     }> | null;
-    // 1-2 sentence flag rendered above the relist ladder when the
-    // three reconciled sources (package MLS print-out, agent's
-    // listing URL, live web search) disagreed on price / MLS# /
-    // status / list date. Tells the buyer "the package's static MLS
-    // sheet doesn't match the live listing." Null when the sources
-    // agreed.
+    // Legacy "sources disagreed" warning. Kept on ReportData for
+    // backwards compatibility with already-saved reports; NOT
+    // rendered on new PDF output. New reports use
+    // listing_history_insight + listing_history_talking_point
+    // below instead, framed as negotiation signal rather than as a
+    // fix-this-warning.
     listing_divergence_note?: string | null;
+    // Buyer-facing 2-3 sentence summary of what the listing's
+    // history tells us (price reductions over time, multiple
+    // listings, same listing agent across cancellations).
+    // Populated by the listing-data reconciliation step when the
+    // relist ladder has 2+ events or shows meaningful pattern.
+    // Renders as a neutral indigo Listing History callout in
+    // Market Context (NOT an amber warning). Null when the
+    // listing's history is clean (single listing, no notable
+    // changes).
+    listing_history_insight?: string | null;
+    // Agent-facing 3-5 sentence talking point for the client
+    // conversation. Renders below listing_history_insight in a
+    // "For your client conversation" sub-callout, and is also
+    // pulled into the Negotiation Leverage section by the
+    // synthesizer when present.
+    listing_history_talking_point?: string | null;
+    // True when the same listing agent string appears across 2+
+    // listings in the property's history. Used by the renderer to
+    // emphasize the agent-talking-point callout when this pattern
+    // is detected, and by the synthesizer to fold the insight into
+    // negotiation leverage.
+    same_listing_agent_pattern?: boolean | null;
   } | null;
   // Title & vesting summary from the preliminary title report. Captures
   // how the unit is vested (sole, joint, tenants-in-common, percentages),

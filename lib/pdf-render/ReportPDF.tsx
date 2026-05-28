@@ -638,27 +638,45 @@ const styles = StyleSheet.create({
     color: C.subtext,
     marginBottom: 4,
   },
-  // Listing-data divergence banner, rendered above the Market Context
-  // narrative when the package's MLS print-out, the agent's listing
-  // URL, and the live web search disagreed on price / MLS# / status /
-  // list date. Background applied at the View level (Text-with-
-  // backgroundColor is on the project-forbidden list per AGENTS.md).
-  divergenceBanner: {
-    backgroundColor: "#fef3c7",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 8,
+  // Listing history insight callout, rendered above the Market
+  // Context narrative when the property has a multi-listing
+  // history, price changes, or same-listing-agent pattern.
+  // Neutral indigo styling (NOT an amber warning) because the
+  // data is negotiation signal worth surfacing, not an error
+  // for the agent to fix. Background applied at the View level
+  // (Text-with-backgroundColor is on the project-forbidden list
+  // per AGENTS.md).
+  historyCallout: {
+    backgroundColor: "#eef2ff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
   },
-  divergenceLabel: {
+  historyLabel: {
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
-    color: "#92400e",
-    marginBottom: 2,
+    color: "#312e81",
+    textTransform: "uppercase",
+    marginBottom: 4,
   },
-  divergenceBody: {
-    fontSize: 9,
-    color: "#92400e",
-    lineHeight: 1.45,
+  historyBody: {
+    fontSize: 9.5,
+    color: "#1e1b4b",
+    lineHeight: 1.5,
+  },
+  historyTalkingLabel: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    color: "#4f46e5",
+    textTransform: "uppercase",
+    marginTop: 8,
+    marginBottom: 3,
+  },
+  historyTalking: {
+    fontSize: 9.5,
+    color: "#1e1b4b",
+    lineHeight: 1.5,
+    fontStyle: "italic",
   },
   // Numbered item inside a dual block (Strengths / Concerns lists).
   // Bumped from 9pt to 10pt with more leading + bottom margin so the
@@ -2725,21 +2743,33 @@ function SectionMarketContext({ report }: { report: ReportData }) {
       <SectionBanner number={13} title="Market Context" />
       {mc ? (
         <>
-          {/* Divergence flag, rendered above the rest of the section
-              when the listing-data reconciliation step found the
-              three sources (package MLS print-out, agent's listing
-              URL, live web search) disagreed on price / MLS# /
-              status / list date. Tells the buyer up front that
-              the package's static MLS sheet does not reflect the
-              current listing. */}
-          {mc.listing_divergence_note ? (
-            <View style={styles.divergenceBanner}>
-              <Text style={styles.divergenceLabel}>
-                Listing data, sources disagreed:
+          {/* Listing history insight, rendered above the rest of
+              the section when the listing-data reconciliation
+              surfaced multiple listings, price changes, or
+              same-listing-agent patterns. Neutral indigo styling
+              (NOT an amber "fix this" warning), the data is
+              negotiation signal worth surfacing, not an error.
+              Legacy listing_divergence_note (from reports
+              generated before this refactor) is used as a
+              fallback so older reports still render some context. */}
+          {(mc.listing_history_insight || mc.listing_divergence_note) ? (
+            <View style={styles.historyCallout}>
+              <Text style={styles.historyLabel}>Listing history</Text>
+              <Text style={styles.historyBody}>
+                {withSoftBreaks(
+                  mc.listing_history_insight ?? mc.listing_divergence_note ?? "",
+                )}
               </Text>
-              <Text style={styles.divergenceBody}>
-                {withSoftBreaks(mc.listing_divergence_note)}
-              </Text>
+              {mc.listing_history_talking_point ? (
+                <>
+                  <Text style={styles.historyTalkingLabel}>
+                    For your client conversation
+                  </Text>
+                  <Text style={styles.historyTalking}>
+                    {withSoftBreaks(mc.listing_history_talking_point)}
+                  </Text>
+                </>
+              ) : null}
             </View>
           ) : null}
 

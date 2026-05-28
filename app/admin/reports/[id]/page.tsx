@@ -251,29 +251,46 @@ export default async function AdminReportDetail({
         </p>
       </div>
 
-      {/* Listing reconciliation, when present */}
+      {/* Listing reconciliation, when present.
+          The agent-facing surfaces (PDF) now treat listing history
+          as negotiation signal rather than a "fix this" warning.
+          The admin view here mirrors that framing: neutral indigo
+          when there's history worth noting, neutral white when
+          sources agreed. The "Divergence flagged" amber pill is
+          gone, has_divergence is preserved on the raw JSON for
+          audit but not surfaced as a warning. */}
       {reconciliation ? (
         <div
-          className={`rounded-2xl border p-6 ${hasDivergence ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"}`}
+          className={`rounded-2xl border p-6 ${hasDivergence ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-200"}`}
         >
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold uppercase tracking-widest text-slate-700">
-              Listing reconciliation
+              Listing history
             </h2>
-            {hasDivergence ? (
-              <span className="text-[10px] uppercase tracking-wider text-amber-800 bg-amber-200 px-2 py-0.5 rounded">
-                Divergence flagged
+            {(reconciliation as { same_listing_agent_pattern?: boolean }).same_listing_agent_pattern ? (
+              <span className="text-[10px] uppercase tracking-wider text-indigo-800 bg-indigo-200 px-2 py-0.5 rounded">
+                Same listing agent
               </span>
-            ) : (
-              <span className="text-[10px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                Sources agree
-              </span>
-            )}
+            ) : null}
           </div>
-          {(reconciliation as { divergence_note?: string | null }).divergence_note ? (
-            <p className="text-sm text-amber-900 mb-3">
+          {(reconciliation as { listing_history_insight?: string | null }).listing_history_insight ? (
+            <p className="text-sm text-slate-900 mb-3 leading-relaxed">
+              {(reconciliation as { listing_history_insight: string }).listing_history_insight}
+            </p>
+          ) : (reconciliation as { divergence_note?: string | null }).divergence_note ? (
+            <p className="text-sm text-slate-900 mb-3 leading-relaxed">
               {(reconciliation as { divergence_note: string }).divergence_note}
             </p>
+          ) : null}
+          {(reconciliation as { agent_talking_point?: string | null }).agent_talking_point ? (
+            <div className="bg-white border border-indigo-200 rounded-lg p-4 mb-3">
+              <p className="text-[10px] uppercase tracking-wider font-bold text-indigo-700 mb-1.5">
+                For agent review &middot; client conversation
+              </p>
+              <p className="text-sm text-slate-800 italic leading-relaxed">
+                {(reconciliation as { agent_talking_point: string }).agent_talking_point}
+              </p>
+            </div>
           ) : null}
           {report.listing_source_choice ? (
             <p className="text-xs text-slate-600 mb-3">

@@ -54,6 +54,15 @@ export type ListingSourceObservation = {
   status: "active" | "pending" | "contingent" | "cancelled" | "withdrawn" | "sold" | "expired" | "unknown" | null;
   list_date: string | null; // ISO YYYY-MM-DD
   days_on_market: number | null;
+  // Listing agent name (and brokerage when available) attached to
+  // this observation. Pulled from the MLS printout's "Listing Agent"
+  // field, or from the Zillow / Redfin listing's "Listed by" line.
+  // When the same listing_agent string appears across multiple
+  // observations / past listings, the reconciliation marks
+  // same_listing_agent_pattern=true and the agent talking point
+  // surfaces it as a negotiation signal. Null when the source
+  // doesn't disclose the agent.
+  listing_agent: string | null;
   // Free-form notes the source provided that don't fit the structured
   // fields. Example: "the Zillow page shows 'recently sold for $1.4M
   // on 4/3/2026' in the price-history widget."
@@ -107,17 +116,50 @@ export type ListingReconciliation = {
   // status is enough).
   relist_ladder: RelistEvent[];
   // True when the sources disagree on any of: MLS#, list_price,
-  // status, list_date. The agent sees a banner on the report detail
-  // page when this is true; the report's Market Context section
-  // also renders the ladder.
+  // status, list_date. Kept on the audit trail for admins; the
+  // agent-facing surfaces no longer label this as "divergence"
+  // (the framing read as a fix-this warning when the data is
+  // actually negotiation signal worth surfacing). Use
+  // listing_history_insight + agent_talking_point for the
+  // buyer-facing copy instead.
   has_divergence: boolean;
-  // 1-2 sentence summary of what the divergence looked like. Only
-  // populated when has_divergence=true. Example: "The package's MLS
-  // print-out shows $1,178,000 listed Mar 19 (MLS 82039496); Zillow
-  // shows a current relist at $998,000 (MLS 82044514) effective
-  // 5/22. The price has dropped roughly $180,000 since the package
-  // was assembled."
+  // Internal-audit version of the disagreement summary. Kept on
+  // the audit trail (admin detail page raw JSON, audit_log
+  // metadata) but no longer rendered on the buyer's PDF or in the
+  // agent-facing report sections. Replaced by
+  // listing_history_insight which uses neutral / insight framing.
   divergence_note: string | null;
+  // Buyer-facing version of the same finding, reframed as
+  // "what does this listing's history tell us" rather than "the
+  // sources disagree." Renders on the PDF Market Context section
+  // as a Listing History callout, neutral indigo styling (not
+  // amber warning). 2-3 sentences max. Populate when there's
+  // meaningful history (a relist ladder of 2+ events OR a
+  // price-change pattern), null when the listing is on its first
+  // listing with no prior history.
+  listing_history_insight: string | null;
+  // Agent-facing talking point for the client conversation. This
+  // is the "tell your buyer this" version of the insight, written
+  // in the agent's voice. Renders on the PDF inside a "For your
+  // client conversation" sub-callout, AND gets folded into the
+  // Negotiation Leverage section when present. 3-5 sentences. Call
+  // out specific signals the agent should raise: price reductions,
+  // same listing agent across multiple cancelled listings, time on
+  // market patterns, etc. Example: "The seller has listed this
+  // property three times in just over two months with the same
+  // listing agent: $1,178,000 on 3/19 (cancelled 4/24), $1,138,000
+  // on 4/24 (cancelled 5/21), now $998,000 live as of 5/21.
+  // Roughly 15% reduction in 63 days, and the seller has stayed
+  // with the same listing agent through both cancellations, which
+  // typically signals strong motivation to close at the current
+  // price. Worth discussing with your buyer as negotiation
+  // leverage." Null when there's no meaningful history.
+  agent_talking_point: string | null;
+  // True when the same listing_agent string appears across two or
+  // more listings in the relist ladder. Signals "seller stuck with
+  // the same agent through cancellations," which the
+  // agent_talking_point should specifically call out.
+  same_listing_agent_pattern: boolean;
   // Recommended default source for the report's headline price.
   // Always 'live_search' when source (c) succeeded; falls back
   // through (b) then (a) when prior sources fail. The agent can
@@ -178,12 +220,27 @@ const RECONCILE_TOOL = {
       has_divergence: {
         type: "boolean",
         description:
-          "True when the three sources disagree on MLS number, list price, status, or list date. False when they agree or only one source returned data.",
+          "True when the three sources disagree on MLS number, list price, status, or list date. False when they agree or only one source returned data. (Internal-audit flag; agent-facing surfaces use listing_history_insight instead of this.)",
       },
       divergence_note: {
         type: ["string", "null"],
         description:
-          "1-2 sentence summary of how the sources disagreed. Populate when has_divergence=true; null when sources agreed.",
+          "Internal-audit summary of source disagreement. 1-2 sentences. Populate when has_divergence=true; null when sources agreed. NOT rendered on the buyer's PDF, the buyer-facing version is listing_history_insight.",
+      },
+      listing_history_insight: {
+        type: ["string", "null"],
+        description:
+          "Buyer-facing 2-3 sentence summary of what the listing's history tells us, framed as insight (NOT 'sources disagree'). Populate when the relist_ladder has 2 or more events OR when the seller has reduced the price meaningfully OR when same_listing_agent_pattern is true. Example: 'This property has been listed three times in just over two months, with the price dropping from $1,178,000 to $998,000 (a 15% reduction). The seller has retained the same listing agent through both cancellations.' Null when there's no meaningful history.",
+      },
+      agent_talking_point: {
+        type: ["string", "null"],
+        description:
+          "Agent-facing 3-5 sentence talking point for the client conversation. Written in the agent's voice ('Worth discussing with your buyer:', 'Tell your client:'). Should explicitly call out: (a) price reduction percentages and time windows when present, (b) same-listing-agent-across-cancellations when same_listing_agent_pattern is true (this typically signals strong seller motivation and creates negotiation leverage, surface it explicitly), (c) days on market patterns when relevant. Example: 'The seller has listed this property three times in just over two months with the same listing agent: $1,178,000 on 3/19 (cancelled 4/24), $1,138,000 on 4/24 (cancelled 5/21), now $998,000 live as of 5/21. That is roughly a 15% reduction in 63 days, with the seller staying with the same listing agent through both cancellations, which typically signals strong motivation to close. Worth raising with your buyer as negotiation leverage; the current listing price may not represent the seller's floor.' Null when there is no meaningful history to discuss.",
+      },
+      same_listing_agent_pattern: {
+        type: "boolean",
+        description:
+          "True when the SAME listing_agent string appears across 2 or more observations or relist events. Detect by comparing listing_agent fields across sources and across events in the relist ladder. Treat agent strings as the same when they match after lowercasing and trimming; allow small differences like 'Jane Smith' vs 'Jane Smith, Compass'. False when listing agents differ or when only one source disclosed the listing agent.",
       },
       recommended_source: {
         type: "string",
@@ -224,6 +281,11 @@ function observationSchema() {
       },
       list_date: { type: ["string", "null"] },
       days_on_market: { type: ["number", "null"] },
+      listing_agent: {
+        type: ["string", "null"],
+        description:
+          "Listing agent name from this source, with brokerage when available (e.g., 'Jane Smith, Compass'). Used to detect same-listing-agent patterns across multiple listings.",
+      },
       notes: { type: ["string", "null"] },
       observed_at: { type: "string" },
     },
@@ -244,12 +306,35 @@ AUTHORITY ORDER:
 
 The package MLS print-out is HISTORICAL reference. The buyer needs to know the CURRENT listing, not what was true when the package was assembled.
 
-FOR EACH SOURCE, capture: mls_number, list_price, status (active / pending / contingent / cancelled / withdrawn / sold / expired / unknown), list_date (ISO YYYY-MM-DD), days_on_market. Leave any field null when the source doesn't surface it; do not invent.
+FOR EACH SOURCE, capture: mls_number, list_price, status (active / pending / contingent / cancelled / withdrawn / sold / expired / unknown), list_date (ISO YYYY-MM-DD), days_on_market, listing_agent (name + brokerage when available, e.g., 'Jane Smith, Compass'). Leave any field null when the source doesn't surface it; do not invent.
 
-DIVERGENCE DETECTION:
+LISTING-AGENT EXTRACTION:
+- The listing_agent string is usually labelled on MLS printouts ('Listing Agent:', 'Agent:') and on Zillow / Redfin / Realtor.com under 'Listed by'.
+- Capture both name AND brokerage when both are available. Format: 'Jane Smith, Compass'.
+- This is critical for the same_listing_agent_pattern detection below; do not skip it when the source surfaces it.
+
+DIVERGENCE DETECTION (internal-audit only):
 - has_divergence = true when ANY of {mls_number, list_price, status, list_date} disagree across two or more sources.
-- has_divergence = false when sources agree, OR when only one source returned data, OR when sources surface different fields but don't actually conflict (one source had MLS#, another had price, no overlap = no divergence).
-- When divergence is real, populate divergence_note with a 1-2 sentence summary. Example: "The package's MLS print-out shows $1,178,000 listed Mar 19 (MLS 82039496); Zillow shows a current relist at $998,000 (MLS 82044514) effective 5/22. The price has dropped roughly $180,000 since the package was assembled."
+- has_divergence = false when sources agree, OR when only one source returned data, OR when sources surface different fields but don't actually conflict.
+- divergence_note: 1-2 sentence internal summary when has_divergence=true. Goes into the admin audit trail, NOT into the buyer's PDF. Keep it factual and brief.
+
+BUYER-FACING REFRAMING (the important part):
+The buyer's PDF reads listing_history_insight and agent_talking_point, NOT divergence_note. The buyer-facing copy must NOT use the word 'divergence' or 'sources disagree' or any 'something is wrong' framing. A property that has been listed multiple times is signal worth surfacing as negotiation leverage, not an error to fix.
+
+LISTING_HISTORY_INSIGHT (2-3 sentences, buyer-facing):
+Populate when the relist_ladder has 2+ events OR when sources show price reductions OR when same_listing_agent_pattern=true. Frame as 'what this listing's history tells us.' Example: 'This property has been listed three times in just over two months, with the price dropping from $1,178,000 to $998,000 (a 15% reduction). The seller has retained the same listing agent through both cancellations.' Null when the listing has a single clean history with no price changes or relistings.
+
+AGENT_TALKING_POINT (3-5 sentences, agent-facing):
+Populate whenever listing_history_insight is non-null. Written in the agent's voice ('Worth discussing with your buyer:', 'Tell your client:'). Explicitly call out:
+  (a) price reduction percentages and time windows when present
+  (b) same-listing-agent-across-cancellations when same_listing_agent_pattern is true. Sellers staying with the same listing agent through multiple cancelled listings typically signals strong motivation to close at the current price and creates negotiation leverage. Say this directly.
+  (c) DOM patterns when relevant
+  (d) end with a concrete suggestion the agent can act on ('Worth raising with your buyer as negotiation leverage' or 'The current listing price may not represent the seller's floor')
+
+SAME_LISTING_AGENT_PATTERN DETECTION:
+- True when the SAME listing_agent string appears across 2 or more observations or relist events. Compare listing_agent fields across sources AND across events in the relist ladder.
+- Match strings after lowercasing and trimming whitespace. Allow small differences ('Jane Smith' vs 'Jane Smith, Compass' should match if Jane Smith is consistent).
+- False when listing agents differ across listings (different agents = different signal), or when only one listing exists, or when listing_agent is null on all sources.
 
 RELIST LADDER RECONSTRUCTION:
 - Build relist_ladder as an ordered list of events from the union of all three sources.
