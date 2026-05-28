@@ -110,6 +110,7 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
           <p className="text-sm text-gray-500 mt-1">
             Created{" "}
             {new Date(report.created_at).toLocaleString("en-US", {
+              timeZone: "America/Los_Angeles",
               dateStyle: "medium",
               timeStyle: "short",
             })}
@@ -117,6 +118,7 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
               <>
                 {" · Analyzed "}
                 {new Date(report.analysis_completed_at).toLocaleString("en-US", {
+                  timeZone: "America/Los_Angeles",
                   dateStyle: "medium",
                   timeStyle: "short",
                 })}
@@ -715,6 +717,7 @@ function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-US", {
+    timeZone: "America/Los_Angeles",
     month: "short",
     day: "numeric",
     year: "numeric",

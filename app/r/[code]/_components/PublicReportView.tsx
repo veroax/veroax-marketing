@@ -793,6 +793,7 @@ function formatUSD(n: number): string {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
+    timeZone: "America/Los_Angeles",
     dateStyle: "medium",
   });
 }
