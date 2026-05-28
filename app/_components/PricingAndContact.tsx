@@ -228,14 +228,41 @@ export default function PricingAndContact() {
                 </div>
               </div>
               <div className="sm:text-right">
+                {/* Primary CTA goes straight to /signup. Previously
+                    this pre-filled the contact form via
+                    handlePlanSelect("Free trial", ...) and dumped
+                    the agent into a "talk to a person" lane,
+                    which they reasonably interpreted as the
+                    correct on-ramp (a real licensed agent emailed
+                    in with their DRE# via this path on 2026-05-28
+                    instead of signing up). Trial sign-up happens
+                    in 60 seconds at /signup with auto-DRE
+                    verification and a stamped trial credit, so
+                    that's where the button should land. The
+                    contact-form fallback is kept as a quiet
+                    secondary link below the CTA. */}
                 <a
-                  href="#contact"
-                  onClick={() => handlePlanSelect("Free trial", billingPeriod)}
+                  href="/signup"
                   className="inline-block bg-amber-400 text-indigo-950 font-semibold px-7 py-3.5 rounded-lg hover:bg-amber-300 transition-colors text-base shadow-lg shadow-amber-400/20 whitespace-nowrap"
                 >
-                  Claim your free report
+                  Sign up free &rarr;
                 </a>
-                <p className="text-xs text-indigo-300 mt-3">Takes about 60 seconds to request</p>
+                <p className="text-xs text-indigo-300 mt-3">
+                  Takes about 60 seconds, DRE verification happens
+                  automatically
+                </p>
+                <p className="text-xs text-indigo-300/80 mt-2">
+                  Have questions first?{" "}
+                  <a
+                    href="#contact"
+                    onClick={() =>
+                      handlePlanSelect("Free trial", billingPeriod)
+                    }
+                    className="underline underline-offset-2 hover:text-white"
+                  >
+                    Contact us
+                  </a>
+                </p>
               </div>
             </div>
           </div>
