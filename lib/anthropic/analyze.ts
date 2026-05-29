@@ -586,6 +586,71 @@ CRITICAL RULES:
    - MEDIUM: the document implies the issue but doesn't state it directly.
    - LOW: inferred from indirect evidence (age, regional norms, missing information).
 
+4.05. EXTRACTION DISCIPLINE (mandatory). The output of this pass is the input to a buyer's negotiation. The buyer's agent reads it next to the source documents and judges trust based on whether YOUR specifics match the documents'. Generic findings ("aging electrical system", "review HOA financials") read as filler. Findings carrying NAMES, DATES, REPORT IDs, DOLLAR AMOUNTS, and STATUTE REFERENCES read as professional analysis.
+
+   For EVERY finding, EVERY property_facts field, and EVERY document_inventory entry, extract the source documents' SPECIFICS where present. Mandatory targets:
+
+   A) NAMED PARTIES. Pull names verbatim, do NOT redact:
+      - Sellers (from TDS / SPQ signature blocks)
+      - Listing agent / team + brokerage + DRE numbers (from AVID, MLS printout, disclosure cover)
+      - Inspectors + their license numbers + report numbers (from each inspection report cover)
+      - Title company + file number (from prelim title cover)
+      - HOA management company + management contact (from CC&Rs and management notice)
+      - Insurance carriers (master HOA policy carrier + carrier of any disclosed claim history)
+      - Existing lender on title (deed-of-trust beneficiary + recording date + loan amount)
+
+   B) DOCUMENT IDs. Every cited document carries an identifier; extract it:
+      - MLS number(s) for the current listing AND any prior cancelled listings (Cowork output cites both)
+      - FEMA flood panel number + effective date (e.g., "06081C 0309F effective 4/5/2019")
+      - NHD report number + provider (e.g., "JCP Report #3583333")
+      - Inspector report numbers (e.g., "TAPS Termite #57662", "Marvin Morazan Roofing #RI0513202601")
+      - Prelim title file number (e.g., "Chicago Title File FWTO-3472600554-TO")
+      - HOA assessment ballot recording / approval dates and resolution numbers
+      - APN, lot/block from prelim title or property profile
+
+   C) SPECIFIC DOLLAR AMOUNTS pulled FROM THE DOCUMENTS, not your priors:
+      - Loan balances / deed-of-trust amounts ("$455,200 deed of trust to LoanDepot recorded 2/2/2021")
+      - HOA reserves balance from the balance sheet ("$40,891.19 as of Feb 28, 2026")
+      - Approved special assessments with exact amounts ("$154,280.32 elevator project approved Nov 13, 2024")
+      - Solar lease monthly cost + lease-end year ("Sunrun $241/mo through ~2036")
+      - HOA monthly dues + last increase amount + effective date
+      - List price + every prior list price in the relist history with the percentage reduction
+      Numbers from inspector cost write-ups should be cited verbatim (e.g., "$3,850 partial repair quote per Morazan attachment, p.4"), even when your remediation cost_estimate is regional.
+
+   D) STATUTE / CODE REFERENCES baked into recommended_action when the finding implies one. The analyzer should know the CA statutes that govern each finding type, cite them by section. The canonical mapping:
+      - ADU permit / legalization: AB 2533 (effective 1/1/2025), CA Health & Safety Code Section 17920.3
+      - HOA reserve study requirement: CA Civil Code Section 5550
+      - HOA disclosure menu: CA Civil Code Section 4525 (and Section 4530 for litigation)
+      - HOA balcony / elevated-element inspection (SB 326): CA Civil Code Section 5551
+      - Flood insurance requirement on federally-backed mortgages: Flood Disaster Protection Act of 1973, with FEMA Risk Rating 2.0 as the current methodology
+      - NHD-form disclosure requirements: CA Civil Code Section 1102.6c
+      - Earthquake fault (Alquist-Priolo): CA Public Resources Code Section 2622
+      - Seismic Hazard Zone (liquefaction / landslide): CA Public Resources Code Section 2696
+      - Mello-Roos disclosure: CA Government Code Section 53341.5
+      - Lead-based paint (federal): 24 CFR 35.92 and CA H&S 17920.10
+      - Asbestos disturbance during remodel: 40 CFR Part 61 (NESHAP), CA H&S Section 25915
+      - Structural pest report categorization (Section I vs Section II): California Structural Pest Control Board Rules Section 1992
+      - Sewer lateral point-of-sale: jurisdiction-specific; cite the local agency (e.g., "East Palo Alto sewer is West Bay Sanitary District")
+      When a finding cites a statute, use the section number verbatim, not a paraphrase.
+
+   E) ACTIONABLE CONTACT INFO in recommended_action when an external party is implied:
+      - City building department (planning / inspections) when permits are at issue: name the department + phone + email when locatable (e.g., "Contact City of East Palo Alto Planning at planning@cityofepa.org or 650-853-3189")
+      - Inspector / contractor for re-inspection: cite an action like "Get two reroof quotes from licensed Peninsula roofing contractors during the inspection period"
+      - Lender for product confirmation: "Confirm the buyer's lender will close on a FEMA Zone AE property with a known unpermitted ADU"
+      - Insurance carriers / FAIR Plan when applicable: "Get a Zone AE flood quote at this specific address before contingency removal" or "California FAIR Plan applies in FHSZ areas, budget separately"
+      - HOA management for missing documents: explicit ask, not "review HOA documents" but "Request from listing agent: forward-looking HOA budget, formal reserve study, written litigation statement, full elevator-assessment payoff schedule, within 3 days"
+
+   F) DATES, DATES, DATES. Every finding carries at least one date relevant to its timeline:
+      - Document signing dates
+      - Report dates (inspections, NHD, prelim title effective date)
+      - Listing dates (active, cancelled, re-listed)
+      - Recording dates (deeds, UCC-1 liens, easements)
+      - Last full fumigation / last roof replacement / last reserve study
+      - HOA capital project approval dates from the board minutes
+      An inspection dated 6/26/2024 with the property listed 3/19/2026 is 21 months stale; cite both dates so the staleness is visible.
+
+   The verifier pass that runs AFTER this one will demote any Critical finding whose source_quote can't be matched against the package text. It will also flag findings that read as boilerplate (no names, no dates, no statute refs, no dollar amounts). Save yourself the demotion: extract the specifics now.
+
 4.1. SCOPE GUARDRAIL (mandatory). Findings must not OVERREACH the scope of the source. The finding's wording must stay no broader than what the source document actually says. Common overreach patterns to avoid:
    - Source says "common areas", finding says "in the unit interior". If the source describes a common-area condition (lobby, exterior, mechanical room, etc.) and there is no in-unit evidence, the finding is HOA-scope, not unit-scope. cost_responsibility = "hoa" and the narrative says so.
    - Source says "may contain" or "possible presence of", finding says "contains" or "is present". Carry the source's uncertainty into the finding wording verbatim; don't upgrade "may" to "is".
@@ -706,6 +771,16 @@ CRITICAL RULES:
 const FOCUSED_GROUP_INSTRUCTIONS: Record<PassGroup, string> = {
   seller_disclosures: `You are analyzing the SELLER DISCLOSURES group: typically the TDS (Transfer Disclosure Statement), SPQ (Seller Property Questionnaire), AVID (Agent Visual Inspection Disclosure), and any combined disclosure exports.
 
+MANDATORY EXTRACTION for this group (populate property_facts AND embed in findings where relevant):
+- named_sellers: pull seller names from the TDS / SPQ signature blocks verbatim
+- named_listing_team: pull listing agent / team + brokerage + DRE numbers from the AVID signature page or disclosure cover
+- disclosure_prep_service: pull the prep service stamped on the cover (Disclosures.io is most common in CA; NWMLS, eDisclosures, etc.)
+- package_date: pull the package-level cover date (NOT individual form signing dates)
+- adu_status: when the TDS Section II.C or SPQ Section 8.E mention an ADU, capture existence + permit status verbatim from the form
+- solar_status: when the SPQ Solar form is present, capture vendor + ownership / lease + monthly payment + lease end year + UCC-1 status (cross-check against prelim title exceptions for the UCC-1 filing)
+- For every TDS Section II / SPQ Section 10 "Yes" answer: include the section number AND the seller's verbatim explanation in your finding's description
+- For every disclosed alteration, addition, or repair: capture the year, scope, and (when stated) whether it was permitted
+
 Focus on:
 - Defects, repairs, leaks, or issues the seller affirmatively disclosed
 - Items the seller marked "Yes" or "Unknown" or refused to answer on the questionnaire, but only when the question applies to THIS property type
@@ -728,6 +803,16 @@ If a key disclosure section is blank or evasive AND the section applies to this 
 
   inspections: `You are analyzing the INSPECTION REPORTS group: home/property inspections, termite/pest reports, mold inspections, sewer-lateral inspections, roof inspections.
 
+MANDATORY EXTRACTION for this group (every inspection report carries these; pull them or the finding looks unsourced):
+- Inspector NAME (e.g., "Steven Venn", "Marvin Morazan") on EVERY finding sourced from that inspector's report
+- Inspector LICENSE NUMBER from the report cover (e.g., "License 1091319" for roof inspectors; CSLB number for general contractors)
+- Inspector REPORT NUMBER (e.g., "TAPS Termite Report #57662", "Marvin Morazan Roofing #RI0513202601", "Elite Home Inspection #..."), and the report date in ISO format
+- Specific PAGE and SECTION reference for each finding (e.g., "p.8 HVAC Action Items", "5.1.3 SOFT SPOTS", "Section 10.5.1")
+- Inspector-quoted COST when stated in the report (e.g., "we cannot warranty repairs to the shingle parts of the roof" or "Items 5-8 reference an attached re-roof proposal whose dollar figures were not fully captured in the OCR")
+- For termite findings: distinguish Section I (active) vs. Section II (conducive); cite the Pest Control Board's category rule
+
+For each finding's recommended_action: include the SPECIFIC TRADE the buyer should engage (e.g., "licensed Peninsula roofing contractor", "California-licensed mold inspector", "Section I clearance from a Structural Pest Control Board-licensed firm") and a budget for the investigation phase separate from remediation.
+
 Focus on:
 - Every Critical and High finding the inspector called out
 - Cost estimates the inspector provided (or that you can derive from regional pricing)
@@ -740,6 +825,21 @@ Be aggressive about marking insurance/lender-relevant items in insurance_lender_
 
   hoa: `You are analyzing the HOA PACKAGE group: CC&Rs, Bylaws, Reserve Studies, Budgets, Financial Statements, Meeting Minutes, special-assessment notices.
 
+MANDATORY EXTRACTION for this group (these are sitting in the HOA package; pull them verbatim):
+- ASSOCIATION NAME from the CC&Rs cover or Bylaws (e.g., "La Acera Oak Association")
+- BUILDING / PROJECT ADDRESS range when multi-building (e.g., "1530-1546 San Antonio Street, approx. 5-9 units")
+- MANAGEMENT TYPE: self-managed (elected unit owners) vs. professional (name the management company)
+- EXACT RESERVE BALANCE from the most recent balance sheet, with the asset breakdown (checking, savings, facility improvements separated) and the date stamp (e.g., "$40,891.19 as of Feb 28, 2026, split $15,151 BofA checking + $22,309 CapOne savings + $3,431 facility improvements")
+- RESERVE STUDY CADENCE and date of last study; cite CA Civil Code Section 5550 when the study is missing or stale
+- MASTER INSURANCE: carrier, policy number, $ limits (per-occurrence + aggregate), renewal date
+- APPROVED CAPITAL PROJECTS from the meeting minutes: dollar amount + contractor name + approval date + funding mechanism (special assessment vs. reserves)
+- SPECIAL ASSESSMENT HISTORY: every assessment in the last 24 months with the exact $ amount, what it funded, and how it was collected
+- LITIGATION status, cite the management's written statement when present (or note its absence)
+- MEETING MINUTE DATES for each minute referenced; quote the relevant agenda item verbatim when material
+- RECENT DUES INCREASE: amount + effective date + what the increase was allocated to
+
+Set hoa_facts.applicable=true and provide a summary.
+
 Focus on:
 - HOA financial health: reserve funding percentage, recent special assessments, pending special assessments
 - Pending litigation against the HOA
@@ -747,7 +847,6 @@ Focus on:
 - Recent dues increases or upcoming planned increases
 - Major maintenance projects scheduled or deferred
 - Insurance coverage gaps (e.g., earthquake not covered)
-- Set hoa_facts.applicable=true and provide a summary
 
 Treat CC&Rs/Bylaws boilerplate as low-priority, only flag genuinely consequential restrictions. Findings should be about the HOA's financial/operational health and rules that affect occupancy.
 
@@ -781,6 +880,24 @@ DO NOT mark a finding Critical because the HOA project costs $500K. The dollar f
 Items that ARE owner-paid even when sourced from HOA docs: balcony exclusive-use maintenance assigned to the unit owner per CC&Rs, in-unit fixtures the HOA explicitly disclaims, the buyer's pro-rata share of a special assessment ALREADY LEVIED. Tag those cost_responsibility = "owner" (or "shared" with explanation).`,
 
   hazards: `You are analyzing the NATURAL HAZARDS group: NHD reports, environmental disclosures, supplemental hazard documents.
+
+MANDATORY EXTRACTION for this group:
+- NHD REPORT NUMBER + provider name (e.g., "JCP Report #3583333" or "First American Report #3571219") and the report date
+- For FEMA flood: zone designation (Zone A, AE, V, VE, X, etc.) + FEMA PANEL NUMBER + panel effective date. Example: "Zone AE per FEMA panel 06081C 0309F effective 4/5/2019". Cross-reference any standalone Standard Flood Hazard Determination Form (SFHDF) when present.
+- For Alquist-Priolo earthquake fault: cite CA Public Resources Code Section 2622 and confirm IN / NOT IN with the determining language quoted
+- For Seismic Hazard Zone (liquefaction / landslide): cite CA Public Resources Code Section 2696; capture both STATE and COUNTY / CITY-level findings when the report layers them (Cowork-style: "State Liquefaction - IN; County Liquefaction - moderate; City Liquefaction - Medium; City Ground Shaking - Severe")
+- For FHSZ (Fire Hazard Severity Zone): name the determining authority (CAL FIRE for state, local LRA for local), and capture the local fire department contact if a special-services notice is included
+- For Mello-Roos: cite CA Government Code Section 53341.5 and either name the CFD or confirm NOT SUBJECT
+- For 1915 Improvement Bond Act: confirm SUBJECT / NOT SUBJECT explicitly
+- For dam failure inundation: cite Government Code Section 8589.5
+- For methane / transmission pipeline / wildland-area zones: report each verbatim (the JCP / First American reports enumerate them; copy the structure)
+
+Use the structured hazard fields:
+- Populate property_facts.fema_flood_zone with the zone + panel format above
+- Populate property_facts.hazard_zone_summary as a one-line IN / NOT IN summary across all zones
+- Populate environmental_hazards with one entry per zone (name, severity, notes); insurance/lender-blocking zones (FEMA AE/VE, FHSZ Very High) get severity critical or high
+
+For recommended_action on flood findings: name the federal statute requiring flood insurance (Flood Disaster Protection Act of 1973), name FEMA Risk Rating 2.0 as the current methodology, and tell the buyer to get a SPECIFIC ADDRESS quote (Risk Rating 2.0 results vary by elevation; an Elevation Certificate may produce a substantially lower premium when finished floor is above BFE). Cite community CRS class when extractable from the report (e.g., "EPA participates in NFIP as Class 7, providing 15% discount on NFIP premiums").
 
 Focus on:
 - Zone determinations: flood, earthquake fault, seismic, fire hazard, methane, dam inundation, airport noise

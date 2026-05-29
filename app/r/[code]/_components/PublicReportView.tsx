@@ -955,6 +955,17 @@ function PropertySnapshotSection({
     push("HOA dues", `${formatUSD(snapshot.hoa_dues_monthly)} / month`);
   push("Parking", snapshot?.parking ?? null);
   push("Market region", snapshot?.market_region ?? null);
+  // Cowork-parity fields. These are populated by the analyzer
+  // when the source documents contain them; legacy reports leave
+  // them null and the rows are skipped.
+  push("Hazard zones", snapshot?.hazard_zone_summary ?? null);
+  push("FEMA flood zone", snapshot?.fema_flood_zone ?? null);
+  push("Solar", snapshot?.solar_status ?? null);
+  push("ADU", snapshot?.adu_status ?? null);
+  push("Sellers", snapshot?.named_sellers ?? null);
+  push("Listing team", snapshot?.named_listing_team ?? null);
+  push("Package prepared", snapshot?.disclosure_prep_service ?? null);
+  push("Package date", snapshot?.package_date ?? null);
 
   if (rows.length === 0) return null;
 
@@ -1193,19 +1204,40 @@ function DocumentInventorySection({
             Provided
           </p>
           <ul className="divide-y divide-slate-100 mb-4">
-            {provided.map((d, i) => (
-              <li
-                key={i}
-                className="py-1.5 flex items-start justify-between gap-3 text-sm"
-              >
-                <span className="text-slate-700 flex-1 min-w-0 break-words">
-                  {d.name}
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
-                  Provided
-                </span>
-              </li>
-            ))}
+            {provided.map((d, i) => {
+              // Status badge tone: amber for stale / partial, emerald
+              // for clean "Provided". Free-form analyzer status is
+              // matched case-insensitively against a couple of
+              // patterns; anything else falls through to emerald.
+              const rawStatus =
+                (d as { status?: string | null }).status?.trim() || null;
+              const statusTone =
+                rawStatus && /stale|partial|coversheet/i.test(rawStatus)
+                  ? "text-amber-700 bg-amber-50"
+                  : "text-emerald-700 bg-emerald-50";
+              const statusLabel = rawStatus || "Provided";
+              const notes =
+                (d as { notes?: string | null }).notes?.trim() || null;
+              return (
+                <li key={i} className="py-2 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-700 flex-1 min-w-0 break-words font-medium">
+                      {d.name}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${statusTone}`}
+                    >
+                      {statusLabel}
+                    </span>
+                  </div>
+                  {notes ? (
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      {notes}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </>
       ) : null}

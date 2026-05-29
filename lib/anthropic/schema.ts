@@ -147,9 +147,66 @@ export type ReportData = {
     // top_floor, ground_floor, fireplace, in_unit_hvac. Add more as
     // the analyzer encounters them, order doesn't matter.
     unit_features?: string[] | null;
+    // ADU status pulled from the seller's TDS / SPQ disclosures.
+    // Free-form string capturing existence + permit status + utilities
+    // when available, e.g., "Unpermitted (seller-disclosed on TDS C.4:
+    // 'previous owner added ADU no permit'); no separate utilities".
+    // Null when no ADU is disclosed. Renders in the property-snapshot
+    // facts table and feeds the executive summary.
+    adu_status?: string | null;
+    // Solar status with vendor, ownership, and title-encumbrance
+    // detail when available, e.g., "Leased - Sunrun ($241/mo, ~2036
+    // lease end, transferable, UCC-1 on title)". Null when no solar
+    // is disclosed.
+    solar_status?: string | null;
+    // FEMA flood-zone information when an NHD or standalone Flood
+    // Determination is present. Format: "<zone>; panel <id> effective
+    // <date>", e.g., "Zone AE; panel 06081C 0309F effective
+    // 4/5/2019". Null when no flood determination is in the package.
+    fema_flood_zone?: string | null;
+    // Compact one-line hazard-zone summary across all NHD findings.
+    // Example: "IN FEMA Zone AE; IN Seismic Hazard Liquefaction Zone;
+    // NOT in FHSZ; NOT in fault zone". Null when no hazard
+    // disclosures.
+    hazard_zone_summary?: string | null;
+    // Seller names from the signed TDS / SPQ. Names matter for the
+    // executive summary and for grounding cross-document checks
+    // (signatures, dates). Format: "First Last and First Last", or
+    // just one name when single-seller. Null when names aren't
+    // legible / extracted.
+    named_sellers?: string | null;
+    // Listing team / agent identity from the AVID, MLS printout, or
+    // disclosure cover. Format includes brokerage + DRE numbers when
+    // available, e.g., "Bonafede Team at Compass (DRE 01189516 /
+    // 01190142)". Null when not extracted.
+    named_listing_team?: string | null;
+    // Disclosure prep service when stamped on the package (most CA
+    // packages are prepared via Disclosures.io, NWMLS, or similar).
+    // Free-form string. Null when not stamped or not identifiable.
+    disclosure_prep_service?: string | null;
+    // Date the disclosure package was assembled (NOT the date of
+    // individual forms; the package-level date stamped on the
+    // cover). ISO YYYY-MM-DD when possible. Null when no cover date.
+    package_date?: string | null;
   };
   document_inventory: {
-    documents_provided: Array<{ name: string; type: string; pages?: number }>;
+    documents_provided: Array<{
+      name: string;
+      type: string;
+      pages?: number;
+      // "Provided" | "Stale (>12 months)" | "Partial" | "Provided
+      // per coversheet" etc. Free-form so the analyzer can describe
+      // nuance. Optional for backward compat with existing reports.
+      status?: string | null;
+      // Document date when the analyzer can pull it (signing date for
+      // forms, report date for inspections, effective date for prelim
+      // titles). ISO YYYY-MM-DD when possible. Optional.
+      date?: string | null;
+      // Per-doc analyzer commentary: who prepared it, what's notable,
+      // what gaps to flag. Example: "TAPS Termite Report #57662,
+      // dated 5/14/2026, Section I and II findings". Optional.
+      notes?: string | null;
+    }>;
     documents_missing: string[];
   };
   completeness_audit: {
@@ -511,17 +568,72 @@ export const FOCUSED_TOOL_SCHEMA = {
             items: { type: "string" },
             description: "Lowercase tokens describing physical features THIS specific unit has. Canonical tokens: balcony, patio, private_yard, garage_stall_assigned, in_unit_laundry, top_floor, ground_floor, fireplace, in_unit_hvac. Add more as needed. CRITICAL: only include a feature when you're confident this unit actually has it, the downstream filter drops findings about features missing from this list (so a 'balcony repair' finding gets dropped if 'balcony' isn't here, on a first-floor unit that doesn't have one).",
           },
+          adu_status: {
+            type: ["string", "null"],
+            description:
+              "ADU status when disclosed. Capture existence + permit status + separate utilities. Example: 'Unpermitted (seller-disclosed on TDS C.4: previous owner added ADU no permit); no separate utilities'. Pull verbatim where the form has explicit language; otherwise paraphrase the disclosure faithfully. Null when no ADU.",
+          },
+          solar_status: {
+            type: ["string", "null"],
+            description:
+              "Solar status with vendor + ownership + title encumbrance detail. Example: 'Leased - Sunrun ($241/mo, ~2036 lease end, transferable, UCC-1 on title; original installer Vivint, acquired by Sunrun 2020)'. Pull from SPQ solar form, prelim title exceptions, and any Sunrun / SunPower / Tesla packet. Null when no solar.",
+          },
+          fema_flood_zone: {
+            type: ["string", "null"],
+            description:
+              "FEMA flood zone with panel ID + effective date. Example: 'Zone AE; panel 06081C 0309F effective 4/5/2019'. Pull from the JCP NHD report or standalone Flood Determination form. Null when no flood determination in the package.",
+          },
+          hazard_zone_summary: {
+            type: ["string", "null"],
+            description:
+              "One-line summary across all NHD findings. Format: 'IN <zone>; NOT IN <zone>; ...'. Example: 'IN FEMA Zone AE; IN Seismic Hazard Liquefaction Zone; NOT in FHSZ; NOT in fault zone'. Null when no hazard disclosures.",
+          },
+          named_sellers: {
+            type: ["string", "null"],
+            description:
+              "Seller names from the signed TDS / SPQ. Format: 'First Last and First Last'. Null when names aren't legible.",
+          },
+          named_listing_team: {
+            type: ["string", "null"],
+            description:
+              "Listing team or agent + brokerage + DRE numbers when available. Example: 'Bonafede Team at Compass (DRE 01189516 / 01190142)'. Pull from the AVID signature, MLS printout, or disclosure cover. Null when not extractable.",
+          },
+          disclosure_prep_service: {
+            type: ["string", "null"],
+            description:
+              "Disclosure prep service stamped on the package (Disclosures.io, NWMLS, etc.). Null when not identifiable.",
+          },
+          package_date: {
+            type: ["string", "null"],
+            description:
+              "Date the package was assembled, ISO YYYY-MM-DD when possible. NOT the date of individual forms inside, the package-level cover date. Null when no cover date.",
+          },
         },
       },
       document_inventory: {
         type: "array",
-        description: "List of documents reviewed in this pass.",
+        description:
+          "List of documents reviewed in this pass. Populate notes RICHLY: per-doc commentary that mirrors how a real-estate professional would summarize the document for the buyer (preparer + date + report number for inspections; signing date + key disclosures for seller forms; effective date + key exceptions for prelim titles).",
         items: {
           type: "object",
           properties: {
             name: { type: "string" },
             type: { type: "string", description: "e.g., TDS, SPQ, AVID, NHD, HOA, Inspection" },
             pages: { type: "integer" },
+            status: {
+              type: ["string", "null"],
+              description:
+                "Document status. 'Provided' for current documents. 'Stale (X months)' when the document is materially old (e.g., inspection >12 months before list date). 'Partial' when only part of the expected document is in the package. 'Provided per coversheet' when the cover references the doc but a separate filing wasn't found. Null when default 'Provided' is fine.",
+            },
+            date: {
+              type: ["string", "null"],
+              description: "Document date when extractable. Signing date for forms, report date for inspections. ISO YYYY-MM-DD when possible.",
+            },
+            notes: {
+              type: ["string", "null"],
+              description:
+                "Per-doc analyzer commentary capturing preparer / report ID / dates / key contents. Example for an inspection: 'TAPS Termite Report #57662, dated 5/14/2026, Section I and II findings'. Example for a seller form: 'Signed by sellers Mayan Weiss and Michal Weiss on 5/16/2026; affirmatively discloses unpermitted ADU at C.4'. Example for a hazard form: 'JCP Report #3583333, dated 4/17/2026; confirms structure IS IN SFHA Zone AE on FEMA panel 06081C 0309F'.",
+            },
           },
           required: ["name", "type"],
         },
@@ -846,6 +958,42 @@ export const REPORT_TOOL_SCHEMA = {
             type: ["array", "null"],
             items: { type: "string" },
           },
+          adu_status: {
+            type: ["string", "null"],
+            description:
+              "ADU status with permit + utilities detail when disclosed. Example: 'Unpermitted (seller-disclosed on TDS C.4 previous owner added ADU no permit); no separate utilities'. Null when no ADU.",
+          },
+          solar_status: {
+            type: ["string", "null"],
+            description:
+              "Solar status with vendor + ownership + title encumbrance. Example: 'Leased - Sunrun ($241/mo, ~2036 lease end, transferable, UCC-1 on title)'. Null when no solar.",
+          },
+          fema_flood_zone: {
+            type: ["string", "null"],
+            description:
+              "FEMA flood zone + panel ID + effective date. Example: 'Zone AE; panel 06081C 0309F effective 4/5/2019'. Null when no flood determination.",
+          },
+          hazard_zone_summary: {
+            type: ["string", "null"],
+            description:
+              "One-line hazard-zone summary. Example: 'IN FEMA Zone AE; IN Seismic Hazard Liquefaction Zone; NOT in FHSZ; NOT in fault zone'. Null when no hazard disclosures.",
+          },
+          named_sellers: {
+            type: ["string", "null"],
+            description: "Seller names from signed TDS / SPQ.",
+          },
+          named_listing_team: {
+            type: ["string", "null"],
+            description: "Listing team / agent + brokerage + DRE numbers.",
+          },
+          disclosure_prep_service: {
+            type: ["string", "null"],
+            description: "Package prep service (Disclosures.io, NWMLS, etc.).",
+          },
+          package_date: {
+            type: ["string", "null"],
+            description: "Package assembly date (ISO when possible).",
+          },
         },
         required: [
           "address",
@@ -873,6 +1021,21 @@ export const REPORT_TOOL_SCHEMA = {
                   description: "e.g., TDS, SPQ, AVID, NHD, HOA, Inspection, Other",
                 },
                 pages: { type: "integer" },
+                status: {
+                  type: ["string", "null"],
+                  description:
+                    "Document status. 'Provided' / 'Stale (X months)' / 'Partial' / 'Provided per coversheet'.",
+                },
+                date: {
+                  type: ["string", "null"],
+                  description:
+                    "Document date when extractable, ISO when possible.",
+                },
+                notes: {
+                  type: ["string", "null"],
+                  description:
+                    "Per-doc commentary: preparer / report ID / dates / key contents. Example: 'TAPS Termite Report #57662, dated 5/14/2026, Section I and II findings'.",
+                },
               },
               required: ["name", "type"],
             },
@@ -880,7 +1043,8 @@ export const REPORT_TOOL_SCHEMA = {
           documents_missing: {
             type: "array",
             items: { type: "string" },
-            description: "Standard CA disclosures that are NOT in this package",
+            description:
+              "Standard CA disclosures NOT in the package. Each entry should explain WHY it's missing in line when material (e.g., 'HOA Reserve Study (CA Civ Code 5550 requires every 3 years; not in package)' rather than just 'HOA Reserve Study').",
           },
         },
         required: ["documents_provided", "documents_missing"],
