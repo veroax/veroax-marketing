@@ -652,6 +652,19 @@ function AgentSummary({
         </div>
       </div>
 
+      {/* ----- Cross-document consistency findings -------------- */}
+      {/* Discrepancies BETWEEN documents in the package: TDS county
+          vs prelim title, missing referenced AVID, HOA minutes vs
+          balance sheet, MLS public-remarks vs listing field, etc.
+          Often contract-level issues the agent should fix before
+          signature, so this section renders ABOVE the critical
+          findings on the dashboard. Mirrors the public report's
+          CrossDocumentSection but with the agent's "actionable
+          first" framing in the section header. */}
+      <CrossDocumentDashboardSection
+        findings={reportData.cross_document_findings ?? null}
+      />
+
       {/* ----- Critical findings with click-to-source ----------- */}
       {/* Lives only on the agent's dashboard (not the public /r/{code}
           view) because the source PDFs are private. Click any "Source:"
@@ -793,6 +806,93 @@ function AgentSummary({
           </p>
         </details>
       )}
+    </section>
+  );
+}
+
+// Dashboard cross-document consistency block. Renders the schema's
+// cross_document_findings array between the strengths / concerns
+// panel and the critical findings list. Different from the public
+// report's CrossDocumentSection in that the agent version is
+// always expanded (not collapsed) since the agent's job is to
+// triage these BEFORE handing the report to the buyer, and the
+// section header explicitly frames them as agent-actionable
+// ("Cross-document items to fix before contract"). Returns null
+// when the analyzer produced no cross-doc findings, the section
+// silently vanishes on legacy reports or clean packages.
+function CrossDocumentDashboardSection({
+  findings,
+}: {
+  findings: ReportData["cross_document_findings"];
+}) {
+  if (!findings || findings.length === 0) return null;
+  const critCount = findings.filter((f) => f.severity === "critical").length;
+  return (
+    <section className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+        <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase">
+          Cross-document items to fix before contract ({findings.length})
+        </h3>
+        {critCount > 0 ? (
+          <span className="text-[10px] font-bold uppercase tracking-wider bg-red-700 text-white px-2 py-0.5 rounded">
+            {critCount} critical
+          </span>
+        ) : null}
+      </div>
+      <p className="text-xs text-slate-500 italic mb-3">
+        Discrepancies between documents in the package. Often more
+        actionable than any single finding because they&apos;re
+        contract-level items the listing side needs to correct.
+      </p>
+      <div className="space-y-3">
+        {findings.map((f, i) => {
+          const sev = f.severity ?? "moderate";
+          const tone =
+            sev === "critical"
+              ? "border-red-200 bg-red-50/40"
+              : sev === "informational"
+                ? "border-slate-200 bg-slate-50"
+                : "border-amber-200 bg-amber-50";
+          const badgeTone =
+            sev === "critical"
+              ? "bg-red-700 text-white"
+              : sev === "informational"
+                ? "bg-slate-600 text-white"
+                : "bg-amber-500 text-white";
+          return (
+            <article
+              key={i}
+              className={`rounded-xl border p-4 ${tone}`}
+            >
+              <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+                <p className="font-bold text-slate-900 text-sm flex-1 min-w-0">
+                  {i + 1}. {f.title}
+                </p>
+                <span
+                  className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 ${badgeTone}`}
+                >
+                  {sev}
+                </span>
+              </div>
+              <p className="text-sm text-slate-700 leading-relaxed mb-2">
+                {f.description}
+              </p>
+              {f.source_docs && f.source_docs.length > 0 ? (
+                <p className="text-xs text-slate-600 mb-2">
+                  <span className="font-semibold">Documents in tension: </span>
+                  {f.source_docs.join(" vs. ")}
+                </p>
+              ) : null}
+              {f.recommended_action ? (
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  <span className="font-semibold">Recommended action: </span>
+                  {f.recommended_action}
+                </p>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }

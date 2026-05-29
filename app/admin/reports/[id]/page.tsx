@@ -650,6 +650,63 @@ function AdminReportContent({ reportData }: { reportData: ReportData }) {
         </div>
       ) : null}
 
+      {/* Cross-document consistency findings (between-document
+          disagreements). Renders ABOVE critical findings because
+          these are often contract-level issues the listing side
+          needs to correct, more actionable than any single
+          finding. Mirrors the public report's CrossDocumentSection
+          but condensed for the admin view. */}
+      {reportData.cross_document_findings &&
+      reportData.cross_document_findings.length > 0 ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-700 mb-2">
+            Cross-document items to fix ({reportData.cross_document_findings.length})
+          </h3>
+          <ul className="space-y-2.5">
+            {reportData.cross_document_findings
+              .slice(0, 8)
+              .map((f, i) => {
+                const sev = f.severity ?? "moderate";
+                const badgeTone =
+                  sev === "critical"
+                    ? "bg-red-700 text-white"
+                    : sev === "informational"
+                      ? "bg-slate-600 text-white"
+                      : "bg-amber-500 text-white";
+                return (
+                  <li key={i} className="text-sm">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <p className="font-semibold text-slate-900 flex-1 min-w-0">
+                        {f.title}
+                      </p>
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 ${badgeTone}`}
+                      >
+                        {sev}
+                      </span>
+                    </div>
+                    <p className="text-slate-700 mt-1 leading-relaxed">
+                      {f.description}
+                    </p>
+                    {f.source_docs && f.source_docs.length > 0 ? (
+                      <p className="text-xs text-slate-500 mt-1">
+                        <span className="font-semibold">In tension: </span>
+                        {f.source_docs.join(" vs. ")}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            {reportData.cross_document_findings.length > 8 ? (
+              <li className="text-xs text-slate-500 italic pl-2">
+                ...{reportData.cross_document_findings.length - 8} more,
+                see the public report for the full set.
+              </li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
+
       {/* Critical + high findings (top 5 by severity ordering). */}
       {critical.length > 0 ? (
         <div className="border-t border-slate-100 pt-5">
