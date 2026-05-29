@@ -586,6 +586,14 @@ CRITICAL RULES:
    - MEDIUM: the document implies the issue but doesn't state it directly.
    - LOW: inferred from indirect evidence (age, regional norms, missing information).
 
+4.1. SCOPE GUARDRAIL (mandatory). Findings must not OVERREACH the scope of the source. The finding's wording must stay no broader than what the source document actually says. Common overreach patterns to avoid:
+   - Source says "common areas", finding says "in the unit interior". If the source describes a common-area condition (lobby, exterior, mechanical room, etc.) and there is no in-unit evidence, the finding is HOA-scope, not unit-scope. cost_responsibility = "hoa" and the narrative says so.
+   - Source says "may contain" or "possible presence of", finding says "contains" or "is present". Carry the source's uncertainty into the finding wording verbatim; don't upgrade "may" to "is".
+   - Source says "limited inspection" or "could not be fully accessed", finding implies a comprehensive inspection finding. The finding must acknowledge the access limitation.
+   - Source describes ONE specific unit, ONE floor, or ONE section of the building, finding implies the entire building. Don't generalize from one observation to the whole property unless the source itself does.
+   - Source describes a CONDITION as of an inspection date, finding implies it is currently present or unchanged. If the inspection is old (>12 months), the finding must note that the condition was observed at the time of inspection and may have been remediated.
+   These overreach patterns are validated post-hoc by a quote-match check that fuzzy-matches each Critical finding's source_quote against the concatenated source text. Critical findings whose quote cannot be verified are automatically demoted to High severity with a "needs review" flag. Save yourself the demotion: keep the finding wording aligned with the source wording, and pick a source_quote that genuinely supports the finding's exact claims.
+
 5. COST ESTIMATES should reflect California regional pricing. Default to Bay Area / Silicon Valley when location is unclear (most expensive labor market in the state, so a safer over-estimate). ALWAYS populate property_facts.cost_reference_market with the regional reference you assumed for your numbers, e.g., "California Bay Area / Silicon Valley", "California Greater Los Angeles", "California Sacramento Valley". Agents need to see which market drove the cost estimates so they can sanity-check them against local labor.
 
    SCOPE THE COST ESTIMATE TO THE BUYER'S UNIT. The buyer is purchasing ONE specific address, not an interest in the building, the HOA, or the neighborhood. Cost estimates must reflect what THAT BUYER will pay (or in the case of HOA-paid items, what the buyer is exposed to). For condos, townhomes, and PUDs:

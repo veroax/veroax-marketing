@@ -158,13 +158,29 @@ function FindingDetail({
       id={anchorId}
       className="rounded-xl border border-red-200/60 bg-red-50/40 p-4 scroll-mt-4 target:ring-2 target:ring-red-300"
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
+      <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
         <p className="font-bold text-red-900 text-sm flex-1 min-w-0">
           {index}. {finding.title}
         </p>
-        <span className="text-[10px] font-bold uppercase tracking-wider bg-red-700 text-white px-2 py-0.5 rounded shrink-0">
-          {finding.severity}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {finding.quote_match_failed ? (
+            // Surfaced when the post-analyzer quote validator could
+            // not match the finding's source_quote against the
+            // concatenated extracted text of the uploaded documents.
+            // The finding stays visible (Critical) but the agent is
+            // explicitly told to verify before relying on it. See
+            // lib/reports/quote-validator.ts for the match rules.
+            <span
+              className="text-[10px] font-bold uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded"
+              title="The source quote for this finding could not be verified against the uploaded documents. Open the source PDF and confirm before relying on this finding."
+            >
+              Needs review
+            </span>
+          ) : null}
+          <span className="text-[10px] font-bold uppercase tracking-wider bg-red-700 text-white px-2 py-0.5 rounded">
+            {finding.severity}
+          </span>
+        </div>
       </div>
       {finding.source_quote && (
         <blockquote className="text-xs italic text-slate-700 border-l-2 border-slate-300 pl-3 mb-2">

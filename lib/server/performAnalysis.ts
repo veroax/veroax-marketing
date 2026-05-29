@@ -34,6 +34,7 @@ import {
 } from "@/lib/pdf/classify";
 import type { ReportData } from "@/lib/anthropic/schema";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
+import { validateCriticalQuotes } from "@/lib/reports/quote-validator";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 import { generateShareCode } from "@/lib/share/code";
 import { consumeReportCredit, freeUpdateWindow } from "@/lib/billing/credits";
@@ -117,6 +118,15 @@ export async function performAnalysis(
   );
 
   const documents: Document[] = [];
+  // Parallel corpus of extracted text from every document, including
+  // PDF-mode documents (which send the file natively to Claude and
+  // therefore set the Document.text field to ""). Used by the
+  // post-analyzer quote-validation step in lib/reports/quote-validator
+  // so we can fuzzy-match every Critical finding's source_quote
+  // against the source documents and demote Critical findings whose
+  // quotes cannot be verified. See docs/internal/COWORK_VEROAX_DIFF.md
+  // item 1 for the why.
+  const corpusChunks: string[] = [];
   // PII rule: do not store raw filenames anywhere audit_log can see
   // them. Each entry holds the safe digest + extension + reason.
   const failedExtractions: Array<{
@@ -192,6 +202,7 @@ export async function performAnalysis(
           tokens: estimateTokens(extracted.text),
           addedAt,
         });
+        if (extracted.text) corpusChunks.push(extracted.text);
         await admin.from("audit_log").insert({
           user_id: userId,
           report_id: reportId,
@@ -208,10 +219,24 @@ export async function performAnalysis(
         continue;
       }
 
+      // Build the validation corpus for this PDF-mode document. The
+      // analyzer doesn't need the extracted text (it gets the native
+      // PDF), but the post-analyzer quote validator does. We do this
+      // best-effort: a failure here just means quote validation can't
+      // confirm a Critical finding's source quote for this document
+      // (the validator treats unmatched-but-no-corpus as benign).
+      try {
+        const corpus = await extractText(buffer);
+        if (corpus.text) corpusChunks.push(corpus.text);
+      } catch {
+        // Swallow; corpus stays without this doc's text. The
+        // analyzer still proceeds with the native PDF.
+      }
+
       // Defensive in-memory re-split. Legacy reports were uploaded
       // under MAX_PAGES_PER_CHUNK = 90, but a 90-page native PDF
       // attachment at ~2000 tokens/page is 180K + system-prompt
-      // overhead → over the 200K context. We re-split anything
+      // overhead, over the 200K context. We re-split anything
       // larger than PDF_PER_CALL_PAGE_BUDGET into in-memory sub-
       // chunks here so the analyzer's bin-packer doesn't blow the
       // window. New uploads (MAX_PAGES_PER_CHUNK = 60) skip this
@@ -305,6 +330,7 @@ export async function performAnalysis(
       tokens: estimateTokens(extracted.text),
       addedAt,
     });
+    if (extracted.text) corpusChunks.push(extracted.text);
     await admin.from("audit_log").insert({
       user_id: userId,
       report_id: reportId,
@@ -481,6 +507,31 @@ export async function performAnalysis(
       output_tokens: result.usage.output_tokens,
       model: result.model,
       pass_count: result.passes.length,
+    },
+  });
+
+  // Quote-match validation against the source documents. Fuzzy-
+  // matches every Critical finding's source_quote against the
+  // concatenated extracted text. Any quote that fails both substring
+  // and 70%+ token-overlap match causes the finding to be demoted
+  // from "critical" to "high" with quote_match_failed = true so the
+  // dashboard can surface a "needs review" badge. Audit row captures
+  // the summary so we can watch the hallucination rate over time
+  // via /admin/health.
+  const corpus = corpusChunks.join("\n\n");
+  const quoteSummary = validateCriticalQuotes(result.report, corpus);
+  await admin.from("audit_log").insert({
+    user_id: userId,
+    report_id: reportId,
+    event_type: "analysis.quote_validation_completed",
+    metadata: {
+      total_critical: quoteSummary.total_critical,
+      matched: quoteSummary.matched,
+      demoted: quoteSummary.demoted,
+      // Per-finding breakdown for spot-checking. PII-safe: just the
+      // finding title (which Claude composed) + match method.
+      details: quoteSummary.details,
+      corpus_chars: corpus.length,
     },
   });
 

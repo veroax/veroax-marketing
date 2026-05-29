@@ -27,6 +27,14 @@ export type Finding = {
   // SHORT, 1-3 sentences max; the full document is still available
   // for deeper reads. Null when no clean quote is available.
   source_quote?: string | null;
+  // Set by lib/reports/quote-validator after the analyzer returns,
+  // when the source_quote text could not be matched (substring nor
+  // 70%+ token-overlap fuzzy match) against the concatenated
+  // extracted text of the uploaded documents. When true, the
+  // finding was DEMOTED from "critical" to "high" severity and the
+  // dashboard renders a "needs review" badge. Absent / false on
+  // findings that passed validation or had no quote to check.
+  quote_match_failed?: boolean | null;
   // Plain-language "what is this thing." Different from description in
   // that what_it_is explains the THING in lay terms ("the inspector's
   // panel was painted shut, so the branch wire material couldn't be
