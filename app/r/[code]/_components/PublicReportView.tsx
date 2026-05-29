@@ -3,6 +3,68 @@
 import { useState } from "react";
 import type { ReportData, Finding } from "@/lib/anthropic/schema";
 import { ReportErrorButton } from "@/components/ReportErrorButton";
+import { PublicFindingFlagButton } from "./PublicFindingFlagButton";
+
+// Format the property address for the hero. The address column on
+// reports.property_address is often stored uppercase (e.g.,
+// "1544 SAN ANTONIO ST, MENLO PARK, CA 94025, SAN MATEO COUNTY"),
+// which renders as harsh shouting at the top of a buyer-facing
+// document. Title-case it when it's all-caps, split into street
+// line + city/state/zip line so the hero reads like the Cowork
+// skill output the founder wants this page to mirror.
+//
+// Returns { street, citystatezip }: street is the first segment
+// before the first comma; citystatezip is the rest, with any
+// trailing ", SAN MATEO COUNTY"-style county suffix dropped.
+function formatAddress(raw: string): { street: string; citystatezip: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) return { street: "", citystatezip: "" };
+
+  // If the address has no letters at all, return as-is.
+  const allCaps =
+    trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed);
+  const cased = allCaps ? titleCase(trimmed) : trimmed;
+
+  const parts = cased.split(/,\s*/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return { street: cased, citystatezip: "" };
+  const street = parts[0];
+  // Drop a trailing "X County" suffix if present.
+  const rest = parts.slice(1).filter((p) => !/county$/i.test(p));
+  return { street, citystatezip: rest.join(", ") };
+}
+
+// Conservative title-case that preserves common acronyms (CA, USA)
+// and small connectors (of, the, and). Used by the hero address
+// renderer and the document inventory; everywhere else we trust
+// the analyzer's casing.
+function titleCase(s: string): string {
+  const KEEP_UPPER = new Set(["CA", "USA", "HOA", "DRE", "MLS", "NHD", "TDS", "SPQ"]);
+  const SMALL = new Set([
+    "of",
+    "the",
+    "and",
+    "in",
+    "on",
+    "at",
+    "for",
+    "to",
+    "a",
+    "an",
+  ]);
+  return s
+    .toLowerCase()
+    .split(/(\s+|,|\.|-)/)
+    .map((tok, i, arr) => {
+      const upper = tok.toUpperCase();
+      if (KEEP_UPPER.has(upper)) return upper;
+      if (/^\s+$|^,|^\.$|^-$/.test(tok)) return tok;
+      if (i > 0 && SMALL.has(tok)) return tok;
+      // ZIP codes / numeric tokens stay as-is.
+      if (/^\d/.test(tok)) return tok;
+      return tok.charAt(0).toUpperCase() + tok.slice(1);
+    })
+    .join("");
+}
 
 // Public-facing report view rendered at /r/{code}. Mobile-first
 // layout, collapsible sections (Critical open by default, everything
@@ -109,22 +171,39 @@ export function PublicReportView({
       </header>
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
-        {/* Hero card, title + rating pill + meta. Address is sized
-            down from text-2xl/3xl to text-lg/xl so the "Report ID
-            + Run #" counter underneath sits cleanly without the
-            hero block dominating the scroll height. The counter
-            mirrors the dashboard's "Run #N" badge so a buyer (or
-            an agent viewing the share link) can spot which
-            analysis revision they're looking at. */}
+        {/* Hero card. Address is the headline, sized back up to
+            text-2xl/3xl per the founder's "include full address
+            at the top" request after seeing the Cowork skill PDF.
+            Split into street + city/state/zip on two lines so the
+            visual hierarchy matches the Cowork output, which
+            renders "1544 San Antonio Street" big and "Menlo Park,
+            CA 94025" as a subtitle. The PDF download has moved
+            to a small text link at the very bottom of the page,
+            since the web view is now the primary deliverable. */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
-          <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
-            {propertyAddress}
-          </h1>
-          <p className="text-[11px] font-mono text-slate-500 mt-1">
+          {(() => {
+            const { street, citystatezip } = formatAddress(propertyAddress);
+            return (
+              <>
+                <p className="text-[10px] font-bold tracking-widest text-amber-700 uppercase">
+                  AI-Assisted Disclosure Analysis
+                </p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-indigo-950 leading-tight mt-1">
+                  {street || propertyAddress}
+                </h1>
+                {citystatezip ? (
+                  <p className="text-base sm:text-lg text-slate-700 mt-0.5">
+                    {citystatezip}
+                  </p>
+                ) : null}
+              </>
+            );
+          })()}
+          <p className="text-[11px] font-mono text-slate-500 mt-2">
             Report ID {reportId.slice(0, 8)} &middot; Run #{analysisRunCount}
           </p>
           {clientName ? (
-            <p className="text-sm text-slate-500 mt-2">
+            <p className="text-sm text-slate-500 mt-3">
               Prepared for{" "}
               <span className="font-semibold text-slate-700">{clientName}</span>
             </p>
@@ -163,47 +242,10 @@ export function PublicReportView({
                 <span className="font-semibold text-slate-700">
                   Buyer cost exposure
                 </span>{" "}
-                {formatUSD(grandTotal.low)}–{formatUSD(grandTotal.high)}
+                {formatUSD(grandTotal.low)} to {formatUSD(grandTotal.high)}
               </span>
             ) : null}
           </div>
-
-          {/* Download PDF + share-link copy buttons. PDF is rendered
-              on-demand from the same data; the share URL is what the
-              buyer is already viewing, copy convenience. */}
-          <div className="mt-5 flex flex-wrap gap-2">
-            <a
-              href={`/api/r/${shareCode}/pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-amber-400 text-indigo-950 font-semibold px-4 py-2 rounded-lg hover:bg-amber-300 text-sm shadow-sm"
-            >
-              <span>↓</span>
-              Download as PDF
-            </a>
-          </div>
-        </section>
-
-        {/* "How to read this report", short framing for the buyer
-            who clicked the link cold. Establishes what this is +
-            who made it + what to do with it. The PDF call-out is
-            intentionally NOT here, the PDF has been demoted from
-            the primary deliverable across the product, the public
-            web view is what we want buyers reading. */}
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
-          <h2 className="text-base font-bold text-slate-900 mb-2">
-            How to read this report
-          </h2>
-          <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
-            {`${profile?.full_name?.trim() || "Your agent"} put this together from the seller's disclosure package, third-party inspection reports, the HOA documents, and the preliminary title report. Below is the punchline first (overall rating, top strengths, top concerns), then the full detail organized by topic. Tap any heading to expand or collapse.`}
-          </p>
-          <p className="text-xs text-slate-500 italic mt-3">
-            Every finding shows its source document, a confidence
-            level, and (where applicable) a &ldquo;Needs review&rdquo;
-            flag when the underlying quote could not be verified
-            against the uploaded documents. Click any source to
-            open the original PDF in a new tab.
-          </p>
         </section>
 
         {/* The plain-language summary that opens the report. Title
@@ -298,6 +340,11 @@ export function PublicReportView({
                         </span>
                       ) : null}
                       <ConfidencePill confidence={f.confidence} />
+                      <PublicFindingFlagButton
+                        shareCode={shareCode}
+                        findingTitle={f.title}
+                        findingSeverity={f.severity}
+                      />
                     </div>
                   </div>
                   <p className="mt-1">
@@ -333,7 +380,14 @@ export function PublicReportView({
                 <li key={i} className="py-2.5">
                   <div className="flex items-start justify-between gap-2 flex-wrap">
                     <span className="flex-1 min-w-0">{f.title}</span>
-                    <ConfidencePill confidence={f.confidence} />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <ConfidencePill confidence={f.confidence} />
+                      <PublicFindingFlagButton
+                        shareCode={shareCode}
+                        findingTitle={f.title}
+                        findingSeverity={f.severity}
+                      />
+                    </div>
                   </div>
                   {f.source ? (
                     <p className="mt-1">
@@ -604,6 +658,22 @@ export function PublicReportView({
           legal counsel. Findings labeled with confidence tags reflect how
           directly each item was supported by the source documents.
         </div>
+
+        {/* PDF download, intentionally LAST and intentionally
+            small. The web view is the deliverable now; the PDF is
+            an archival fallback for buyers who want to print or
+            save offline. May get removed entirely in a future
+            commit. */}
+        <p className="text-center pt-2">
+          <a
+            href={`/api/r/${shareCode}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-slate-400 hover:text-slate-600 underline underline-offset-2"
+          >
+            Download a PDF copy for printing or offline use
+          </a>
+        </p>
       </main>
 
       {/* Agent footer, branding sits at the bottom so the buyer sees
@@ -889,6 +959,11 @@ function FindingCard({
             {finding.severity}
           </span>
           <ConfidencePill confidence={finding.confidence} />
+          <PublicFindingFlagButton
+            shareCode={shareCode}
+            findingTitle={finding.title}
+            findingSeverity={finding.severity}
+          />
         </div>
       </div>
 

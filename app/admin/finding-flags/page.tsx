@@ -21,7 +21,7 @@ export const metadata = {
 type Flag = {
   id: string;
   report_id: string;
-  user_id: string;
+  user_id: string | null;
   finding_title: string;
   finding_severity: string | null;
   category: string;
@@ -29,6 +29,13 @@ type Flag = {
   status: string;
   admin_response: string | null;
   created_at: string;
+  // Public-flag fields, populated when the flag came in through
+  // /api/r/[code]/findings/flag rather than the agent dashboard.
+  // is_public stamps the surface; submitter_name + submitter_email
+  // are optional and capture the anonymous reporter's contact.
+  is_public: boolean | null;
+  submitter_name: string | null;
+  submitter_email: string | null;
 };
 
 type ProfileMini = { id: string; full_name: string | null; email: string };
@@ -64,7 +71,7 @@ export default async function FindingFlagsAdminPage({
   let q = admin
     .from("finding_flags")
     .select(
-      "id, report_id, user_id, finding_title, finding_severity, category, note, status, admin_response, created_at",
+      "id, report_id, user_id, finding_title, finding_severity, category, note, status, admin_response, created_at, is_public, submitter_name, submitter_email",
     )
     .order("created_at", { ascending: false })
     .limit(200);
@@ -74,7 +81,9 @@ export default async function FindingFlagsAdminPage({
   const { data: flagData } = await q;
   const flags = (flagData ?? []) as Flag[];
 
-  const userIds = Array.from(new Set(flags.map((f) => f.user_id)));
+  const userIds = Array.from(
+    new Set(flags.map((f) => f.user_id).filter((v): v is string => Boolean(v))),
+  );
   const { data: profilesData } =
     userIds.length > 0
       ? await admin
@@ -119,11 +128,20 @@ export default async function FindingFlagsAdminPage({
       ) : (
         <div className="space-y-3">
           {flags.map((f) => {
-            const profile = profileMap.get(f.user_id);
+            const profile = f.user_id ? profileMap.get(f.user_id) : null;
             const status = STATUS_LABEL[f.status] ?? {
               label: f.status,
               tone: "bg-slate-100 text-slate-700",
             };
+            // Submitter label: agent name/email when user_id set,
+            // submitter name/email when public, "Anonymous" fallback.
+            const submitterLabel = profile?.full_name?.trim()
+              ? profile.full_name
+              : profile?.email
+                ? profile.email
+                : f.submitter_name?.trim() ||
+                  f.submitter_email?.trim() ||
+                  (f.is_public ? "Anonymous (public)" : "Unknown agent");
             return (
               <div
                 key={f.id}
@@ -138,16 +156,26 @@ export default async function FindingFlagsAdminPage({
                       {CATEGORY_LABEL[f.category] ?? f.category}
                       {f.finding_severity ? `, ${f.finding_severity}` : ""}
                       {" "}from{" "}
-                      {profile?.full_name?.trim() ||
-                        profile?.email ||
-                        "Unknown agent"}
+                      {submitterLabel}
+                      {f.is_public && f.submitter_email ? (
+                        <span className="text-slate-400">
+                          {" "}({f.submitter_email})
+                        </span>
+                      ) : null}
                     </p>
                   </div>
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${status.tone}`}
-                  >
-                    {status.label}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {f.is_public ? (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                        Public
+                      </span>
+                    ) : null}
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${status.tone}`}
+                    >
+                      {status.label}
+                    </span>
+                  </div>
                 </div>
                 {f.note && (
                   <p className="text-sm text-slate-700 whitespace-pre-wrap">
