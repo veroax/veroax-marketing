@@ -222,6 +222,13 @@ async function runWithWebSearch(
       client.messages.create({
         model: ANALYSIS_MODEL,
         max_tokens: 4096,
+        // temperature: 0 for run-to-run consistency. The web_search
+        // tool itself is non-deterministic (the index updates), so
+        // matching the focused-pass analyzer's temperature: 0
+        // setting is the most we can do at the model layer to keep
+        // the same package producing the same market_context across
+        // re-runs. See docs/internal/COWORK_VEROAX_DIFF.md item 2.
+        temperature: 0,
         system: MARKET_CONTEXT_SYSTEM,
         tools: [
           // Anthropic's hosted web_search tool. Renders as

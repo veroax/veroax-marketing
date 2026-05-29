@@ -471,6 +471,10 @@ async function runReconcile(
       client.messages.create({
         model: ANALYSIS_MODEL,
         max_tokens: 4096,
+        // temperature: 0 for run-to-run consistency. See the matching
+        // setting on the focused-pass analyzer + market-context. Same
+        // package, same listing data, same reconciliation.
+        temperature: 0,
         system: RECONCILE_SYSTEM,
         tools: [
           {

@@ -211,6 +211,9 @@ async function runFetch(userPrompt: string): Promise<LiveCostReference | null> {
       client.messages.create({
         model: ANALYSIS_MODEL,
         max_tokens: 4096,
+        // temperature: 0 for run-to-run consistency. See the matching
+        // setting on the focused-pass analyzer.
+        temperature: 0,
         system: COST_REFERENCE_SYSTEM,
         tools: [
           {

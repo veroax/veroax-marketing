@@ -68,6 +68,9 @@ async function pingAnthropic(): Promise<PingResult> {
       client.messages.create({
         model: ANALYSIS_MODEL,
         max_tokens: 10,
+        // temperature: 0 so the heartbeat is byte-stable across runs.
+        // Makes "the API returned something weird" easier to spot.
+        temperature: 0,
         messages: [
           {
             role: "user",
