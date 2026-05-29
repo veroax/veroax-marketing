@@ -88,6 +88,7 @@ export default async function AdminLayout({
           <NavLink href="/admin/audit" label="Audit log" />
           <NavLink href="/admin/report-errors" label="Error inbox" />
           <NavLink href="/admin/finding-flags" label="Finding flags" />
+          <NavLink href="/admin/regressions" label="Regressions" />
           <NavLink href="/admin/health" label="System health" />
           <NavLink href="/admin/integrations" label="Integrations" />
           <NavLink href="/admin/docs/billing-setup" label="Billing setup doc" />

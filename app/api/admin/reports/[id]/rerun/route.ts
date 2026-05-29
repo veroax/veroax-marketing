@@ -46,7 +46,7 @@ export async function POST(
   const { data: report, error: reportErr } = await admin
     .from("reports")
     .select(
-      "id, user_id, status, property_address, source_file_path, analysis_started_at, listing_url, listing_text",
+      "id, user_id, status, property_address, source_file_path, analysis_started_at, listing_url, listing_text, report_data, original_files, update_count, versions",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -85,6 +85,30 @@ export async function POST(
   const nextRunCount =
     ((currentRunRow as { analysis_run_count?: number } | null)
       ?.analysis_run_count ?? 1) + 1;
+
+  // Snapshot the CURRENT report_data into versions[] before
+  // overwriting it with the rerun's output. Without this, every
+  // admin rerun would discard the prior run and we couldn't
+  // measure variance across runs from /admin/regressions. Same
+  // snapshot shape as /api/reports/[id]/update writes, plus a
+  // regression_rerun flag so the regressions page can distinguish
+  // snapshot-from-rerun from snapshot-from-add-docs.
+  const updateCount = (report.update_count ?? 0) + 1;
+  const priorSnapshot = {
+    version_number: updateCount,
+    snapshotted_at: new Date().toISOString(),
+    report_data: report.report_data ?? null,
+    original_files: report.original_files ?? null,
+    source_file_path: report.source_file_path ?? null,
+    status: report.status,
+    pdf_blob_path: null as string | null,
+    regression_rerun: true,
+  };
+  const existingVersions = Array.isArray(report.versions)
+    ? (report.versions as Array<unknown>)
+    : [];
+  const newVersions = [...existingVersions, priorSnapshot];
+
   await admin
     .from("reports")
     .update({
@@ -92,6 +116,8 @@ export async function POST(
       analysis_started_at: new Date().toISOString(),
       failure_reason: null,
       analysis_run_count: nextRunCount,
+      update_count: updateCount,
+      versions: newVersions,
     })
     .eq("id", reportId);
 
