@@ -13,6 +13,7 @@ import { SuspendUserButton } from "../../_components/SuspendUserButton";
 import { DeleteUserButton } from "../../_components/DeleteUserButton";
 import { AdminPasswordActions } from "../../_components/AdminPasswordActions";
 import { AdminArchiveActions } from "../../_components/AdminArchiveActions";
+import { ImpersonateButton } from "../../_components/ImpersonateButton";
 import { DreRecheckButton } from "../../_components/DreRecheckButton";
 import { DreVerificationPill } from "@/app/_components/DreVerificationPill";
 import {
@@ -256,6 +257,10 @@ export default async function AdminUserDetail({
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
+            <ImpersonateButton
+              userId={profile.id}
+              userLabel={profile.full_name?.trim() || profile.email}
+            />
             <ToggleAdminButton
               userId={profile.id}
               currentIsAdmin={Boolean(profile.is_admin)}

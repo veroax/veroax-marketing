@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { resolveDashboardViewer } from "@/lib/admin/impersonation";
 import { AnalysisRunner } from "./_components/AnalysisRunner";
 import { CriticalFindingsView } from "./_components/CriticalFindingsView";
 import { ReportErrorButton } from "@/components/ReportErrorButton";
@@ -26,12 +27,42 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: report } = await supabase
+  // Admin impersonation: when the admin has activated "View as
+  // user", we read this report via service role so we can resolve
+  // a report owned by the impersonated user instead of bouncing
+  // off RLS. Outside impersonation we keep the user-scoped client
+  // so a regular agent only ever sees their own reports.
+  const { data: viewerProfile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+  const isAdmin = Boolean(
+    (viewerProfile as { is_admin?: boolean } | null)?.is_admin,
+  );
+  const viewer = await resolveDashboardViewer({
+    actualUserId: user.id,
+    isAdmin,
+  });
+  const reader = viewer.impersonating ? createServiceRoleClient() : supabase;
+
+  const { data: report } = await reader
     .from("reports")
-    .select("id, status, property_address, source_file_path, report_data, created_at, analysis_started_at, analysis_completed_at, failure_reason, report_name, client_name, last_updated_at, update_count, versions, original_files, archived, deleted_at")
+    .select("id, user_id, status, property_address, source_file_path, report_data, created_at, analysis_started_at, analysis_completed_at, failure_reason, report_name, client_name, last_updated_at, update_count, versions, original_files, archived, deleted_at")
     .eq("id", id)
     .maybeSingle();
   if (!report) notFound();
+  // When impersonating, verify the report is actually owned by the
+  // impersonated user. Service-role would otherwise let an admin
+  // view anyone's report through the impersonation surface, which
+  // is a separate posture from "see what THIS user sees" and is
+  // already covered by /admin/reports/[id]. Keep the surfaces clean.
+  if (
+    viewer.impersonating &&
+    (report as { user_id?: string }).user_id !== viewer.viewingUserId
+  ) {
+    notFound();
+  }
   // Soft-deleted reports 404 from the agent's own detail page.
   // Restoration is admin-only via /admin/reports/deleted, so even
   // the owning agent does not see the report here until an admin

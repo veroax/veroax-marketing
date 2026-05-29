@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { resolveDashboardViewer } from "@/lib/admin/impersonation";
 import {
   ReportListTable,
   type ReportRow,
@@ -39,7 +40,36 @@ export default async function DashboardPage({
 
   const supabase = await createClient();
 
-  // Map UI sort keys → DB column names. "property" uses
+  // Resolve admin impersonation. When an admin has activated
+  // "View as user" mode, viewer.viewingUserId is the impersonated
+  // user; otherwise it's the admin's own id. Reads scope to that
+  // id. We need to look up the admin flag from the profile first.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: viewerProfile } = user
+    ? await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .maybeSingle()
+    : { data: null };
+  const isAdmin = Boolean(
+    (viewerProfile as { is_admin?: boolean } | null)?.is_admin,
+  );
+  const viewer = await resolveDashboardViewer({
+    actualUserId: user?.id ?? "",
+    isAdmin,
+  });
+  // When impersonating, read across users via service role so we
+  // can scope to the target user's id without the admin's RLS
+  // getting in the way (admin RLS allows reading any profile but
+  // not necessarily any report row). The user-scoped client is
+  // still fine for the non-impersonation path because RLS already
+  // restricts reports.user_id = auth.uid().
+  const reader = viewer.impersonating ? createServiceRoleClient() : supabase;
+
+  // Map UI sort keys to DB column names. "property" uses
   // property_address; rows without one fall back to report_name in
   // the table render so the visual sort isn't perfect when address
   // is null, that's an acceptable trade-off for not needing a
@@ -51,11 +81,12 @@ export default async function DashboardPage({
         ? "status"
         : "created_at";
 
-  let query = supabase
+  let query = reader
     .from("reports")
     .select(
       "id, status, property_address, client_name, report_name, created_at",
     )
+    .eq("user_id", viewer.viewingUserId)
     .eq("archived", false)
     // Soft-deleted reports are hidden from the agent's main list.
     // They live at /admin/reports/deleted (admin view) until the

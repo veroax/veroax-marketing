@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserBrokerageContext } from "@/lib/brokerage/admin";
 import { SUPPORT } from "@/lib/site";
 import { logoutAction } from "../(auth)/actions";
+import { resolveDashboardViewer } from "@/lib/admin/impersonation";
+import { ImpersonationBanner } from "./_components/ImpersonationBanner";
 
 // Cascades to every page under /dashboard. Authenticated app
 // surfaces should never appear in any search index.
@@ -57,6 +59,15 @@ export default async function DashboardLayout({
 
   const displayName =
     profile?.full_name?.trim() || user.email?.split("@")[0] || "Agent";
+
+  // Admin impersonation: when the cookie is set AND the actual user
+  // is an admin, the banner renders + read queries on subsequent
+  // pages scope to the impersonated user_id. The actual auth
+  // session stays put, write paths remain scoped to the admin.
+  const viewer = await resolveDashboardViewer({
+    actualUserId: user.id,
+    isAdmin,
+  });
 
   return (
     <div className="min-h-screen flex bg-slate-50">
@@ -219,6 +230,17 @@ export default async function DashboardLayout({
             </Link>
           </div>
         </header>
+
+        {/* Admin impersonation banner. Renders ONLY when an admin
+            has triggered "View as user" from /admin/users/<id>. The
+            banner is intentionally loud so the admin can never
+            mistake the impersonated session for their own. */}
+        {viewer.impersonating && viewer.impersonatedProfile ? (
+          <ImpersonationBanner
+            fullName={viewer.impersonatedProfile.full_name}
+            email={viewer.impersonatedProfile.email}
+          />
+        ) : null}
 
         {/* Profile-completion banner, hard requirement now: reports
             won't download until name + DRE + brokerage are all set. */}
