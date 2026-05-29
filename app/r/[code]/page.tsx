@@ -47,6 +47,7 @@ type ReportRow = {
   original_files: unknown;
   created_at: string;
   deleted_at: string | null;
+  analysis_run_count: number | null;
 };
 
 type ProfileRow = {
@@ -80,7 +81,7 @@ export default async function PublicReportPage({
   const { data: report } = await admin
     .from("reports")
     .select(
-      "id, user_id, status, property_address, report_name, client_name, report_data, share_code, analysis_completed_at, archived, original_files, created_at, deleted_at",
+      "id, user_id, status, property_address, report_name, client_name, report_data, share_code, analysis_completed_at, archived, original_files, created_at, deleted_at, analysis_run_count",
     )
     .eq("share_code", code)
     .maybeSingle<ReportRow>();
@@ -137,6 +138,7 @@ export default async function PublicReportPage({
       reportName={report.report_name}
       clientName={report.client_name}
       analysisCompletedAt={report.analysis_completed_at}
+      analysisRunCount={report.analysis_run_count ?? 1}
       reportData={reportData}
       narrative={narrative}
       strengths={strengths.map((s) => s.text)}
