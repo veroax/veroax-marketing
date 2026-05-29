@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Finding } from "@/lib/anthropic/schema";
 import { slugifyFindingTitle } from "@/lib/reports/summary";
+import { FindingFlagButton } from "./FindingFlagButton";
 
 // Critical-findings list on the dashboard report detail page, with
 // click-to-source. Each finding's "Source: X" line is a button that
@@ -17,6 +18,10 @@ type Props = {
   reportId: string;
   findings: Finding[];
 };
+
+// Same Props shape gets threaded down to FindingDetail so the flag
+// button can POST to /api/reports/<id>/findings/flag with the
+// finding's title and severity captured at flag time.
 
 type SourcePanelState =
   | { phase: "closed" }
@@ -115,6 +120,7 @@ export function CriticalFindingsView({ reportId, findings }: Props) {
         {findings.map((f, i) => (
           <FindingDetail
             key={i}
+            reportId={reportId}
             finding={f}
             index={i + 1}
             onOpenSource={openSource}
@@ -130,10 +136,12 @@ export function CriticalFindingsView({ reportId, findings }: Props) {
 }
 
 function FindingDetail({
+  reportId,
   finding,
   index,
   onOpenSource,
 }: {
+  reportId: string;
   finding: Finding;
   index: number;
   onOpenSource: (source: string) => void;
@@ -180,6 +188,15 @@ function FindingDetail({
           <span className="text-[10px] font-bold uppercase tracking-wider bg-red-700 text-white px-2 py-0.5 rounded">
             {finding.severity}
           </span>
+          {/* Per-finding flag affordance: clicking opens a modal
+              that POSTs to /api/reports/<id>/findings/flag. Founder
+              triages flags via /admin/finding-flags as feedback into
+              the analyzer prompt. */}
+          <FindingFlagButton
+            reportId={reportId}
+            findingTitle={finding.title}
+            findingSeverity={finding.severity}
+          />
         </div>
       </div>
       {finding.source_quote && (
