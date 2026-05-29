@@ -248,6 +248,15 @@ export function PublicReportView({
           </div>
         </section>
 
+        {/* Property snapshot facts table. The Cowork skill PDF
+            renders Section 1 as a labeled fact table; we mirror
+            that here so a buyer scanning the page can confirm
+            year built, sq ft, unit, MLS #, list price, days on
+            market, parking, HOA dues, and market region without
+            opening anything. Skipped entirely when no facts are
+            available. */}
+        <PropertySnapshotSection snapshot={reportData.property_snapshot} />
+
         {/* The plain-language summary that opens the report. Title
             reads "Summary" rather than "Agent summary" since the
             buyer is the audience here, not the agent. */}
@@ -522,6 +531,33 @@ export function PublicReportView({
           </Section>
         ) : null}
 
+        {/* Permit & compliance review. Mirrors the Cowork PDF
+            Section 9, summarizes seller-disclosed alterations
+            against any permit gap and surfaces the analyzer's
+            structured permit_compliance findings when present. */}
+        <PermitComplianceSection
+          permitCompliance={reportData.permit_compliance}
+          shareCode={shareCode}
+        />
+
+        {/* Cost summary table. Schema's cost_summary has
+            critical_high_total + moderate_total + grand_total
+            plus a line_items array grouped by category. The
+            previous hero strip showed only grand_total; this
+            section gives the buyer the full breakdown the
+            Cowork skill renders in Section 10. */}
+        <CostSummarySection costSummary={reportData.cost_summary} />
+
+        {/* Insurance & lender risk. Schema field that the public
+            view never rendered. Two short lists that flag any
+            insurer / lender concerns the analyzer surfaced from
+            the package (small HOAs, recent claims, panel issues,
+            etc.) so the buyer knows where lender review might
+            slow the loan. */}
+        <InsuranceLenderSection
+          insuranceLenderRisk={reportData.insurance_lender_risk}
+        />
+
         {/* Negotiation leverage */}
         {negotiation?.leverage_points && negotiation.leverage_points.length > 0 ? (
           <Section title="Negotiation leverage" defaultOpen={false}>
@@ -595,6 +631,29 @@ export function PublicReportView({
             </ol>
           </Section>
         ) : null}
+
+        {/* Outstanding questions. Schema's outstanding_questions
+            is a flat string[]; the Cowork PDF renders this as
+            "Section 13, Questions for Further Investigation"
+            grouped by audience. We render it as a single numbered
+            list under one heading, which keeps the schema flat
+            but still surfaces the actionable follow-ups for the
+            buyer's diligence list. */}
+        <OutstandingQuestionsSection
+          questions={reportData.outstanding_questions ?? []}
+        />
+
+        {/* Document inventory. Schema has documents_provided +
+            documents_missing as two arrays; we render both in
+            one section so the buyer can see at a glance which
+            standard CA disclosures are in the package vs. which
+            are still owed. The agent-facing dashboard renders
+            the raw uploaded-files list separately for file
+            management; this section is the analyzer's structured
+            interpretation, not a file list. */}
+        <DocumentInventorySection
+          inventory={reportData.document_inventory}
+        />
 
         {/* Overall rating detail. The section title was "Why this
             rating" but the actual rating label was nowhere inside
@@ -760,6 +819,331 @@ export function PublicReportView({
         </div>
       </footer>
     </div>
+  );
+}
+
+// Property snapshot facts table. Reads from the schema's
+// property_snapshot block and renders one row per non-null field.
+// Designed to match the Cowork PDF cover's labeled fact table:
+// label on the left, value on the right, alternating row tint.
+// When nothing is populated we render nothing so the page weight
+// doesn't grow for sparse / legacy reports.
+function PropertySnapshotSection({
+  snapshot,
+}: {
+  snapshot: ReportData["property_snapshot"];
+}) {
+  const rows: Array<[string, string]> = [];
+  const push = (label: string, value: string | null | undefined) => {
+    if (value == null) return;
+    const v = typeof value === "string" ? value.trim() : String(value);
+    if (!v) return;
+    rows.push([label, v]);
+  };
+
+  push("Property type", snapshot?.property_type ?? null);
+  if (snapshot?.unit_number) push("Unit", snapshot.unit_number);
+  if (snapshot?.floor != null) push("Floor", String(snapshot.floor));
+  if (snapshot?.year_built != null)
+    push(
+      "Year built",
+      `${snapshot.year_built} (age ${Math.max(0, new Date().getFullYear() - snapshot.year_built)})`,
+    );
+  if (snapshot?.square_feet != null)
+    push("Sq ft", `${snapshot.square_feet.toLocaleString()} sq ft`);
+  if (snapshot?.bedrooms != null && snapshot?.bathrooms != null) {
+    push(
+      "Bed / Bath",
+      `${snapshot.bedrooms} bed / ${snapshot.bathrooms} bath`,
+    );
+  }
+  if (snapshot?.list_price != null)
+    push("List price", formatUSD(snapshot.list_price));
+  if (snapshot?.days_on_market != null)
+    push("Days on market", `${snapshot.days_on_market} days`);
+  push("MLS #", snapshot?.mls_number ?? null);
+  push("APN", snapshot?.apn ?? null);
+  if (snapshot?.hoa_dues_monthly != null)
+    push("HOA dues", `${formatUSD(snapshot.hoa_dues_monthly)} / month`);
+  push("Parking", snapshot?.parking ?? null);
+  push("Market region", snapshot?.market_region ?? null);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <Section title="Property snapshot" defaultOpen>
+      <dl className="divide-y divide-slate-100">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="py-2 grid grid-cols-3 sm:grid-cols-4 gap-2 text-sm"
+          >
+            <dt className="font-semibold text-slate-700 col-span-1">
+              {label}
+            </dt>
+            <dd className="text-slate-700 col-span-2 sm:col-span-3 break-words">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </Section>
+  );
+}
+
+// Permit & compliance review section. The analyzer's
+// permit_compliance block has a summary paragraph plus a findings
+// array; we render both when populated. Findings carry the same
+// Finding shape as critical/moderate so we can show source link +
+// confidence consistently.
+function PermitComplianceSection({
+  permitCompliance,
+  shareCode,
+}: {
+  permitCompliance: ReportData["permit_compliance"] | null | undefined;
+  shareCode: string;
+}) {
+  if (!permitCompliance) return null;
+  const summary = permitCompliance.summary?.trim() ?? "";
+  const findings = permitCompliance.findings ?? [];
+  if (!summary && findings.length === 0) return null;
+
+  return (
+    <Section title="Permit & compliance review" defaultOpen={false}>
+      {summary ? (
+        <p className="text-sm text-slate-700 leading-relaxed mb-3">
+          {summary}
+        </p>
+      ) : null}
+      {findings.length > 0 ? (
+        <ul className="divide-y divide-slate-100 mt-2">
+          {findings.map((f, i) => (
+            <li key={i} className="py-2.5">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <p className="font-semibold text-slate-900 text-sm flex-1 min-w-0">
+                  {f.title}
+                </p>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <ConfidencePill confidence={f.confidence} />
+                </div>
+              </div>
+              {f.description ? (
+                <p className="text-sm text-slate-700 mt-1">{f.description}</p>
+              ) : null}
+              {f.source ? (
+                <p className="mt-1">
+                  <SourceLink shareCode={shareCode} source={f.source} />
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Section>
+  );
+}
+
+// Cost summary table. The hero strip showed only the grand total
+// range; this section gives the line-item breakdown the Cowork
+// skill renders: grouped by category (Critical, Moderate, Cosmetic)
+// with each item's individual range, plus a bold grand-total row.
+function CostSummarySection({
+  costSummary,
+}: {
+  costSummary: ReportData["cost_summary"] | null | undefined;
+}) {
+  if (!costSummary) return null;
+  const lineItems = costSummary.line_items ?? [];
+  const grand = costSummary.grand_total;
+  const hasGrand = grand && (grand.low > 0 || grand.high > 0);
+  if (lineItems.length === 0 && !hasGrand) return null;
+
+  return (
+    <Section title="Cost summary" defaultOpen={false}>
+      {lineItems.length > 0 ? (
+        <div className="space-y-4">
+          {lineItems.map((group, gi) => (
+            <div key={gi}>
+              <p className="text-xs font-bold tracking-widest uppercase text-slate-700 mb-1">
+                {group.category}
+              </p>
+              <ul className="divide-y divide-slate-100">
+                {group.items.map((it, ii) => (
+                  <li
+                    key={ii}
+                    className="py-1.5 flex items-start justify-between gap-3 text-sm"
+                  >
+                    <span className="text-slate-700 flex-1 min-w-0 break-words">
+                      {it.label}
+                    </span>
+                    <span className="text-slate-700 tabular-nums shrink-0">
+                      {formatUSD(it.cost.low)} to {formatUSD(it.cost.high)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {hasGrand ? (
+        <div className="mt-4 pt-3 border-t-2 border-indigo-200 flex items-center justify-between gap-3 text-sm font-bold text-indigo-950">
+          <span className="uppercase tracking-wider text-xs">
+            Total potential exposure
+          </span>
+          <span className="tabular-nums text-base">
+            {formatUSD(grand.low)} to {formatUSD(grand.high)}
+          </span>
+        </div>
+      ) : null}
+    </Section>
+  );
+}
+
+// Insurance & lender risk section. The analyzer's
+// insurance_lender_risk block has a summary paragraph plus two
+// separate concern lists (insurance vs lender); we render whichever
+// are populated. Buyers care about this because both can stall a
+// closing even when the property itself is fine.
+function InsuranceLenderSection({
+  insuranceLenderRisk,
+}: {
+  insuranceLenderRisk: ReportData["insurance_lender_risk"] | null | undefined;
+}) {
+  if (!insuranceLenderRisk) return null;
+  const summary = insuranceLenderRisk.summary?.trim() ?? "";
+  const insurance = insuranceLenderRisk.insurance_concerns ?? [];
+  const lender = insuranceLenderRisk.lender_concerns ?? [];
+  if (!summary && insurance.length === 0 && lender.length === 0) return null;
+
+  return (
+    <Section title="Insurance & lender risk" defaultOpen={false}>
+      {summary ? (
+        <p className="text-sm text-slate-700 leading-relaxed">{summary}</p>
+      ) : null}
+      {insurance.length > 0 ? (
+        <>
+          <p className="text-xs font-bold tracking-widest uppercase text-slate-700 mt-4 mb-1">
+            Insurance concerns
+          </p>
+          <ul className="space-y-1.5 text-sm text-slate-700">
+            {insurance.map((c, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-slate-400 shrink-0">·</span>
+                <span>{c}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {lender.length > 0 ? (
+        <>
+          <p className="text-xs font-bold tracking-widest uppercase text-slate-700 mt-4 mb-1">
+            Lender concerns
+          </p>
+          <ul className="space-y-1.5 text-sm text-slate-700">
+            {lender.map((c, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-slate-400 shrink-0">·</span>
+                <span>{c}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </Section>
+  );
+}
+
+// Outstanding questions section. The analyzer's
+// outstanding_questions is a flat string[]; we render it as a
+// numbered list so the buyer can hand it directly to the listing
+// agent / seller / lender.
+function OutstandingQuestionsSection({
+  questions,
+}: {
+  questions: string[];
+}) {
+  if (!questions || questions.length === 0) return null;
+  return (
+    <Section
+      title={`Questions to ask the listing agent (${questions.length})`}
+      defaultOpen={false}
+    >
+      <ol className="space-y-2.5 text-sm text-slate-700 list-decimal list-inside">
+        {questions.map((q, i) => (
+          <li key={i}>{q}</li>
+        ))}
+      </ol>
+    </Section>
+  );
+}
+
+// Document inventory section. Renders the analyzer's structured
+// inventory of standard CA disclosures: which were provided, which
+// are still owed. Distinct from the agent-facing "Uploaded
+// documents" file list on the dashboard, this is the analyzer's
+// view of completeness, not the storage contents.
+function DocumentInventorySection({
+  inventory,
+}: {
+  inventory: ReportData["document_inventory"] | null | undefined;
+}) {
+  if (!inventory) return null;
+  const provided = inventory.documents_provided ?? [];
+  const missing = inventory.documents_missing ?? [];
+  if (provided.length === 0 && missing.length === 0) return null;
+
+  return (
+    <Section
+      title={`Document inventory (${provided.length} provided, ${missing.length} missing)`}
+      defaultOpen={false}
+    >
+      {provided.length > 0 ? (
+        <>
+          <p className="text-xs font-bold tracking-widest uppercase text-slate-700 mb-1.5">
+            Provided
+          </p>
+          <ul className="divide-y divide-slate-100 mb-4">
+            {provided.map((d, i) => (
+              <li
+                key={i}
+                className="py-1.5 flex items-start justify-between gap-3 text-sm"
+              >
+                <span className="text-slate-700 flex-1 min-w-0 break-words">
+                  {d.name}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
+                  Provided
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {missing.length > 0 ? (
+        <>
+          <p className="text-xs font-bold tracking-widest uppercase text-slate-700 mb-1.5">
+            Still owed
+          </p>
+          <ul className="divide-y divide-slate-100">
+            {missing.map((m, i) => (
+              <li
+                key={i}
+                className="py-1.5 flex items-start justify-between gap-3 text-sm"
+              >
+                <span className="text-slate-700 flex-1 min-w-0 break-words">
+                  {m}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 bg-red-50 px-1.5 py-0.5 rounded shrink-0">
+                  Missing
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </Section>
   );
 }
 
