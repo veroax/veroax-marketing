@@ -681,6 +681,26 @@ CRITICAL RULES:
 
    These narrative fields turn a one-line finding ("Issue 1: Aluminum branch wiring may be present") into something the buyer can act on. ALWAYS populate them for critical/high findings; for moderate/cosmetic findings the existing description + risk_if_ignored + recommended_action are enough.
 
+10.5. CROSS-DOCUMENT CONSISTENCY (mandatory check, populate cross_document_findings).
+   Before finishing, scan the documents in YOUR PASS'S GROUP for inconsistencies BETWEEN documents. This is the single highest-value contribution a focused pass can make beyond the findings list, the disagreements between sources are often more actionable than any single source's findings.
+
+   What to look for:
+   - A document references an attachment ("see attached AVID," "per the underlying termite inspection") and the referenced document is not in the package.
+   - Two documents disagree on a factual field (county, APN, year built, square footage, floor, unit number, list price, MLS number, date).
+   - A Yes/No checkbox on one document contradicts a narrative or inspection finding in another (TDS Section II checks "no known plumbing defects" but SPQ Section 10A discloses 2023 water intrusion; SPQ Section 8 affirms "no known structural defects" but the home inspection notes a 1/2-inch foundation crack).
+   - A financial document and a meeting minute disagree (HOA balance sheet shows X assets; minutes record an approved $Y special assessment funded from those assets where Y > X).
+   - A listing field disagrees with the property's authoritative records (MLS public remarks say "third floor" but the listing's MLS data field says "second floor").
+
+   Each cross_document_findings entry must:
+   - Name the documents in tension via source_docs (minimum 2 entries; include dates / report numbers to disambiguate).
+   - Describe what each document says and quote verbatim where short. The buyer should be able to read the description and understand the disagreement without opening the source PDFs.
+   - Carry a severity ("critical" = could affect closing readiness or the buyer's decision; "moderate" = should be corrected before contract; "informational" = scrivener-level).
+   - Recommend a concrete remediation when one exists.
+
+   ONLY include cross-doc findings that are visible from documents YOUR PASS was given. Do NOT speculate about disagreements with documents in other groups (a downstream pass that sees everything will catch those). Leave cross_document_findings empty when the only documents you have are a single inspection report or a single disclosure form with nothing to cross-check.
+
+   This section was added because the Cowork skill's Section 3 (Cross-Document Consistency Findings) is its most differentiated content; ours was producing none, which is the single biggest accuracy gap on the same packages.
+
 11. CALL THE submit_focused_analysis TOOL EXACTLY ONCE with your structured analysis. Do not produce any other text output.`;
 
 const FOCUSED_GROUP_INSTRUCTIONS: Record<PassGroup, string> = {
@@ -1993,6 +2013,34 @@ function synthesizeReportInCode(
     focused.find(
       (p) => p.inspection_follow_ups && p.inspection_follow_ups.length > 0,
     )?.inspection_follow_ups ?? null;
+
+  // Aggregate cross-document consistency findings across all passes.
+  // Each pass surfaces inconsistencies it can see within its own
+  // document group (seller_disclosures pass: TDS vs SPQ vs LBP;
+  // inspections pass: home inspection vs WDO vs roof; hoa pass:
+  // minutes vs balance sheet vs reserve study). Inter-group
+  // inconsistencies (e.g., TDS vs Reserve Study) belong to a
+  // future top-level consistency pass that sees everything; this
+  // commit ships the focused-pass version. Dedupe by lowercased
+  // title so two passes flagging the same disagreement don't
+  // double up.
+  const crossDocSeen = new Set<string>();
+  const crossDocFindings: NonNullable<ReportData["cross_document_findings"]> = [];
+  for (const p of focused) {
+    const items = p.cross_document_findings ?? [];
+    for (const item of items) {
+      const key = item.title.trim().toLowerCase();
+      if (crossDocSeen.has(key)) continue;
+      crossDocSeen.add(key);
+      crossDocFindings.push({
+        title: item.title,
+        description: item.description,
+        source_docs: item.source_docs,
+        recommended_action: item.recommended_action ?? null,
+        severity: item.severity ?? "moderate",
+      });
+    }
+  }
   // Prefer the live web-search-grounded market context over what
   // focused passes produced. Focused passes typically can't reach
   // the data needed for this section (current rates, current segment
@@ -2053,6 +2101,8 @@ function synthesizeReportInCode(
     negotiation,
     insurance_lender_risk: insuranceLenderRisk,
     outstanding_questions: outstandingQuestions,
+    cross_document_findings:
+      crossDocFindings.length > 0 ? crossDocFindings : null,
     inspection_follow_ups: inspectionFollowUps,
     market_context: marketContext,
     title_vesting: titleVesting,

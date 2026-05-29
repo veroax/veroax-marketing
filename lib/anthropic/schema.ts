@@ -211,6 +211,42 @@ export type ReportData = {
     lender_concerns: string[];
   };
   outstanding_questions: string[];
+  // Cross-document consistency findings. The Cowork skill's
+  // Section 3 is its most differentiated content: discrepancies
+  // BETWEEN documents in the same package (TDS says one county,
+  // title shows another; TDS Section III references an attached
+  // AVID but no AVID is included; HOA minutes record a special
+  // assessment that the balance sheet doesn't reflect; the MLS
+  // print public-remarks say "third floor" but every live
+  // listing says "second floor"; etc.). Each item names the
+  // documents in tension and explains why the discrepancy
+  // matters for the buyer.
+  //
+  // Optional: when empty (legacy reports, or a single-document
+  // package with nothing to cross-check) the section is skipped.
+  cross_document_findings?: Array<{
+    title: string;
+    description: string;
+    // Source documents in tension, e.g.,
+    // ["TDS (3/19/2026)", "Preliminary Title Report"]. At minimum
+    // 2 entries because by definition the finding is a
+    // disagreement between two or more sources.
+    source_docs: string[];
+    // Action the buyer / agent should take to resolve the
+    // discrepancy before contract, e.g., "Have the listing agent
+    // correct the TDS county field and re-execute" or "Request
+    // the executed AVID before removing the disclosure
+    // contingency." Optional, render when present.
+    recommended_action?: string | null;
+    // Severity classification, drives the badge color on the
+    // dashboard / public report. "critical" means the
+    // discrepancy could materially affect the buyer's decision
+    // or closing readiness; "moderate" means it should be
+    // corrected before contract but is unlikely to block;
+    // "informational" means it's a scrivener-level note. Defaults
+    // to "moderate" when the analyzer didn't pick one.
+    severity?: "critical" | "moderate" | "informational" | null;
+  }> | null;
   // Numbered checklist of specialists the buyer should engage during
   // their contingency period to close the largest unknowns in the
   // disclosure package. Renders as a clean numbered table with
@@ -350,6 +386,19 @@ export type FocusedAnalysis = {
   };
   insurance_lender_notes?: string[];
   outstanding_questions: string[];
+  // Cross-document consistency findings surfaced from THIS pass's
+  // group of documents. The synthesizer concatenates these across
+  // all passes, so each pass should only flag inconsistencies it
+  // can see directly. Inter-group inconsistencies (e.g., TDS in
+  // seller_disclosures vs Reserve Study in hoa) belong to a future
+  // top-level consistency pass and should NOT be invented here.
+  cross_document_findings?: Array<{
+    title: string;
+    description: string;
+    source_docs: string[];
+    recommended_action?: string | null;
+    severity?: "critical" | "moderate" | "informational" | null;
+  }>;
   // Optional rich sections, any pass can contribute these, but the
   // expected source is the seller_disclosures pass (which sees the MLS
   // printout, the TDS, and the prelim title report). The synthesizer
@@ -545,6 +594,45 @@ export const FOCUSED_TOOL_SCHEMA = {
         type: "array",
         description: "Questions for the seller or listing agent raised by these documents.",
         items: { type: "string" },
+      },
+      cross_document_findings: {
+        type: "array",
+        description:
+          "Discrepancies BETWEEN documents in YOUR PASS'S DOCUMENT GROUP. Only flag inconsistencies you can directly observe from the documents handed to this pass. Examples valid for the seller_disclosures pass: TDS county field disagrees with SPQ; TDS Section III references an attached AVID that is not in the package; SPQ Section 10A discloses a 2023 water intrusion but the TDS Section II affirms 'no known plumbing defects.' Examples valid for the inspections pass: the home inspection narrative says 'aluminum branch wiring may be present' but the inspector's checklist marks 'copper only'; two inspections list different inspection dates for the same scope. Examples valid for the hoa pass: HOA minutes record an approved special assessment that the balance sheet does not reflect; reserve study age conflicts with what the minutes say. Do NOT invent cross-group inconsistencies (e.g., TDS vs Reserve Study) from inference, those belong to a downstream pass that sees all groups. Each item must populate source_docs with at least 2 entries naming the documents in tension.",
+        items: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description:
+                "Short noun-phrase title for the discrepancy. Examples: 'County misidentified on TDS and SPQ', 'AVID referenced but not attached', 'HOA capital obligation vs. cash position', 'Floor designation mismatch between listings and package MLS print'.",
+            },
+            description: {
+              type: "string",
+              description:
+                "2-4 sentence paragraph explaining what each source says, what the discrepancy is, and why the buyer should care. Quote verbatim where the document references are short.",
+            },
+            source_docs: {
+              type: "array",
+              description:
+                "Documents in tension, at least 2 entries, e.g., ['TDS (3/19/2026)', 'Preliminary Title Report']. Include dates / report numbers to disambiguate.",
+              items: { type: "string" },
+              minItems: 2,
+            },
+            recommended_action: {
+              type: ["string", "null"],
+              description:
+                "Concrete remediation. Example: 'Have the listing agent correct the TDS county field and re-execute before removing the disclosure contingency.' Null when informational only.",
+            },
+            severity: {
+              type: ["string", "null"],
+              enum: ["critical", "moderate", "informational", null],
+              description:
+                "'critical' could materially affect closing readiness, 'moderate' should be corrected before contract but unlikely to block, 'informational' is a scrivener-level note. Defaults to 'moderate' when null.",
+            },
+          },
+          required: ["title", "description", "source_docs"],
+        },
       },
       hoa_financial_facts: {
         type: "array",
@@ -930,6 +1018,45 @@ export const REPORT_TOOL_SCHEMA = {
       outstanding_questions: {
         type: "array",
         items: { type: "string" },
+      },
+      cross_document_findings: {
+        type: ["array", "null"],
+        description:
+          "Discrepancies BETWEEN documents in the same disclosure package. Each item names the documents in tension and explains why the discrepancy matters. ONLY include findings where two or more source documents disagree, where a document references an attachment that is not in the package, or where the package contradicts itself in a way the buyer should know about. Examples of valid cross-document findings: (1) TDS describes the property as in Santa Clara County, but the preliminary title report and NHD both show San Mateo County. (2) TDS Section III checks 'See attached AVID,' but no standalone AVID form is included in the package. (3) HOA minutes record an approved $154,280 elevator special assessment, but the HOA balance sheet shows only $40,891 in total assets. (4) The MLS print public-remarks describe 'third floor' but every live listing for the property says 'second floor.' (5) Seller's TDS Section II checks 'no known defects in plumbing,' but the home inspection notes an active leak at the kitchen sink supply. Do NOT use this field for single-source findings, those belong in critical_findings or moderate_findings. Each item must populate source_docs with at least two entries.",
+        items: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description:
+                "Short noun-phrase title for the discrepancy. Examples: 'County misidentified on TDS and SPQ', 'AVID referenced but not attached', 'HOA capital obligation vs. cash position', 'Floor designation mismatch between listings and package MLS print'.",
+            },
+            description: {
+              type: "string",
+              description:
+                "2-4 sentence paragraph explaining what each source says, what the discrepancy is, and why the buyer should care. Quote the disagreeing language verbatim where the document references are short. Example: 'Both the Real Estate Transfer Disclosure Statement and the Seller Property Questionnaire describe the property as situated in the COUNTY OF Santa Clara. The MLS print, the JCP Natural Hazard Disclosure report, the Preliminary Title report, the original 1972 CC&Rs, and the live Zillow listing all confirm the property is in San Mateo County. Menlo Park is in San Mateo County. This is a scrivener error that should be corrected on the listing-side disclosures before contract, since the county appears in the legal description used for service of notice.'",
+            },
+            source_docs: {
+              type: "array",
+              description:
+                "Source documents in tension, e.g., ['TDS (3/19/2026)', 'Preliminary Title Report']. Minimum 2 entries because by definition the finding is a disagreement between two or more sources. Include dates / report numbers when known to disambiguate.",
+              items: { type: "string" },
+              minItems: 2,
+            },
+            recommended_action: {
+              type: ["string", "null"],
+              description:
+                "Concrete action the buyer or buyer's agent should take to resolve the discrepancy before contract. Example: 'Have the listing agent correct the TDS county field and re-execute before removing the disclosure contingency.' Null when there's no clear remediation, the discrepancy is informational only.",
+            },
+            severity: {
+              type: ["string", "null"],
+              enum: ["critical", "moderate", "informational", null],
+              description:
+                "'critical' = discrepancy could materially affect closing readiness or the buyer's decision (e.g., title-county mismatch, missing referenced disclosure). 'moderate' = should be corrected before contract but unlikely to block. 'informational' = scrivener-level note for the record. Defaults to 'moderate' when null.",
+            },
+          },
+          required: ["title", "description", "source_docs"],
+        },
       },
       inspection_follow_ups: {
         type: ["array", "null"],

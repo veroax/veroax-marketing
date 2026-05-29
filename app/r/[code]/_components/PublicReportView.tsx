@@ -299,6 +299,16 @@ export function PublicReportView({
           </div>
         </div>
 
+        {/* Cross-document consistency findings. Renders just
+            BEFORE the critical-findings section because these
+            disagreements are often more actionable than any
+            single source's findings: a missing referenced
+            disclosure or a county mismatch is a contract-level
+            issue that should be fixed before signature. */}
+        <CrossDocumentSection
+          findings={reportData.cross_document_findings ?? null}
+        />
+
         {/* Critical findings, open by default. */}
         <Section
           title={`Critical findings (${criticalFindings.length})`}
@@ -819,6 +829,84 @@ export function PublicReportView({
         </div>
       </footer>
     </div>
+  );
+}
+
+// Cross-document consistency findings, the Cowork skill's most
+// differentiated content. Each item names the documents in tension
+// and explains why the discrepancy matters. Severity drives the
+// badge color (critical = red, moderate = amber, informational =
+// slate). The section opens by default when ANY critical-severity
+// cross-doc finding is present, since those are often contract-
+// level issues the buyer should fix before signature.
+function CrossDocumentSection({
+  findings,
+}: {
+  findings: ReportData["cross_document_findings"];
+}) {
+  if (!findings || findings.length === 0) return null;
+  const hasCritical = findings.some((f) => f.severity === "critical");
+
+  return (
+    <Section
+      title={`Cross-document consistency (${findings.length})`}
+      defaultOpen={hasCritical}
+    >
+      <p className="text-xs text-slate-500 italic mb-3">
+        Disagreements between documents in the disclosure package.
+        Often more actionable than any single document&apos;s
+        findings.
+      </p>
+      <div className="space-y-3">
+        {findings.map((f, i) => {
+          const sev = f.severity ?? "moderate";
+          const tone =
+            sev === "critical"
+              ? "bg-red-50/40 border-red-200/60"
+              : sev === "informational"
+                ? "bg-slate-50 border-slate-200"
+                : "bg-amber-50 border-amber-200";
+          const badgeTone =
+            sev === "critical"
+              ? "bg-red-700 text-white"
+              : sev === "informational"
+                ? "bg-slate-600 text-white"
+                : "bg-amber-500 text-white";
+          return (
+            <article
+              key={i}
+              className={`rounded-xl border p-4 sm:p-5 ${tone}`}
+            >
+              <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+                <h3 className="font-bold text-slate-900 text-base flex-1 min-w-0">
+                  {i + 1}. {f.title}
+                </h3>
+                <span
+                  className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 ${badgeTone}`}
+                >
+                  {sev}
+                </span>
+              </div>
+              <p className="text-sm text-slate-700 leading-relaxed mb-2">
+                {f.description}
+              </p>
+              {f.source_docs && f.source_docs.length > 0 ? (
+                <p className="text-xs text-slate-600 mb-2">
+                  <span className="font-semibold">Documents in tension: </span>
+                  {f.source_docs.join(" vs. ")}
+                </p>
+              ) : null}
+              {f.recommended_action ? (
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  <span className="font-semibold">Recommended action: </span>
+                  {f.recommended_action}
+                </p>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </Section>
   );
 }
 
