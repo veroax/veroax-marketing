@@ -82,12 +82,19 @@ export default async function BillingPage() {
     }
   }
 
-  const subscriptionLabel = balance.isVip
-    ? "VIP · free access"
-    : balance.subscriptionPlan && balance.subscriptionActive
-      ? balance.subscriptionPlan.charAt(0).toUpperCase() +
-        balance.subscriptionPlan.slice(1)
-      : "Free trial";
+  // Both admins and VIPs bypass the credit gate. Admins are the
+  // founder + operators; we want their internal smoke-test runs to
+  // be unmetered. VIPs are a curated comp list. Both render a
+  // "free access" pill and skip the buy-more prompt.
+  const hasFreeAccess = balance.isVip || balance.isAdmin;
+  const subscriptionLabel = balance.isAdmin
+    ? "Admin · unmetered"
+    : balance.isVip
+      ? "VIP · free access"
+      : balance.subscriptionPlan && balance.subscriptionActive
+        ? balance.subscriptionPlan.charAt(0).toUpperCase() +
+          balance.subscriptionPlan.slice(1)
+        : "Free trial";
 
   return (
     <div className="space-y-6">
@@ -115,6 +122,26 @@ export default async function BillingPage() {
           </Link>
         </div>
       </div>
+
+      {/* Admin banner, smaller + more matter-of-fact than VIP.
+          Renders when the user is an admin but not a VIP, so we
+          don't show two free-access banners on top of each other
+          for the rare admin-who-is-also-VIP case. */}
+      {balance.isAdmin && !balance.isVip ? (
+        <section className="rounded-2xl border border-red-200 bg-red-50 p-4 sm:p-5">
+          <p className="text-[10px] font-bold tracking-widest uppercase text-red-700">
+            Admin access
+          </p>
+          <p className="text-base font-semibold text-red-900 mt-1">
+            Unmetered, every report is on the house.
+          </p>
+          <p className="text-xs text-red-800 mt-1.5 leading-relaxed">
+            Admin reports are stamped credit_source=&quot;admin&quot;
+            in the ledger so they stay separate from real customer
+            revenue in /admin/billing-readiness reports.
+          </p>
+        </section>
+      ) : null}
 
       {/* VIP banner, shown only to VIP users, replaces the plan
           chrome with a clear "you have free access" indication. */}
@@ -156,7 +183,11 @@ export default async function BillingPage() {
             <p className="text-2xl font-bold text-slate-900 mt-1">
               {subscriptionLabel}
             </p>
-            {balance.isVip ? (
+            {balance.isAdmin ? (
+              <p className="text-xs text-red-700 mt-1">
+                Admin role overrides the credit gate
+              </p>
+            ) : balance.isVip ? (
               <p className="text-xs text-amber-700 mt-1">
                 VIP status overrides the credit gate
               </p>
@@ -197,9 +228,9 @@ export default async function BillingPage() {
           </div>
         </div>
 
-        {/* Quick "buy more" affordance, suppressed for VIPs whose
-            access doesn't depend on credit balance. */}
-        {!balance.isVip &&
+        {/* Quick "buy more" affordance, suppressed for admins +
+            VIPs whose access doesn't depend on credit balance. */}
+        {!hasFreeAccess &&
         balance.subscriptionReportsRemaining === 0 &&
         balance.oneoffCredits === 0 &&
         balance.trialCredits === 0 ? (

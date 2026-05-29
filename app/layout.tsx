@@ -3,6 +3,8 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { getSiteConfig } from "@/lib/siteConfig";
 import { GoogleAnalytics } from "./_components/GoogleAnalytics";
+import { SignedInChip } from "./_components/SignedInChip";
+import { headers } from "next/headers";
 
 const geist = Geist({
   variable: "--font-geist-sans",
@@ -100,10 +102,23 @@ export default async function RootLayout({
   const config = await getSiteConfig();
   const gaId = config.google_analytics_id;
 
+  // Suppress the "Signed in as" chip on /r/<code> pages so an
+  // anonymous buyer who follows a share link can't see the
+  // authenticated agent's identity. Everywhere else (marketing,
+  // dashboard, admin, even the not-found and auth pages) the chip
+  // renders when a session is active and hides itself when not.
+  // We read the pathname off the proxy-injected x-pathname header
+  // (set in proxy.ts); fall back to "render the chip" when the
+  // header is absent so we err on the side of being informative.
+  const reqHeaders = await headers();
+  const pathname = reqHeaders.get("x-pathname") ?? "";
+  const suppressChip = pathname.startsWith("/r/");
+
   return (
     <html lang="en" className={`${geist.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-white text-gray-900">
         {children}
+        <SignedInChip hidden={suppressChip} />
         {gaId ? <GoogleAnalytics measurementId={gaId} /> : null}
       </body>
     </html>

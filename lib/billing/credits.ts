@@ -27,6 +27,14 @@ import { reportsIncludedFor, type PlanId } from "./plans";
 const FREE_UPDATE_WINDOW_DAYS = 30;
 
 export type CreditBalance = {
+  // Admin users bypass the credit gate entirely, same posture as
+  // VIPs (no watermark, no decrement, no consumption ledger). Admins
+  // are the founder + operators running the product; gating their
+  // own reports would be operationally annoying and would conflate
+  // internal QA reports with paying-customer revenue. credit_source
+  // = "admin" on the report row so the billing surfaces can tell
+  // admin-test reports apart from real ones.
+  isAdmin: boolean;
   // VIP users bypass the credit gate entirely, free access to all
   // features, no watermark, no usage counter. Set by admins from
   // /admin/users/[id]. When true, the other fields below are still
@@ -62,7 +70,9 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
   const [profileRes, subRes] = await Promise.all([
     admin
       .from("profiles")
-      .select("trial_credits_remaining, report_credits_balance, is_vip")
+      .select(
+        "trial_credits_remaining, report_credits_balance, is_vip, is_admin",
+      )
       .eq("id", userId)
       .maybeSingle(),
     admin
@@ -80,8 +90,10 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
     trial_credits_remaining?: number;
     report_credits_balance?: number;
     is_vip?: boolean;
+    is_admin?: boolean;
   } | null) ?? null;
   const isVip = Boolean(profile?.is_vip);
+  const isAdmin = Boolean(profile?.is_admin);
   const sub = subRes.data as {
     id: string;
     plan: PlanId;
@@ -125,11 +137,35 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
     subscriptionReportsIncluded - subscriptionReportsUsed,
   );
 
+  // Admin bypass, always allowed, never watermarked. Same posture
+  // as VIP. Admins are the founder + operators who shouldn't be
+  // gated for internal QA / smoke-test runs. The credit_source on
+  // any resulting report is stamped "admin" so the billing surfaces
+  // can distinguish admin runs from real customer runs.
+  if (isAdmin) {
+    return {
+      isAdmin: true,
+      isVip,
+      subscriptionPlan: sub?.plan ?? null,
+      subscriptionActive,
+      subscriptionPeriodStart: sub?.current_period_start ?? null,
+      subscriptionPeriodEnd: sub?.current_period_end ?? null,
+      subscriptionReportsRemaining,
+      subscriptionReportsIncluded,
+      subscriptionReportsUsed,
+      oneoffCredits,
+      trialCredits,
+      canCreateReport: true,
+      willBeWatermarked: false,
+    };
+  }
+
   // VIP bypass, always allowed, never watermarked. Credit pools
   // are still computed and surfaced for visibility but they don't
   // gate anything.
   if (isVip) {
     return {
+      isAdmin: false,
       isVip: true,
       subscriptionPlan: sub?.plan ?? null,
       subscriptionActive,
@@ -157,6 +193,7 @@ export async function balanceForUser(userId: string): Promise<CreditBalance> {
     trialCredits > 0;
 
   return {
+    isAdmin: false,
     isVip: false,
     subscriptionPlan: sub?.plan ?? null,
     subscriptionActive,
@@ -185,6 +222,26 @@ export async function consumeReportCredit(
 ): Promise<{ watermarked: boolean; consumed_from: string }> {
   const admin = createServiceRoleClient();
   const balance = await balanceForUser(userId);
+
+  // Admin bypass. Same posture as VIP, no decrement, no watermark,
+  // no billable flag. credit_source='admin' on the report row so
+  // the billing reports can filter internal QA / smoke-test runs
+  // out of "real revenue" totals without us having to scrub by
+  // hand. Ledger entry written for visibility.
+  if (balance.isAdmin) {
+    await admin
+      .from("reports")
+      .update({ credit_source: "admin" })
+      .eq("id", reportId);
+    await admin.from("report_credit_ledger").insert({
+      user_id: userId,
+      amount: 0,
+      reason: "report_consumed",
+      report_id: reportId,
+      metadata: { from: "admin", watermarked: false },
+    });
+    return { watermarked: false, consumed_from: "admin" };
+  }
 
   // VIP bypass. Write a ledger entry for visibility (so admins can
   // see the report count per VIP) but don't decrement any pool and

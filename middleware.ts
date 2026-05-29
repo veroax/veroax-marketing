@@ -10,6 +10,16 @@ import { NextResponse, type NextRequest } from "next/server";
 const PROTECTED_PREFIXES = ["/dashboard"];
 
 export async function middleware(request: NextRequest) {
+  // Pass the pathname through as an x-pathname header so server
+  // components in the root layout can render path-aware chrome
+  // without re-parsing the request URL. The bottom-left
+  // SignedInChip uses this to suppress itself on /r/<code> (the
+  // public buyer-facing report view), where rendering the agent's
+  // identity would leak it to the anonymous viewer. Mutating
+  // request.headers in place is the documented way; the
+  // NextResponse.next({ request }) call below forwards the
+  // mutated headers downstream to server components.
+  request.headers.set("x-pathname", request.nextUrl.pathname);
   let supabaseResponse = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
