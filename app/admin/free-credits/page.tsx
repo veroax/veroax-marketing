@@ -84,6 +84,18 @@ export default async function FreeCreditsPage() {
     (a, b) => b.total_credits - a.total_credits,
   );
 
+  // Total VIP count across all profiles, not just credit-ledger
+  // recipients. VIPs are flagged via /api/admin/toggle-vip on the
+  // user detail page; they get unlimited credits without consuming
+  // ledger rows, so the credit-recipients table alone underweights
+  // them. A dedicated count card on this page makes it visible at
+  // a glance how much of the comp footprint lives in VIP status
+  // versus per-grant ledger entries.
+  const { count: vipCount } = await admin
+    .from("profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("is_vip", true);
+
   // Resolve recipients + plan info in two batched queries.
   const userIds = sorted.map((a) => a.user_id);
   const [{ data: recipientsData }, planMap] = await Promise.all([
@@ -121,8 +133,9 @@ export default async function FreeCreditsPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <SummaryTile label="Recipients" value={String(sorted.length)} />
+        <SummaryTile label="VIP members" value={String(vipCount ?? 0)} />
         <SummaryTile
           label="Total credits granted"
           value={String(totalCreditsGranted)}

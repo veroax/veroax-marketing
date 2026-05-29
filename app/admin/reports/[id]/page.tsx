@@ -53,7 +53,7 @@ export default async function AdminReportDetail({
   const { data: report } = await admin
     .from("reports")
     .select(
-      "id, user_id, status, property_address, client_name, report_name, listing_url, listing_text, created_at, analysis_started_at, analysis_completed_at, failure_reason, original_files, archived, archived_at, watermarked, credit_source, brokerage_id, team_id, listing_reconciliation, listing_source_choice, analysis_run_count, report_data",
+      "id, user_id, status, property_address, client_name, report_name, listing_url, listing_text, created_at, analysis_started_at, analysis_completed_at, failure_reason, original_files, archived, archived_at, watermarked, credit_source, brokerage_id, team_id, listing_reconciliation, listing_source_choice, analysis_run_count, report_data, share_code",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -245,6 +245,24 @@ export default async function AdminReportDetail({
             reportId={report.id}
             currentStatus={report.status}
           />
+          {/* View report: opens the public share-link page in a new
+              tab so the admin sees exactly what the buyer would see.
+              Only available when a share_code has been minted, which
+              happens at first successful analysis. PDF download
+              stays available below for the offline / archive flow. */}
+          {report.report_data &&
+          (report as { share_code?: string | null }).share_code ? (
+            <a
+              href={`/r/${(report as { share_code: string }).share_code}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold bg-amber-400 text-indigo-950 px-4 py-2 rounded-lg hover:bg-amber-300 transition-colors shadow-sm"
+              title="Open the public report in a new tab, the same view the buyer sees from the share link"
+            >
+              <span className="text-base leading-none">↗</span>
+              View report
+            </a>
+          ) : null}
           {report.report_data ? (
             <a
               href={`/api/reports/${report.id}/pdf`}
