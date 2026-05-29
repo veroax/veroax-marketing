@@ -16,6 +16,7 @@ import {
 } from "@/lib/reports/summary";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 import { CompletionTimestamp } from "./_components/CompletionTimestamp";
+import { FindingFlagButton } from "./_components/FindingFlagButton";
 
 type Params = Promise<{ id: string }>;
 
@@ -563,11 +564,22 @@ function AgentSummary({
       {/* ----- Talking points (above Strengths / Concerns) ------ */}
       {/* 2-3 narrative paragraphs derived from the same helper that
           drives the PDF cover's Executive Summary, so what the
-          agent reads here matches what the PDF says verbatim. */}
+          agent reads here matches what the PDF says verbatim. The
+          per-section flag button lets agents flag a wonky narrative
+          paragraph the same way they flag a wonky finding. Flag
+          severity is "summary" so /admin/finding-flags can filter
+          summary-data feedback apart from per-finding feedback. */}
       <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
-        <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase mb-3">
-          Talking points for your client
-        </h3>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase">
+            Talking points for your client
+          </h3>
+          <FindingFlagButton
+            reportId={reportId}
+            findingTitle={`Talking points (${narrative.join(" ").slice(0, 200)}${narrative.join(" ").length > 200 ? "..." : ""})`}
+            findingSeverity="summary"
+          />
+        </div>
         <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
           {narrative.map((p, i) => (
             <p key={i}>{p}</p>
@@ -591,7 +603,7 @@ function AgentSummary({
           </h3>
           <ol className="space-y-2.5 text-sm text-emerald-950">
             {strengths.map((s, i) => (
-              <li key={i} className="flex gap-2.5">
+              <li key={i} className="flex gap-2.5 items-start">
                 <span className="font-bold text-emerald-700 shrink-0">
                   {i + 1}.
                 </span>
@@ -606,6 +618,16 @@ function AgentSummary({
                     <LinkIcon />
                   </a>
                 ) : null}
+                {/* Per-strength flag. The flag's "finding_title"
+                    column captures the strength text itself so
+                    triage can read what was flagged without
+                    clicking through. Severity = "strength" so
+                    /admin/finding-flags can filter by surface. */}
+                <FindingFlagButton
+                  reportId={reportId}
+                  findingTitle={s.text}
+                  findingSeverity="strength"
+                />
               </li>
             ))}
           </ol>
@@ -616,7 +638,7 @@ function AgentSummary({
           </h3>
           <ol className="space-y-2.5 text-sm text-red-950">
             {concerns.map((c, i) => (
-              <li key={i} className="flex gap-2.5">
+              <li key={i} className="flex gap-2.5 items-start">
                 <span className="font-bold text-red-700 shrink-0">
                   {i + 1}.
                 </span>
@@ -646,6 +668,16 @@ function AgentSummary({
                     <LinkIcon />
                   </a>
                 ) : null}
+                {/* Per-concern flag. Severity = "concern" so
+                    /admin/finding-flags can filter feedback on
+                    the punchline-cards apart from per-finding
+                    feedback. Underlying finding's
+                    actual severity is captured on its own card. */}
+                <FindingFlagButton
+                  reportId={reportId}
+                  findingTitle={c.text}
+                  findingSeverity="concern"
+                />
               </li>
             ))}
           </ol>
@@ -662,6 +694,7 @@ function AgentSummary({
           CrossDocumentSection but with the agent's "actionable
           first" framing in the section header. */}
       <CrossDocumentDashboardSection
+        reportId={reportId}
         findings={reportData.cross_document_findings ?? null}
       />
 
@@ -821,8 +854,10 @@ function AgentSummary({
 // when the analyzer produced no cross-doc findings, the section
 // silently vanishes on legacy reports or clean packages.
 function CrossDocumentDashboardSection({
+  reportId,
   findings,
 }: {
+  reportId: string;
   findings: ReportData["cross_document_findings"];
 }) {
   if (!findings || findings.length === 0) return null;
@@ -868,11 +903,18 @@ function CrossDocumentDashboardSection({
                 <p className="font-bold text-slate-900 text-sm flex-1 min-w-0">
                   {i + 1}. {f.title}
                 </p>
-                <span
-                  className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 ${badgeTone}`}
-                >
-                  {sev}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${badgeTone}`}
+                  >
+                    {sev}
+                  </span>
+                  <FindingFlagButton
+                    reportId={reportId}
+                    findingTitle={f.title}
+                    findingSeverity={`cross_document_${sev}`}
+                  />
+                </div>
               </div>
               <p className="text-sm text-slate-700 leading-relaxed mb-2">
                 {f.description}
