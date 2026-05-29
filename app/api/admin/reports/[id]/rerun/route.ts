@@ -21,7 +21,6 @@
 //      we can trace who kicked off which re-run.
 
 import { NextResponse } from "next/server";
-import { after } from "next/server";
 import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { performAnalysis } from "@/lib/server/performAnalysis";
@@ -137,64 +136,74 @@ export async function POST(
     console.error("[admin-rerun] audit insert failed:", err);
   }
 
-  // Queue the analysis in after() so the response goes back
-  // immediately. Same pattern as the agent retry path.
-  after(async () => {
-    const bg = createServiceRoleClient();
-    try {
-      // Resolve the owning agent's email so the completion
-      // notification (if not skipped) still goes to them, not to
-      // the admin. We don't expose this on the report row for
-      // privacy reasons, so look it up via profiles.
-      const { data: ownerProfile } = await bg
-        .from("profiles")
-        .select("email")
-        .eq("id", report.user_id)
-        .maybeSingle();
-      const ownerEmail =
-        (ownerProfile as { email?: string | null } | null)?.email ?? null;
+  // Run the rerun synchronously inside the request handler. See
+  // /api/reports/[id]/analyze for the full rationale; the short
+  // version is that Vercel's after() proved unreliable in
+  // production (multiple stuck-on-"Starting analysis" reports
+  // with zero analysis.* audit events). The browser's fetch holds
+  // the connection open for the duration; the function itself
+  // stays alive up to maxDuration (800s) regardless. The admin
+  // is watching /admin/reports/<id>, whose live progress panel
+  // reads from audit_log via polling and updates in real time
+  // even if this fetch hits a proxy timeout before completion.
+  const bg = createServiceRoleClient();
+  try {
+    // Resolve the owning agent's email so the completion
+    // notification (if not skipped) still goes to them, not to
+    // the admin. We don't expose this on the report row for
+    // privacy reasons, so look it up via profiles.
+    const { data: ownerProfile } = await bg
+      .from("profiles")
+      .select("email")
+      .eq("id", report.user_id)
+      .maybeSingle();
+    const ownerEmail =
+      (ownerProfile as { email?: string | null } | null)?.email ?? null;
 
-      await performAnalysis({
-        admin: bg,
-        userId: report.user_id, // the agent who owns the report
-        userEmail: ownerEmail,
-        report: {
-          id: report.id,
-          property_address: report.property_address,
-          source_file_path: report.source_file_path,
-          listing_url:
-            (report as { listing_url?: string | null }).listing_url ?? null,
-          listing_text:
-            (report as { listing_text?: string | null }).listing_text ?? null,
-        },
-        // Admin re-runs skip the "your report is ready" email by
-        // default. The agent didn't ask for it; we don't want them
-        // surprised by a fresh email about an old report. If the
-        // founder wants to notify the agent, that's a manual
-        // follow-up.
-        skipNotificationEmail: true,
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Re-run failed.";
-      try {
-        await bg
-          .from("reports")
-          .update({ status: "failed", failure_reason: message })
-          .eq("id", reportId);
-      } catch (markErr) {
-        console.error("[admin-rerun] failed to mark report failed:", markErr);
-      }
-      console.error("[admin-rerun] background work failed:", err);
+    await performAnalysis({
+      admin: bg,
+      userId: report.user_id, // the agent who owns the report
+      userEmail: ownerEmail,
+      report: {
+        id: report.id,
+        property_address: report.property_address,
+        source_file_path: report.source_file_path,
+        listing_url:
+          (report as { listing_url?: string | null }).listing_url ?? null,
+        listing_text:
+          (report as { listing_text?: string | null }).listing_text ?? null,
+      },
+      // Admin re-runs skip the "your report is ready" email by
+      // default. The agent didn't ask for it; we don't want them
+      // surprised by a fresh email about an old report. If the
+      // founder wants to notify the agent, that's a manual
+      // follow-up.
+      skipNotificationEmail: true,
+    });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Re-run failed.";
+    try {
+      await bg
+        .from("reports")
+        .update({ status: "failed", failure_reason: message })
+        .eq("id", reportId);
+    } catch (markErr) {
+      console.error("[admin-rerun] failed to mark report failed:", markErr);
     }
-  });
+    console.error("[admin-rerun] performAnalysis threw:", err);
+    return NextResponse.json(
+      { ok: false, status: "failed", error: message },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json(
     {
       ok: true,
-      status: "analyzing",
-      note: "Re-run started; polling will detect completion.",
+      status: "qa_pending",
+      note: "Re-run completed.",
     },
-    { status: 202 },
+    { status: 200 },
   );
 }

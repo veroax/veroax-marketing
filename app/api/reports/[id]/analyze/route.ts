@@ -1,4 +1,4 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { performAnalysis } from "@/lib/server/performAnalysis";
 import { requireUser } from "@/lib/auth/require";
@@ -93,50 +93,62 @@ export async function POST(
     })
     .eq("id", reportId);
 
-  // Schedule the heavy work to run AFTER the response is sent. Vercel's
-  // HTTP gateway times out around 5 minutes regardless of maxDuration,
-  // so running the work synchronously inside the request handler gives
-  // the client a 504 even though the function is still alive. after()
-  // keeps the function running for up to maxDuration (800s) while the
-  // response goes out immediately.
-  after(async () => {
-    const admin = createServiceRoleClient();
+  // Run the analyzer synchronously inside the request handler. We
+  // used to call after() here to schedule the heavy work in the
+  // background and return 202 immediately, but Vercel's after()
+  // proved unreliable in production: on multiple first-time
+  // analysis runs (1544 San Antonio, 434 Hibiscus) the function
+  // returned 202, after() never fired, the report sat at
+  // status='analyzing' with zero analysis.* audit events, and the
+  // user watched "Starting analysis..." spin forever. The
+  // structural fix is to await performAnalysis directly. The
+  // browser fetch will hold the connection open; if Cloudflare /
+  // Vercel's proxy times out the request before performAnalysis
+  // finishes, the AnalysisRunner's /status polling loop will keep
+  // observing audit events and detect completion from the
+  // database state. The function itself stays alive for the full
+  // maxDuration (800s) regardless of whether the client is still
+  // connected.
+  const admin = createServiceRoleClient();
+  try {
+    await performAnalysis({
+      admin,
+      userId: user.id,
+      userEmail: user.email ?? null,
+      report: {
+        id: report.id,
+        property_address: report.property_address,
+        source_file_path: report.source_file_path,
+        listing_url:
+          (report as { listing_url?: string | null }).listing_url ?? null,
+        listing_text:
+          (report as { listing_text?: string | null }).listing_text ?? null,
+      },
+    });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Analysis failed.";
     try {
-      await performAnalysis({
-        admin,
-        userId: user.id,
-        userEmail: user.email ?? null,
-        report: {
-          id: report.id,
-          property_address: report.property_address,
-          source_file_path: report.source_file_path,
-          listing_url:
-            (report as { listing_url?: string | null }).listing_url ?? null,
-          listing_text:
-            (report as { listing_text?: string | null }).listing_text ?? null,
-        },
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Analysis failed.";
-      try {
-        await admin
-          .from("reports")
-          .update({ status: "failed", failure_reason: message })
-          .eq("id", reportId);
-      } catch (markErr) {
-        console.error("[analyze] failed to mark report as failed:", markErr);
-      }
-      console.error("[analyze] background work failed:", err);
+      await admin
+        .from("reports")
+        .update({ status: "failed", failure_reason: message })
+        .eq("id", reportId);
+    } catch (markErr) {
+      console.error("[analyze] failed to mark report as failed:", markErr);
     }
-  });
+    console.error("[analyze] performAnalysis threw:", err);
+    return NextResponse.json(
+      { ok: false, status: "failed", error: message },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json(
     {
       ok: true,
-      status: "analyzing",
-      note: "Analysis started, polling will detect completion.",
+      status: "qa_pending",
+      note: "Analysis completed.",
     },
-    { status: 202 },
+    { status: 200 },
   );
 }

@@ -94,7 +94,10 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
 
         // 202 = the server detected an in-flight analysis and didn't
         // start a duplicate. Fall through to polling; the original run
-        // will complete and our /status poll will pick it up.
+        // will complete and our /status poll will pick it up. (Legacy
+        // path from the previous after() flow; the synchronous analyzer
+        // doesn't return 202 anymore but we keep the branch for any
+        // older deployment that might still be running.)
         if (res.status === 202) {
           return;
         }
@@ -110,6 +113,28 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
         handleCompletion();
       } catch (err) {
         if (cancelled) return;
+        // Distinguish proxy / network timeouts from real server-side
+        // failures. The analyzer route is now SYNCHRONOUS (it awaits
+        // performAnalysis instead of scheduling it via after()) so
+        // the fetch holds the connection open for the full run. If
+        // Cloudflare / Vercel's edge proxy drops the request before
+        // the analyzer finishes (proxy timeout, browser tab
+        // backgrounded too long, network blip), the fetch will
+        // reject with a TypeError or AbortError EVEN THOUGH the
+        // server function is still running. We must NOT show "error"
+        // in that case, the /status polling loop in the other
+        // effect will continue observing audit events and detect
+        // real completion from the database state. Only explicit
+        // server-returned errors (HTTP 4xx / 5xx with JSON body
+        // thrown above) should flip phase to "error".
+        const isNetworkLike =
+          err instanceof TypeError ||
+          (err instanceof Error && err.name === "AbortError");
+        if (isNetworkLike) {
+          // Stay in "running" phase. /status polling will detect
+          // the eventual completion or failure from the audit log.
+          return;
+        }
         setPhase("error");
         setError(err instanceof Error ? err.message : "Analysis failed.");
       }
