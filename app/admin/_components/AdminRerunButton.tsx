@@ -39,17 +39,37 @@ export function AdminRerunButton({
     }
     setBusy(true);
     setErr(null);
+    // The rerun route is SYNCHRONOUS as of commit 947ccf5: it doesn't
+    // return until performAnalysis completes. That fetch can block
+    // for the full 6-12 minute run, during which the button would
+    // stay in "Queuing re-run..." with no signal to the admin that
+    // the work has actually started.
+    //
+    // Fix: race the fetch against a 3-second grace timer. If the
+    // route hasn't responded in 3s, the server has definitely
+    // updated reports.status to 'analyzing' (the route does that
+    // synchronously BEFORE calling performAnalysis) and we can
+    // safely refresh the page, which will then render the
+    // "Analyzing now..." state via currentStatus + the
+    // AdminAnalysisProgress panel that lives below.
+    //
+    // The fetch continues in the background; if it eventually
+    // returns (success or proxy-timeout error), we don't care
+    // because the page is already showing live progress via
+    // audit-log polling. Errors from the fetch are silenced here,
+    // any genuine failure flips reports.status to 'failed' which
+    // the refreshed page will surface inline.
+    const fetchPromise = fetch(`/api/admin/reports/${reportId}/rerun`, {
+      method: "POST",
+    }).catch(() => null);
     try {
-      const res = await fetch(`/api/admin/reports/${reportId}/rerun`, {
-        method: "POST",
-      });
-      if (!res.ok && res.status !== 202) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(
-          (data as { error?: string }).error ||
-            `Re-run failed (HTTP ${res.status}).`,
-        );
-      }
+      // Race: whichever resolves first wins. 3s is enough for the
+      // route's lock-taking + status='analyzing' update to land
+      // even on a cold-started Vercel function.
+      await Promise.race([
+        fetchPromise,
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
       startTransition(() => router.refresh());
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Re-run failed.");
