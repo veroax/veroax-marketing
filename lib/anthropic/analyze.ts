@@ -467,7 +467,17 @@ export async function analyzeDisclosurePackage(
   // progress block sits on "Finished {last group}" for the whole
   // window because no audit_log events fire here.
   await input.onPostFocusedFetchStarted?.();
-  const [liveMarketContext, listingReconciliation] = await Promise.all([
+  // Hard cap on the post-focused-fetch step. Both market context and
+  // listing reconciliation are web_search-backed Claude calls that
+  // can take 60 to 120 seconds each. When the upstream analysis
+  // already ate most of the Vercel 800s budget (e.g., after a
+  // long OCR pre-pass), letting these two run unbounded means the
+  // function gets KILLED at maxDuration before synthesis runs,
+  // and the report's report_data never updates. Better to skip
+  // these nice-to-haves and produce a complete (slightly less
+  // rich) report than to produce nothing.
+  const POST_FETCH_CAP_MS = 90_000; // 90s
+  const postFetchPromise = Promise.all([
     fetchMarketContext({
       propertyAddress: input.propertyAddressHint ?? null,
       marketRegion: facts.market_region ?? null,
@@ -485,6 +495,13 @@ export async function analyzeDisclosurePackage(
       listingUrl: input.listingUrl ?? null,
     }).catch(() => null),
   ]);
+  const timeoutPromise = new Promise<readonly [null, null]>((resolve) =>
+    setTimeout(() => resolve([null, null] as const), POST_FETCH_CAP_MS),
+  );
+  const [liveMarketContext, listingReconciliation] = (await Promise.race([
+    postFetchPromise,
+    timeoutPromise,
+  ])) as [Awaited<ReturnType<typeof fetchMarketContext>> | null, Awaited<ReturnType<typeof reconcileListingData>> | null];
   await input.onPostFocusedFetchCompleted?.({
     market_context_ok: Boolean(liveMarketContext),
     listing_reconciliation_ok: Boolean(listingReconciliation),

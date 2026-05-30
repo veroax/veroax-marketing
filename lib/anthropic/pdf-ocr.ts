@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getAnthropicClient, ANALYSIS_MODEL } from "./client";
+import { getAnthropicClient, OCR_MODEL } from "./client";
 
 // Claude-vision-based OCR pre-pass.
 //
@@ -98,7 +98,7 @@ export async function ocrPdfWithClaude(args: {
   // page scanned doc fits; the caller is expected to feed in
   // already-sub-batched PDFs (PDF_PASS_PAGE_BUDGET = 60).
   const response = await client.messages.create({
-    model: ANALYSIS_MODEL,
+    model: OCR_MODEL,
     max_tokens: 12000,
     // temperature: 0 for reproducible transcription. Same posture
     // as every other Claude call in the analyzer pipeline.
