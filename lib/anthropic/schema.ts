@@ -188,6 +188,19 @@ export type ReportData = {
     // individual forms; the package-level date stamped on the
     // cover). ISO YYYY-MM-DD when possible. Null when no cover date.
     package_date?: string | null;
+    // Relist / price-reduction ladder from the MLS printout. The
+    // Cowork report shows "$1,849,888 (cut from $1,975,000 on
+    // 5/20/2026)" by reading the price-history table on the MLS
+    // sheet. Capture as an array of price-change events: the first
+    // entry is the original list, each subsequent entry is a
+    // reduction or relisting. Null when the MLS printout doesn't
+    // expose price history.
+    relist_history?: Array<{
+      date: string;
+      old_price: number | null;
+      new_price: number;
+      percent_change: number | null;
+    }> | null;
   };
   document_inventory: {
     documents_provided: Array<{
@@ -608,6 +621,22 @@ export const FOCUSED_TOOL_SCHEMA = {
             description:
               "Date the package was assembled, ISO YYYY-MM-DD when possible. NOT the date of individual forms inside, the package-level cover date. Null when no cover date.",
           },
+          relist_history: {
+            type: ["array", "null"],
+            description:
+              "Price-history ladder from the MLS printout. First entry is the original list, each subsequent entry is a reduction or relisting. Example: [{date:'2026-04-04', old_price:null, new_price:1975000, percent_change:null}, {date:'2026-05-20', old_price:1975000, new_price:1849888, percent_change:-6.3}]. Null when the MLS printout doesn't expose price history.",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                date: { type: "string" },
+                old_price: { type: ["number", "null"] },
+                new_price: { type: "number" },
+                percent_change: { type: ["number", "null"] },
+              },
+              required: ["date", "new_price"],
+            },
+          },
         },
       },
       document_inventory: {
@@ -993,6 +1022,22 @@ export const REPORT_TOOL_SCHEMA = {
           package_date: {
             type: ["string", "null"],
             description: "Package assembly date (ISO when possible).",
+          },
+          relist_history: {
+            type: ["array", "null"],
+            description:
+              "Price-history ladder from MLS printout. First entry is original list, subsequent entries are price reductions or relistings.",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                date: { type: "string" },
+                old_price: { type: ["number", "null"] },
+                new_price: { type: "number" },
+                percent_change: { type: ["number", "null"] },
+              },
+              required: ["date", "new_price"],
+            },
           },
         },
         required: [

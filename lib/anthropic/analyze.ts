@@ -786,13 +786,16 @@ CRITICAL RULES:
 9. PROPERTY SNAPSHOT FIELDS, populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
    - apn (Assessor's Parcel Number): typically in the prelim title report, escrow instructions, or county tax bill (usually formatted like "123-45-678" in California).
    - mls_number: from any MLS printout, listing sheet, or BAREIS/CRMLS export.
+   - year_built: from the MLS printout (year-built field), the prelim title cover (building age), the appraisal, OR the disclosure cover page. For new-construction condos this is the year of certificate of occupancy or first sale, NOT the year of the master parcel. NEVER leave null when ANY source document gives it.
    - list_date (ISO YYYY-MM-DD): the original listing date from the MLS printout.
    - list_status: from the MLS printout. One of "active", "pending", "sold", "withdrawn", "unknown".
+   - days_on_market: from the MLS printout, the CURRENT DOM (not original DOM). If the MLS printout shows "55 DOM", use 55. Leave null only when no source shows it.
    - zestimate: only if explicitly shown in the listing materials (don't invent).
    - parking: from the MLS printout or seller disclosures, describe naturally (e.g., "2-car attached garage", "1-car carport plus driveway", "street parking only").
    - hoa_dues_monthly: from HOA financial docs or the listing, the CURRENT monthly dues.
    - hoa_last_increase_date / hoa_last_increase_amount: from HOA budgets or meeting minutes, when did the dues last go up and by how much.
-   Leave any of these null when the documents in your group don't contain the information.
+   - relist_history: when the MLS printout, broker docs, or seller disclosures reference a price reduction or relisting (e.g., "originally listed at $1,975,000 on 4/4/2026, reduced to $1,849,888 on 5/20/2026"), capture the full ladder as an array of {date: ISO YYYY-MM-DD, old_price: number, new_price: number, percent_change: number}. The first entry is the original list. Each subsequent entry is a reduction or relisting. Leave the field as an empty array when no price changes are documented.
+   Leave any of these null when the documents in your group don't contain the information. PUBLISHED prices and years are EXTRACTION targets, not optional; the MLS printout reliably has list_price, days_on_market, year_built, list_date, list_status. If you saw the MLS printout, populate all five.
 
 9.5. RATING EDITORIAL, REQUIRED. The overall rating section of the PDF renders two paragraphs alongside the rating pill: "Why this rating" and "Conditions on which this rating depends." These are NOT optional. ALWAYS populate overall_rating_why and overall_rating_conditions in your tool output:
    - overall_rating_why: 2-4 sentence explanation grounded in the findings. What's the upside (clean title, healthy reserves, no always-Critical rules fired)? What kept it from being a higher tier (the trio of unknowns the buyer needs to investigate, an aging system, a building project)?
@@ -2919,6 +2922,11 @@ function mergeProperty(
     named_listing_team: null,
     disclosure_prep_service: null,
     package_date: null,
+    // Relist history: array of {date, old_price, new_price, percent_change}
+    // capturing price reductions and re-listings the MLS printout shows.
+    // The Cowork-skill report renders this as "List Price: $1,849,888
+    // (cut from $1,975,000 on 5/20/2026)" in the property snapshot.
+    relist_history: null,
   };
   // Walk passes in order (seller_disclosures first via splitDocumentsForBudget
   // ordering); fill in the first non-null value for each field.

@@ -963,8 +963,32 @@ function PropertySnapshotSection({
       `${snapshot.bedrooms} bed / ${snapshot.bathrooms} bath`,
     );
   }
-  if (snapshot?.list_price != null)
-    push("List price", formatUSD(snapshot.list_price));
+  if (snapshot?.list_price != null) {
+    // Show relist context inline when the MLS history exposed a
+    // price reduction. The Cowork report renders this as "List
+    // price: $1,849,888 (cut from $1,975,000 on 5/20/2026)".
+    const relistHistory = (snapshot as { relist_history?: unknown })
+      .relist_history as Array<{
+      date: string;
+      old_price: number | null;
+      new_price: number;
+      percent_change: number | null;
+    }> | null | undefined;
+    let listPriceText = formatUSD(snapshot.list_price);
+    if (Array.isArray(relistHistory) && relistHistory.length >= 2) {
+      const latest = relistHistory[relistHistory.length - 1];
+      const previous = relistHistory[relistHistory.length - 2];
+      if (
+        latest &&
+        previous &&
+        previous.new_price != null &&
+        previous.new_price > latest.new_price
+      ) {
+        listPriceText = `${formatUSD(latest.new_price)} (cut from ${formatUSD(previous.new_price)} on ${latest.date})`;
+      }
+    }
+    push("List price", listPriceText);
+  }
   if (snapshot?.days_on_market != null)
     push("Days on market", `${snapshot.days_on_market} days`);
   push("MLS #", snapshot?.mls_number ?? null);
