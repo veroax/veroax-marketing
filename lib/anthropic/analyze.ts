@@ -537,6 +537,7 @@ export async function analyzeDisclosurePackage(
     input.updateContext ?? null,
     liveMarketContext,
     listingReconciliation,
+    passResults.map((p) => p.group),
   );
   await input.onSynthesisCompleted?.({ input_tokens: 0, output_tokens: 0 });
 
@@ -1687,6 +1688,15 @@ function synthesizeReportInCode(
   // and market_context.listing_divergence_note. See
   // applyListingReconciliation above.
   listingReconciliation: ListingReconciliation | null = null,
+  // Optional parallel array of pass groups, indexed the same as
+  // focused[]. When present, the rating-text composition can pick
+  // the pass with the broadest context (seller_disclosures has
+  // TDS+SPQ+MLS+prelim) rather than whichever pass happened to
+  // populate overall_rating_why first. Without this, the hazards
+  // pass (which only sees the NHD) can write a narrow rating
+  // narrative like "This is a natural hazard disclosure report
+  // only", overriding richer narratives from other passes.
+  passGroups: PassGroup[] = [],
 ): ReportData {
   // Aggregate findings (treat permit_compliance findings separately so
   // they end up in the permit section, not double-counted).
@@ -2157,11 +2167,38 @@ function synthesizeReportInCode(
   // Findings. This matches what the reader sees in the report: the
   // rating reflects findings the BUYER faces, not building-wide HOA
   // business we already redirected into the HOA section.
+  // Pick the rating narrative from the pass with the BROADEST context.
+  // seller_disclosures sees TDS+SPQ+MLS+prelim+AVID, the richest source.
+  // hazards sees only the NHD and writes narrow narratives like
+  // "This is a natural hazard disclosure report only". When passGroups
+  // is provided, prefer passes by group rank; otherwise fall back to
+  // the legacy first-found behavior.
+  //
+  // Tiebreaker within the same group rank: the pass that produced the
+  // most findings (signal of how much context it actually engaged with).
+  const RATING_GROUP_RANK: Record<PassGroup, number> = {
+    seller_disclosures: 0,
+    inspections: 1,
+    hoa: 2,
+    hazards: 3,
+  };
+  const indexedFocused = focused.map((analysis, i) => ({
+    analysis,
+    group: passGroups[i] ?? null,
+    rank: passGroups[i] ? RATING_GROUP_RANK[passGroups[i]] : 99,
+    findingCount: (analysis.findings?.length ?? 0),
+  }));
+  const ratingWhyCandidate = [...indexedFocused]
+    .filter((p) => p.analysis.overall_rating_why)
+    .sort((a, b) => a.rank - b.rank || b.findingCount - a.findingCount)[0];
+  const ratingConditionsCandidate = [...indexedFocused]
+    .filter((p) => p.analysis.overall_rating_conditions)
+    .sort((a, b) => a.rank - b.rank || b.findingCount - a.findingCount)[0];
   const ratingWhyText = cleanEditorialString(
-    focused.find((p) => p.overall_rating_why)?.overall_rating_why,
+    ratingWhyCandidate?.analysis.overall_rating_why,
   );
   const ratingConditionsText = cleanEditorialString(
-    focused.find((p) => p.overall_rating_conditions)?.overall_rating_conditions,
+    ratingConditionsCandidate?.analysis.overall_rating_conditions,
   );
   const baseRating = determineOverallRating({
     criticalCount: criticalFindings.filter((f) => f.severity === "critical")
