@@ -15,6 +15,7 @@ import {
   slugifyFindingTitle,
 } from "@/lib/reports/summary";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
+import { deriveCostSummary } from "@/lib/reports/cost-summary";
 import { CompletionTimestamp } from "./_components/CompletionTimestamp";
 import { FindingFlagButton } from "./_components/FindingFlagButton";
 
@@ -490,7 +491,10 @@ function AgentSummary({
     reportData.property_snapshot?.address?.trim() || "Address not extracted";
   const { strengths, concerns } = composeAgentStrengthsAndConcerns(reportData);
   const missing = reportData.document_inventory?.documents_missing ?? [];
-  const grandTotal = reportData.cost_summary?.grand_total ?? null;
+  // Re-derive cost_summary from current findings so admin edits or
+  // post-synthesis deletions don't leave stale totals visible.
+  const costSummary = deriveCostSummary(reportData);
+  const grandTotal = costSummary.grand_total ?? null;
 
   return (
     <section className="space-y-5">
@@ -743,7 +747,7 @@ function AgentSummary({
           the buyer will see. Collapsed by default to keep the
           dashboard scroll height manageable. */}
       <CostSummaryDashboardSection
-        costSummary={reportData.cost_summary}
+        costSummary={costSummary}
       />
 
       {/* ----- Permit & compliance review ------------------------ */}

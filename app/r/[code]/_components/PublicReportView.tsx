@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ReportData, Finding } from "@/lib/anthropic/schema";
+import { deriveCostSummary } from "@/lib/reports/cost-summary";
 import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { PublicFindingFlagButton } from "./PublicFindingFlagButton";
 
@@ -142,7 +143,11 @@ export function PublicReportView({
   const marketContext = reportData.market_context;
   const inspectionFollowUps = reportData.inspection_follow_ups ?? [];
   const negotiation = reportData.negotiation;
-  const grandTotal = reportData.cost_summary?.grand_total;
+  // Always derive cost_summary from the current findings so admin
+  // edits or post-synthesis deletions don't leave stale totals in
+  // the report. The stored cost_summary on report_data is ignored.
+  const costSummary = deriveCostSummary(reportData);
+  const grandTotal = costSummary.grand_total;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -564,7 +569,7 @@ export function PublicReportView({
             section gives the buyer the full breakdown the
             Cowork skill renders in Section 10. */}
         <CostSummarySection
-          costSummary={reportData.cost_summary}
+          costSummary={costSummary}
           shareCode={shareCode}
         />
 

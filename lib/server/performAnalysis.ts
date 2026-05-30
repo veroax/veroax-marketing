@@ -36,6 +36,7 @@ import type { ReportData } from "@/lib/anthropic/schema";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
 import { validateCriticalQuotes } from "@/lib/reports/quote-validator";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
+import { deriveCostSummary } from "@/lib/reports/cost-summary";
 import {
   ocrPdfWithClaude,
   looksLikeScannedPdf,
@@ -884,7 +885,7 @@ async function sendReportReadyEmail(params: {
   // Cost summary, buyer out-of-pocket only (HOA-paid is informational
   // and lives in the PDF). The synthesizer now scopes grand_total to
   // buyer-pays so we can surface it directly.
-  const grand = params.report.cost_summary?.grand_total;
+  const grand = deriveCostSummary(params.report).grand_total;
   const costLine =
     grand && grand.high > 0
       ? `${formatUsdCompact(grand.low)}–${formatUsdCompact(grand.high)}`

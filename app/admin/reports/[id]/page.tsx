@@ -26,6 +26,7 @@ import { AdminAnalysisProgress } from "@/app/admin/_components/AdminAnalysisProg
 import { AdminDeleteReportButton } from "@/app/admin/_components/AdminDeleteReportButton";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
+import { deriveCostSummary } from "@/lib/reports/cost-summary";
 import type { ReportData, Finding } from "@/lib/anthropic/schema";
 
 export const metadata = {
@@ -513,7 +514,10 @@ function AdminReportContent({ reportData }: { reportData: ReportData }) {
   const rating = reportData.overall_rating;
   const critical = reportData.critical_findings ?? [];
   const moderate = reportData.moderate_findings ?? [];
-  const grand = reportData.cost_summary?.grand_total ?? null;
+  // Re-derive cost_summary so admin edits to findings stay in sync
+  // with the totals + line-item list rendered below.
+  const costSummary = deriveCostSummary(reportData);
+  const grand = costSummary.grand_total ?? null;
   const hoa = reportData.hoa;
   const completeness = reportData.completeness_audit;
 
@@ -827,14 +831,14 @@ function AdminReportContent({ reportData }: { reportData: ReportData }) {
       ) : null}
 
       {/* Cost summary line items (Cowork-parity rendering). */}
-      {reportData.cost_summary?.line_items &&
-      reportData.cost_summary.line_items.length > 0 ? (
+      {costSummary.line_items &&
+      costSummary.line_items.length > 0 ? (
         <div className="border-t border-slate-100 pt-5">
           <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
             Cost summary
           </h3>
           <div className="space-y-3 text-sm">
-            {reportData.cost_summary.line_items.map((group, gi) => (
+            {costSummary.line_items.map((group, gi) => (
               <div key={gi}>
                 <p className="text-[10px] font-bold tracking-widest uppercase text-slate-600 mb-1">
                   {group.category}

@@ -1,4 +1,5 @@
 import type { ReportData, CostRange } from "@/lib/anthropic/schema";
+import { deriveCostSummary } from "./cost-summary";
 
 // Shared "Executive Summary" / "Talking Points" narrative generator
 // used by:
@@ -36,7 +37,7 @@ export function composeExecutiveNarrative(report: ReportData): string[] {
     disclosure_prep_service?: string | null;
     package_date?: string | null;
   };
-  const cs = report.cost_summary;
+  const cs = deriveCostSummary(report);
   const ratingLabel = report.overall_rating?.label ?? "Unrated";
 
   const paragraphs: string[] = [];

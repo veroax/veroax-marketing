@@ -1,4 +1,5 @@
 import type { ReportData, Finding } from "@/lib/anthropic/schema";
+import { deriveCostSummary } from "./cost-summary";
 
 // Shared "top 3 strengths / top 3 concerns" picker used by:
 //   - /dashboard/reports/[id] (the agent summary panels)
@@ -57,7 +58,7 @@ export function composeAgentStrengthsAndConcerns(report: ReportData): {
   const cosmCount = report.cosmetic_findings?.length ?? 0;
   const missingCount =
     report.document_inventory?.documents_missing?.length ?? 0;
-  const grand = report.cost_summary?.grand_total;
+  const grand = deriveCostSummary(report).grand_total;
   // The analyzer surfaces per-zone entries (flood, fault, FHSZ,
   // etc.) under report.environmental.hazards with a severity tag,
   // earlier drafts had this at the top level which left the

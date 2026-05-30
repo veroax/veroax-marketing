@@ -26,6 +26,7 @@ import type {
   Severity,
 } from "@/lib/anthropic/schema";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
+import { deriveCostSummary } from "@/lib/reports/cost-summary";
 
 // ============================================================================
 // Color palette (matches Cowork disclosure analyzer)
@@ -2255,7 +2256,10 @@ function FindingsTable({ items }: { items: Finding[] }) {
 }
 
 function SectionCostSummary({ report }: { report: ReportData }) {
-  const cs = report.cost_summary;
+  // Re-derive cost_summary from current findings so the PDF matches
+  // what the dashboard / public view show after admin edits or
+  // post-synthesis cleanups.
+  const cs = deriveCostSummary(report);
   // Split categories into buyer-pays vs HOA-paid based on the category
   // name. The synthesizer now puts HOA-paid line items under a labeled
   // "HOA-paid capital projects (informational)" category; everything

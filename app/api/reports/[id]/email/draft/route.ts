@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
+import { deriveCostSummary } from "@/lib/reports/cost-summary";
 import type { ReportData } from "@/lib/anthropic/schema";
 import { requireUser } from "@/lib/auth/require";
 
@@ -105,7 +106,7 @@ export async function POST(
   // mirror the dashboard's hero metadata strip. Optional, when the
   // analysis didn't populate them, those bits just don't render.
   const overallRating = reportData.overall_rating?.label ?? null;
-  const grandTotal = reportData.cost_summary?.grand_total ?? null;
+  const grandTotal = deriveCostSummary(reportData).grand_total ?? null;
   const costRange =
     grandTotal && grandTotal.high > 0
       ? `${formatUSD(grandTotal.low)}–${formatUSD(grandTotal.high)}`
