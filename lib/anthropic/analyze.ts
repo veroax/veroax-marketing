@@ -731,6 +731,28 @@ CRITICAL RULES:
    - Board turnover / governance gossip that doesn't translate to financial or use-of-unit risk: DROP
    If the finding describes someone else's problem, it doesn't belong in this report.
 
+8.5. LIEN AND ENCUMBRANCE DISCIPLINE. A routine first-position deed of trust on the seller's name, recorded before the listing, with a loan balance BELOW the list price, is what every financed seller has. Escrow pays it off at closing from sale proceeds. The buyer does NOT inherit it. Surfacing it as a critical or moderate finding misleads the reader into thinking the buyer is taking on the loan. DO NOT generate a finding for this case.
+
+   Capture the loan amount, lender, recording date, and recording number under title_vesting.liens_summary so the buyer's agent can see the data, and reference it in property_snapshot when relevant (named_lender, deed_of_trust_amount, deed_of_trust_recorded). That is the right channel. DO NOT mirror it into critical_findings, moderate_findings, cosmetic_findings, or cross_document_findings.
+
+   ONLY surface a deed-of-trust or lien as a finding when one of these holds:
+   (a) UNDERWATER. The aggregate balance of recorded loans on this seller exceeds the list price. Probable short-sale or pre-foreclosure. Surface as Critical with a short-sale negotiation note.
+   (b) STACKED FINANCING WITH HIGH CUMULATIVE LTV. Two or more deeds of trust (first + HELOC, first + second, hard-money second) combine to > 80% of list price. Surface as moderate. If > 100%, see (a).
+   (c) NOT-IN-SELLER NAME. A recorded interest sits with a party who is NOT a named seller on the TDS / SPQ. Examples: prior owner whose deed never transferred, a deceased grantor with no probate, an ex-spouse from an unrecorded divorce settlement, a family trust the seller can't show authority over. Title-clearance concern, surface as Critical.
+   (d) NON-CONSENSUAL LIEN. Federal or state tax lien, abstract of judgment, mechanic's lien, child-support lien, HOA lien, judgment lien. These are not normal financing and may require negotiation before close. Severity by amount and clearability.
+   (e) UCC-1 ON A SYSTEM THAT SURVIVES SALE. A solar lease UCC-1 that the buyer will be asked to assume (rather than the seller paying off). Surface as moderate with the lease terms and payoff figure.
+   (f) RECORDED-DURING-LISTING. A new deed of trust recorded AFTER the listing date suggests cash-out refinancing mid-sale and warrants a quick check on closing-funds availability. Surface as moderate.
+   (g) ATYPICAL RECORDING ON COMMERCIAL OR PRIVATE LENDER. Hard-money lender, non-bank lender, private trustee with no website. Worth a paragraph explaining the verification step, not a Critical.
+
+   When surfacing under (a) through (g), frame the finding as a TITLE-CLEARANCE timeline concern ("the buyer's closing date is contingent on this clearing"), not a debt-burden concern. The buyer is NOT assuming the loan.
+
+   Concrete examples to internalize:
+   - List price $1,050,000, single first deed of trust to LoanDepot for $455,200 in the sellers' name recorded 2/2/2021: NOT a finding. Capture in title_vesting.liens_summary. The sellers have ~$595K equity, escrow handles the payoff.
+   - List price $850,000, first deed of trust $620,000, HELOC $180,000, combined $800,000 (94% LTV): moderate finding, stacked financing approaching list price, scrutinize the payoff statements.
+   - List price $750,000, single deed of trust $800,000: Critical, underwater, short-sale workflow.
+   - Title shows a 2015 deed of trust naming "John Smith, an unmarried man" but the current TDS is signed by "John Smith and Mary Smith, husband and wife": Critical, marital-property clearance question.
+   - $12,400 IRS federal tax lien recorded against the seller in 2023: moderate or higher depending on whether the seller has shown a release, escrow will require clearing before recording the grant deed.
+
 9. PROPERTY SNAPSHOT FIELDS, populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
    - apn (Assessor's Parcel Number): typically in the prelim title report, escrow instructions, or county tax bill (usually formatted like "123-45-678" in California).
    - mls_number: from any MLS printout, listing sheet, or BAREIS/CRMLS export.
