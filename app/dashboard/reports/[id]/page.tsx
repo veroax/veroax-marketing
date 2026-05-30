@@ -553,6 +553,17 @@ function AgentSummary({
         </div>
       </div>
 
+      {/* ----- Property snapshot facts table -------------------- */}
+      {/* Renders the analyzer's structured property_snapshot fields
+          as a labeled fact table. Mirrors the Cowork PDF cover
+          (year built + age, sq ft, bed/bath, MLS #, APN, ADU,
+          solar, hazard zones, sellers, listing team) so the agent
+          sees the same fact panel the buyer sees on /r/<code>.
+          Skipped silently when no facts have populated. */}
+      <PropertySnapshotFactsSection
+        snapshot={reportData.property_snapshot}
+      />
+
       {/* ----- Update banner ------------------------------------- */}
       {reportData.update_note && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900 flex items-start gap-3">
@@ -706,6 +717,50 @@ function AgentSummary({
       <CriticalFindingsView
         reportId={reportId}
         findings={reportData.critical_findings ?? []}
+      />
+
+      {/* ----- Cost summary (line items + grand total) ----------- */}
+      {/* Schema's cost_summary.line_items grouped by category +
+          the grand_total bold footer. Mirrors what the public
+          report renders so the agent reviews the same breakdown
+          the buyer will see. Collapsed by default to keep the
+          dashboard scroll height manageable. */}
+      <CostSummaryDashboardSection
+        costSummary={reportData.cost_summary}
+      />
+
+      {/* ----- Permit & compliance review ------------------------ */}
+      {/* Schema's permit_compliance summary + structured findings.
+          Pulls non-obvious permit gaps (unpermitted ADUs,
+          unpermitted living-area conversions, balcony inspection
+          gaps under SB 326). */}
+      <PermitComplianceDashboardSection
+        permitCompliance={reportData.permit_compliance}
+      />
+
+      {/* ----- Insurance & lender risk --------------------------- */}
+      {/* Schema's insurance_lender_risk block, was rendered nowhere
+          on the dashboard before. Surfaces lender concerns that
+          can stall closing even on a clean property. */}
+      <InsuranceLenderDashboardSection
+        insuranceLenderRisk={reportData.insurance_lender_risk}
+      />
+
+      {/* ----- Outstanding questions to ask the listing agent --- */}
+      {/* Schema's outstanding_questions flat string[] rendered as
+          a numbered list. Mirrors Cowork Section 13. */}
+      <OutstandingQuestionsDashboardSection
+        questions={reportData.outstanding_questions ?? []}
+      />
+
+      {/* ----- Document inventory (analyzer's structured view) -- */}
+      {/* Distinct from "Uploaded documents" further down which is
+          the FILE list; this is the analyzer's read of what a CA
+          disclosure package SHOULD contain vs. what's actually
+          here, with per-doc notes / status / date when the
+          analyzer extracted them. */}
+      <DocumentInventoryDashboardSection
+        inventory={reportData.document_inventory}
       />
 
       {/* ----- Missing disclosures ------------------------------- */}
@@ -936,6 +991,434 @@ function CrossDocumentDashboardSection({
         })}
       </div>
     </section>
+  );
+}
+
+// ============================================================================
+// New section components mirroring the public report's structured rendering.
+// All use server-side <details> for collapsibility (no client state needed),
+// consistent with how "Uploaded documents" already renders on this page.
+// ============================================================================
+
+// Property snapshot facts table. Reads the analyzer's structured
+// property_snapshot block and renders one row per non-null field.
+// Open by default so the agent sees facts at a glance; renders
+// nothing when the snapshot is empty.
+function PropertySnapshotFactsSection({
+  snapshot,
+}: {
+  snapshot: ReportData["property_snapshot"];
+}) {
+  const rows: Array<[string, string]> = [];
+  const push = (label: string, value: string | null | undefined) => {
+    if (value == null) return;
+    const v = typeof value === "string" ? value.trim() : String(value);
+    if (!v) return;
+    rows.push([label, v]);
+  };
+  push("Property type", snapshot?.property_type ?? null);
+  if (snapshot?.unit_number) push("Unit", snapshot.unit_number);
+  if (snapshot?.floor != null) push("Floor", String(snapshot.floor));
+  if (snapshot?.year_built != null) {
+    push(
+      "Year built",
+      `${snapshot.year_built} (age ${Math.max(0, new Date().getFullYear() - snapshot.year_built)})`,
+    );
+  }
+  if (snapshot?.square_feet != null) {
+    push("Sq ft", `${snapshot.square_feet.toLocaleString()} sq ft`);
+  }
+  if (snapshot?.bedrooms != null && snapshot?.bathrooms != null) {
+    push("Bed / Bath", `${snapshot.bedrooms} bed / ${snapshot.bathrooms} bath`);
+  }
+  if (snapshot?.list_price != null) {
+    push("List price", formatUSD(snapshot.list_price));
+  }
+  if (snapshot?.days_on_market != null) {
+    push("Days on market", `${snapshot.days_on_market} days`);
+  }
+  push("MLS #", snapshot?.mls_number ?? null);
+  push("APN", snapshot?.apn ?? null);
+  if (snapshot?.hoa_dues_monthly != null) {
+    push("HOA dues", `${formatUSD(snapshot.hoa_dues_monthly)} / month`);
+  }
+  push("Parking", snapshot?.parking ?? null);
+  push("Market region", snapshot?.market_region ?? null);
+  // Cowork-parity fields populated by the 5f45a99 prompt overhaul.
+  push(
+    "Hazard zones",
+    (snapshot as { hazard_zone_summary?: string | null } | undefined)
+      ?.hazard_zone_summary ?? null,
+  );
+  push(
+    "FEMA flood zone",
+    (snapshot as { fema_flood_zone?: string | null } | undefined)
+      ?.fema_flood_zone ?? null,
+  );
+  push(
+    "Solar",
+    (snapshot as { solar_status?: string | null } | undefined)?.solar_status ??
+      null,
+  );
+  push(
+    "ADU",
+    (snapshot as { adu_status?: string | null } | undefined)?.adu_status ??
+      null,
+  );
+  push(
+    "Sellers",
+    (snapshot as { named_sellers?: string | null } | undefined)
+      ?.named_sellers ?? null,
+  );
+  push(
+    "Listing team",
+    (snapshot as { named_listing_team?: string | null } | undefined)
+      ?.named_listing_team ?? null,
+  );
+  push(
+    "Package prepared by",
+    (snapshot as { disclosure_prep_service?: string | null } | undefined)
+      ?.disclosure_prep_service ?? null,
+  );
+  push(
+    "Package date",
+    (snapshot as { package_date?: string | null } | undefined)?.package_date ??
+      null,
+  );
+
+  if (rows.length === 0) return null;
+
+  return (
+    <details
+      className="rounded-2xl border border-slate-200 bg-white px-5 py-4 group"
+      open
+    >
+      <summary className="cursor-pointer list-none flex items-center justify-between gap-3 hover:text-slate-900 mb-3">
+        <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase">
+          Property snapshot
+        </h3>
+        <span
+          className="text-slate-400 group-open:rotate-90 transition-transform text-base leading-none"
+          aria-hidden="true"
+        >
+          &rsaquo;
+        </span>
+      </summary>
+      <dl className="divide-y divide-slate-100">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="py-2 grid grid-cols-3 sm:grid-cols-4 gap-2 text-sm"
+          >
+            <dt className="font-semibold text-slate-700 col-span-1">{label}</dt>
+            <dd className="text-slate-700 col-span-2 sm:col-span-3 break-words">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
+// Cost summary section. Renders cost_summary.line_items grouped by
+// category, plus a bold grand-total footer. Collapsed by default.
+function CostSummaryDashboardSection({
+  costSummary,
+}: {
+  costSummary: ReportData["cost_summary"] | null | undefined;
+}) {
+  if (!costSummary) return null;
+  const lineItems = costSummary.line_items ?? [];
+  const grand = costSummary.grand_total;
+  const hasGrand = grand && (grand.low > 0 || grand.high > 0);
+  if (lineItems.length === 0 && !hasGrand) return null;
+
+  return (
+    <details className="rounded-2xl border border-slate-200 bg-white px-5 py-4 group">
+      <summary className="cursor-pointer list-none flex items-center justify-between gap-3 hover:text-slate-900 mb-3">
+        <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase">
+          Cost summary
+        </h3>
+        <span
+          className="text-slate-400 group-open:rotate-90 transition-transform text-base leading-none"
+          aria-hidden="true"
+        >
+          &rsaquo;
+        </span>
+      </summary>
+      {lineItems.length > 0 ? (
+        <div className="space-y-4">
+          {lineItems.map((group, gi) => (
+            <div key={gi}>
+              <p className="text-xs font-bold tracking-widest uppercase text-slate-700 mb-1">
+                {group.category}
+              </p>
+              <ul className="divide-y divide-slate-100">
+                {group.items.map((it, ii) => (
+                  <li
+                    key={ii}
+                    className="py-1.5 flex items-start justify-between gap-3 text-sm"
+                  >
+                    <span className="text-slate-700 flex-1 min-w-0 break-words">
+                      {it.label}
+                    </span>
+                    <span className="text-slate-700 tabular-nums shrink-0">
+                      {formatUSD(it.cost.low)} to {formatUSD(it.cost.high)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {hasGrand ? (
+        <div className="mt-4 pt-3 border-t-2 border-indigo-200 flex items-center justify-between gap-3 text-sm font-bold text-indigo-950">
+          <span className="uppercase tracking-wider text-xs">
+            Total potential exposure
+          </span>
+          <span className="tabular-nums text-base">
+            {formatUSD(grand.low)} to {formatUSD(grand.high)}
+          </span>
+        </div>
+      ) : null}
+    </details>
+  );
+}
+
+// Permit & compliance review section.
+function PermitComplianceDashboardSection({
+  permitCompliance,
+}: {
+  permitCompliance: ReportData["permit_compliance"] | null | undefined;
+}) {
+  if (!permitCompliance) return null;
+  const summary = permitCompliance.summary?.trim() ?? "";
+  const findings = permitCompliance.findings ?? [];
+  if (!summary && findings.length === 0) return null;
+
+  return (
+    <details className="rounded-2xl border border-slate-200 bg-white px-5 py-4 group">
+      <summary className="cursor-pointer list-none flex items-center justify-between gap-3 hover:text-slate-900 mb-3">
+        <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase">
+          Permit &amp; compliance review
+        </h3>
+        <span
+          className="text-slate-400 group-open:rotate-90 transition-transform text-base leading-none"
+          aria-hidden="true"
+        >
+          &rsaquo;
+        </span>
+      </summary>
+      {summary ? (
+        <p className="text-sm text-slate-700 leading-relaxed mb-3">
+          {summary}
+        </p>
+      ) : null}
+      {findings.length > 0 ? (
+        <ul className="divide-y divide-slate-100 mt-2">
+          {findings.map((f, i) => (
+            <li key={i} className="py-2.5">
+              <p className="font-semibold text-slate-900 text-sm">{f.title}</p>
+              {f.description ? (
+                <p className="text-sm text-slate-700 mt-1">{f.description}</p>
+              ) : null}
+              {f.source ? (
+                <p className="text-xs text-slate-500 italic mt-1">
+                  Source: {f.source}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </details>
+  );
+}
+
+// Insurance & lender risk section.
+function InsuranceLenderDashboardSection({
+  insuranceLenderRisk,
+}: {
+  insuranceLenderRisk: ReportData["insurance_lender_risk"] | null | undefined;
+}) {
+  if (!insuranceLenderRisk) return null;
+  const summary = insuranceLenderRisk.summary?.trim() ?? "";
+  const insurance = insuranceLenderRisk.insurance_concerns ?? [];
+  const lender = insuranceLenderRisk.lender_concerns ?? [];
+  if (!summary && insurance.length === 0 && lender.length === 0) return null;
+
+  return (
+    <details className="rounded-2xl border border-slate-200 bg-white px-5 py-4 group">
+      <summary className="cursor-pointer list-none flex items-center justify-between gap-3 hover:text-slate-900 mb-3">
+        <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase">
+          Insurance &amp; lender risk
+        </h3>
+        <span
+          className="text-slate-400 group-open:rotate-90 transition-transform text-base leading-none"
+          aria-hidden="true"
+        >
+          &rsaquo;
+        </span>
+      </summary>
+      {summary ? (
+        <p className="text-sm text-slate-700 leading-relaxed">{summary}</p>
+      ) : null}
+      {insurance.length > 0 ? (
+        <>
+          <p className="text-xs font-bold tracking-widest uppercase text-slate-700 mt-4 mb-1">
+            Insurance concerns
+          </p>
+          <ul className="space-y-1.5 text-sm text-slate-700">
+            {insurance.map((c, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-slate-400 shrink-0">·</span>
+                <span>{c}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {lender.length > 0 ? (
+        <>
+          <p className="text-xs font-bold tracking-widest uppercase text-slate-700 mt-4 mb-1">
+            Lender concerns
+          </p>
+          <ul className="space-y-1.5 text-sm text-slate-700">
+            {lender.map((c, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-slate-400 shrink-0">·</span>
+                <span>{c}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </details>
+  );
+}
+
+// Outstanding questions to ask the listing agent. Renders the
+// schema's outstanding_questions string[] as a numbered list.
+function OutstandingQuestionsDashboardSection({
+  questions,
+}: {
+  questions: string[];
+}) {
+  if (!questions || questions.length === 0) return null;
+  return (
+    <details className="rounded-2xl border border-slate-200 bg-white px-5 py-4 group">
+      <summary className="cursor-pointer list-none flex items-center justify-between gap-3 hover:text-slate-900 mb-3">
+        <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase">
+          Questions to ask the listing agent ({questions.length})
+        </h3>
+        <span
+          className="text-slate-400 group-open:rotate-90 transition-transform text-base leading-none"
+          aria-hidden="true"
+        >
+          &rsaquo;
+        </span>
+      </summary>
+      <ol className="space-y-2.5 text-sm text-slate-700 list-decimal list-inside">
+        {questions.map((q, i) => (
+          <li key={i}>{q}</li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
+// Document inventory (analyzer's structured view). Distinct from
+// the "Uploaded documents" file-management section further down,
+// this is the analyzer's read of package completeness with per-doc
+// status / date / notes when available.
+function DocumentInventoryDashboardSection({
+  inventory,
+}: {
+  inventory: ReportData["document_inventory"] | null | undefined;
+}) {
+  if (!inventory) return null;
+  const provided = inventory.documents_provided ?? [];
+  const missing = inventory.documents_missing ?? [];
+  if (provided.length === 0 && missing.length === 0) return null;
+
+  return (
+    <details className="rounded-2xl border border-slate-200 bg-white px-5 py-4 group">
+      <summary className="cursor-pointer list-none flex items-center justify-between gap-3 hover:text-slate-900 mb-3">
+        <h3 className="text-xs font-bold tracking-widest text-slate-700 uppercase">
+          Document inventory ({provided.length} provided, {missing.length}{" "}
+          missing)
+        </h3>
+        <span
+          className="text-slate-400 group-open:rotate-90 transition-transform text-base leading-none"
+          aria-hidden="true"
+        >
+          &rsaquo;
+        </span>
+      </summary>
+      {provided.length > 0 ? (
+        <>
+          <p className="text-xs font-bold tracking-widest uppercase text-slate-700 mb-1.5">
+            Provided
+          </p>
+          <ul className="divide-y divide-slate-100 mb-4">
+            {provided.map((d, i) => {
+              const rawStatus =
+                (d as { status?: string | null }).status?.trim() || null;
+              const statusTone =
+                rawStatus && /stale|partial|coversheet/i.test(rawStatus)
+                  ? "text-amber-700 bg-amber-50"
+                  : "text-emerald-700 bg-emerald-50";
+              const statusLabel = rawStatus || "Provided";
+              const notes =
+                (d as { notes?: string | null }).notes?.trim() || null;
+              return (
+                <li key={i} className="py-2 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-700 flex-1 min-w-0 break-words font-medium">
+                      {d.name}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${statusTone}`}
+                    >
+                      {statusLabel}
+                    </span>
+                  </div>
+                  {notes ? (
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      {notes}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      ) : null}
+      {missing.length > 0 ? (
+        <>
+          <p className="text-xs font-bold tracking-widest uppercase text-slate-700 mb-1.5">
+            Still owed
+          </p>
+          <ul className="divide-y divide-slate-100">
+            {missing.map((m, i) => (
+              <li
+                key={i}
+                className="py-1.5 flex items-start justify-between gap-3 text-sm"
+              >
+                <span className="text-slate-700 flex-1 min-w-0 break-words">
+                  {m}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 bg-red-50 px-1.5 py-0.5 rounded shrink-0">
+                  Missing
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </details>
   );
 }
 
