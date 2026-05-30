@@ -673,18 +673,21 @@ function AdminReportContent({ reportData }: { reportData: ReportData }) {
 
       {/* Strengths vs concerns, side by side. */}
       {(strengths.length > 0 || concerns.length > 0) ? (
-        <div className="border-t border-slate-100 pt-5 grid sm:grid-cols-2 gap-6">
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-700 mb-2">
+        <div className="border-t border-slate-100 pt-5 grid sm:grid-cols-2 gap-4">
+          {/* Green strengths + red concerns backgrounds restored
+              per founder request, matching the dashboard + public
+              report visual treatment. */}
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-800 mb-2">
               Three strengths
             </h3>
-            <ul className="space-y-1.5 text-sm text-slate-800">
+            <ul className="space-y-1.5 text-sm text-emerald-950">
               {strengths.length === 0 ? (
                 <li className="italic text-slate-400">none surfaced</li>
               ) : (
                 strengths.map((s, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-emerald-600 font-bold">
+                    <span className="text-emerald-700 font-bold">
                       {i + 1}.
                     </span>
                     <span>{s.text}</span>
@@ -693,11 +696,11 @@ function AdminReportContent({ reportData }: { reportData: ReportData }) {
               )}
             </ul>
           </div>
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-red-700 mb-2">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-red-800 mb-2">
               Three key concerns
             </h3>
-            <ul className="space-y-1.5 text-sm text-slate-800">
+            <ul className="space-y-1.5 text-sm text-red-950">
               {concerns.length === 0 ? (
                 <li className="italic text-slate-400">none surfaced</li>
               ) : (

@@ -720,6 +720,18 @@ function AgentSummary({
         findings={reportData.critical_findings ?? []}
       />
 
+      {/* ----- Moderate findings (with flag affordances) -------- */}
+      {/* The agent dashboard previously rendered only critical
+          findings as cards (moderates lived only on the public
+          report). While in beta the founder wants every finding
+          flaggable so any quality regression gets reported back.
+          Each moderate row gets the same flag-button treatment as
+          the critical cards. */}
+      <ModerateFindingsDashboardSection
+        reportId={reportId}
+        findings={reportData.moderate_findings ?? []}
+      />
+
       {/* ----- Cost summary (line items + grand total) ----------- */}
       {/* Schema's cost_summary.line_items grouped by category +
           the grand_total bold footer. Mirrors what the public
@@ -736,6 +748,7 @@ function AgentSummary({
           unpermitted living-area conversions, balcony inspection
           gaps under SB 326). */}
       <PermitComplianceDashboardSection
+        reportId={reportId}
         permitCompliance={reportData.permit_compliance}
       />
 
@@ -1190,8 +1203,10 @@ function CostSummaryDashboardSection({
 
 // Permit & compliance review section.
 function PermitComplianceDashboardSection({
+  reportId,
   permitCompliance,
 }: {
+  reportId: string;
   permitCompliance: ReportData["permit_compliance"] | null | undefined;
 }) {
   if (!permitCompliance) return null;
@@ -1221,7 +1236,16 @@ function PermitComplianceDashboardSection({
         <ul className="divide-y divide-slate-100 mt-2">
           {findings.map((f, i) => (
             <li key={i} className="py-2.5">
-              <p className="font-semibold text-slate-900 text-sm">{f.title}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-semibold text-slate-900 text-sm flex-1 min-w-0">
+                  {f.title}
+                </p>
+                <FindingFlagButton
+                  reportId={reportId}
+                  findingTitle={f.title}
+                  findingSeverity={`permit_${f.severity ?? "moderate"}`}
+                />
+              </div>
               {f.description ? (
                 <p className="text-sm text-slate-700 mt-1">{f.description}</p>
               ) : null}
@@ -1234,6 +1258,73 @@ function PermitComplianceDashboardSection({
           ))}
         </ul>
       ) : null}
+    </details>
+  );
+}
+
+// Moderate findings section, with per-finding flag affordances.
+// Previously the dashboard only rendered critical findings as cards
+// and the moderate list lived only on the public report. The founder
+// wants flags on EVERY finding while we're in beta so quality
+// regressions surface across the board.
+function ModerateFindingsDashboardSection({
+  reportId,
+  findings,
+}: {
+  reportId: string;
+  findings: ReportData["moderate_findings"];
+}) {
+  if (!findings || findings.length === 0) return null;
+  return (
+    <details className="rounded-2xl border border-amber-200 bg-amber-50/40 px-5 py-4 group" open>
+      <summary className="cursor-pointer list-none flex items-center justify-between gap-3 hover:text-slate-900 mb-3">
+        <h3 className="text-xs font-bold tracking-widest text-amber-800 uppercase">
+          Moderate findings ({findings.length})
+        </h3>
+        <span
+          className="text-slate-400 group-open:rotate-90 transition-transform text-base leading-none"
+          aria-hidden="true"
+        >
+          &rsaquo;
+        </span>
+      </summary>
+      <ul className="divide-y divide-amber-100 mt-1">
+        {findings.map((f, i) => (
+          <li key={i} className="py-2.5">
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <p className="font-semibold text-slate-900 text-sm flex-1 min-w-0">
+                {i + 1}. {f.title}
+              </p>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-white px-2 py-0.5 rounded">
+                  {f.severity || "moderate"}
+                </span>
+                <FindingFlagButton
+                  reportId={reportId}
+                  findingTitle={f.title}
+                  findingSeverity={f.severity || "moderate"}
+                />
+              </div>
+            </div>
+            {f.description ? (
+              <p className="text-sm text-slate-700 mt-1">{f.description}</p>
+            ) : null}
+            {f.source ? (
+              <p className="text-xs text-slate-500 italic mt-1">
+                Source: {f.source}
+              </p>
+            ) : null}
+            {f.cost_estimate &&
+            (f.cost_estimate.low > 0 || f.cost_estimate.high > 0) ? (
+              <p className="text-xs text-slate-600 mt-1">
+                <span className="font-semibold">Est. cost:</span>{" "}
+                {formatUSD(f.cost_estimate.low)} to{" "}
+                {formatUSD(f.cost_estimate.high)}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
     </details>
   );
 }
