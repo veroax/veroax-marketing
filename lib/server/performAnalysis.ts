@@ -381,6 +381,27 @@ export async function performAnalysis(
   // documents instead of attempting transcription, which leaves
   // the analyzer with nothing to work from. A separate OCR-focused
   // call to Claude with vision input transcribes them reliably.
+  // Per-doc detection diagnostics. We log EVERY PDF-mode document's
+  // chars-per-page so we can tune the threshold from the audit_log
+  // when the heuristic misses.
+  const detectionDetails = documents
+    .filter((d) => d.pdfBase64)
+    .map((d) => {
+      const extracted = perDocExtractedText.get(d.filename) ?? "";
+      const cpp = d.pages > 0 ? extracted.trim().length / d.pages : 0;
+      const isScan = looksLikeScannedPdf({
+        extractedText: extracted,
+        pages: d.pages,
+      });
+      return {
+        ...safeFileMetadata(d.filename),
+        pages: d.pages,
+        extracted_chars: extracted.trim().length,
+        chars_per_page: Math.round(cpp),
+        classified_as_scan: isScan,
+      };
+    });
+
   const ocrCandidates = documents.filter((d) => {
     if (!d.pdfBase64) return false; // already text-mode
     if (d.pages <= 0) return false;
@@ -391,16 +412,21 @@ export async function performAnalysis(
     });
   });
 
+  // ALWAYS log ocr_prepass_started so we can see the detection
+  // outcome even when no documents qualify. candidate_count == 0
+  // tells us the heuristic skipped everything.
+  await admin.from("audit_log").insert({
+    user_id: userId,
+    report_id: reportId,
+    event_type: "analysis.ocr_prepass_started",
+    metadata: {
+      candidate_count: ocrCandidates.length,
+      total_pdf_docs: documents.filter((d) => d.pdfBase64).length,
+      detection_details: detectionDetails,
+    },
+  });
+
   if (ocrCandidates.length > 0) {
-    await admin.from("audit_log").insert({
-      user_id: userId,
-      report_id: reportId,
-      event_type: "analysis.ocr_prepass_started",
-      metadata: {
-        candidate_count: ocrCandidates.length,
-        total_pdf_docs: documents.filter((d) => d.pdfBase64).length,
-      },
-    });
 
     // Run OCR for all candidates in parallel. Wall-clock is the
     // slowest single PDF, not the sum. Each call typically takes
