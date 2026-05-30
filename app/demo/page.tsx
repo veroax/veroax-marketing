@@ -19,7 +19,7 @@ export default function DemoPage() {
         </h1>
         <p className="text-slate-600 leading-relaxed">
           We&apos;re assembling a short walkthrough that takes a real CA
-          disclosure package from upload to a client-ready report in about
+          disclosure package from upload to a defensible analysis in about
           90 seconds. While we polish it,{" "}
           <a
             href="mailto:support@veroax.com?subject=Book%20a%20Veroax%20demo"
@@ -39,9 +39,10 @@ export default function DemoPage() {
             <li>14-section disclosure analysis on your actual package</li>
             <li>Critical vs. high vs. moderate severity rubric in practice</li>
             <li>
-              Three delivery channels: live web report on your dashboard,
-              private share link for your buyer, branded PDF download
+              Two formats: live dashboard view and downloadable PDF for
+              offline review
             </li>
+            <li>Drafting a brief email summary to invite the conversation</li>
             <li>Add-documents-and-re-analyze workflow</li>
             <li>Pricing model and what credits cover</li>
           </ul>

@@ -22,10 +22,10 @@ export default function HelpPage() {
         <ul className="mt-6 space-y-3 text-sm text-slate-700">
           {[
             "Uploading a disclosure package",
-            "Reading the agent summary view",
+            "Reading the 14-section analysis",
             "Customizing your branding (logo, headshot, accent color)",
-            "Drafting and sending the client email",
-            "Adding new documents to an existing report",
+            "Drafting a short email summary to invite the buyer conversation",
+            "Adding new documents to an existing analysis",
             "Handling an HOA-heavy package (split documents, large size)",
           ].map((label) => (
             <li

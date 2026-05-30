@@ -46,10 +46,11 @@ export default function InvestorsPage() {
           </h1>
           <p className="text-base sm:text-lg text-slate-600 mt-4 leading-relaxed">
             Veroax turns a disclosure package (TDS, SPQ, NHD, inspection
-            reports, HOA docs) into a clear, branded buyer report in
-            minutes. We sell to licensed agents one seat at a time, to
-            small teams that pool a shared quota, and to brokerages on
-            custom contracts.
+            reports, HOA docs) into a clear, branded 14-section analysis
+            in minutes. Agents use it to prepare offers and walk their
+            buyers through the package. We sell to licensed agents one
+            seat at a time, to small teams that pool a shared quota,
+            and to brokerages on custom contracts.
           </p>
         </div>
 
@@ -57,15 +58,15 @@ export default function InvestorsPage() {
         <section className="grid md:grid-cols-3 gap-5 sm:gap-6 mb-12">
           <Card
             label="The problem"
-            body="A typical California disclosure package runs hundreds of pages of dense, mixed-quality documents. Agents spend hours per deal trying to surface the material findings their buyer needs to see, and they still miss things."
+            body="A typical California disclosure package runs hundreds of pages of dense, mixed-quality documents. Agents spend hours per deal trying to surface the material findings before they sit down with their buyer, and they still miss things."
           />
           <Card
             label="What Veroax does"
-            body="Veroax reads the package end-to-end and produces a buyer-ready report: critical findings up top, source citations on every claim, click-to-source back to the original page. Delivered as a live web view the agent shares with the buyer via a private link, plus a downloadable PDF branded with the agent's or brokerage's logo and DRE."
+            body="Veroax reads the package end-to-end and produces a defensible analysis: critical findings up top, source citations on every claim, click-to-source back to the original page. The agent uses the analysis on the dashboard as the spine of their offer prep and their conversation with their buyer. A branded PDF is available for offline reference."
           />
           <Card
             label="Why now"
-            body="Long-context AI models can finally read 300-page packages in one pass with high reliability. Disclosure obligations are tightening. Buyers (especially first-time and out-of-state) want clearer materials. Agents are eager for any tool that protects them from missed-disclosure liability."
+            body="Long-context AI models can finally read 300-page packages in one pass with high reliability. Disclosure obligations are tightening. Agents are eager for any tool that protects them from missed-disclosure liability and makes them look thorough on every deal, especially newer agents and out-of-state buyer pipelines."
           />
         </section>
 
@@ -79,7 +80,8 @@ export default function InvestorsPage() {
               <Check />
               <span>
                 Live product in private beta with California agents.
-                Real reports going to real buyer clients today.
+                Real analyses running on real California disclosure
+                packages today.
               </span>
             </li>
             <li className="flex items-start gap-3">
