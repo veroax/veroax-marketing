@@ -49,23 +49,49 @@ export async function POST(
   }
 
   // Concurrency lock: if status="analyzing" and the previous run was
-  // started recently, assume it's still in flight and don't spawn a
-  // duplicate.
+  // started recently AND has actually written audit events, assume
+  // it's still in flight and don't spawn a duplicate.
+  //
+  // The audit-events check matters because /api/reports/[id]/finalize
+  // sets status='analyzing' + analysis_started_at=now() BEFORE the
+  // AnalysisRunner ever POSTs to this route. Without the audit-event
+  // probe, the lock check above would see "status='analyzing' and
+  // analysis_started_at is recent" and 202-skip the first legitimate
+  // /analyze call, leaving the report stuck at "Starting analysis..."
+  // forever (Mataro Way symptom: 16+ minutes stuck, zero analysis.*
+  // events). performAnalysis writes "analysis.upload_started" as its
+  // FIRST act, so if no analysis.* events exist for this report
+  // since analysis_started_at, no worker has actually started and
+  // the lock is orphaned, not active.
   const startedAt = report.analysis_started_at
     ? new Date(report.analysis_started_at)
     : null;
   const lockWindowMs = ANALYSIS_LOCK_MINUTES * 60 * 1000;
   const isWithinLock =
     startedAt && Date.now() - startedAt.getTime() < lockWindowMs;
-  if (report.status === "analyzing" && isWithinLock) {
-    return NextResponse.json(
-      {
-        ok: true,
-        status: "analyzing",
-        note: "Analysis already running, polling will detect completion.",
-      },
-      { status: 202 },
-    );
+  if (report.status === "analyzing" && isWithinLock && startedAt) {
+    // Probe for actual worker activity since the lock was taken.
+    const { count: activeWorkerEventCount } = await supabase
+      .from("audit_log")
+      .select("id", { count: "exact", head: true })
+      .eq("report_id", reportId)
+      .like("event_type", "analysis.%")
+      .gte("created_at", startedAt.toISOString());
+    const workerHasRun = (activeWorkerEventCount ?? 0) > 0;
+    if (workerHasRun) {
+      return NextResponse.json(
+        {
+          ok: true,
+          status: "analyzing",
+          note: "Analysis already running, polling will detect completion.",
+        },
+        { status: 202 },
+      );
+    }
+    // Lock is orphaned (set by /finalize, performAnalysis never
+    // started). Fall through to the take-the-lock + run path below.
+    // We refresh analysis_started_at so the lock-window clock
+    // resets from this attempt, not the finalize timestamp.
   }
 
   // Take the lock by stamping analysis_started_at AND increment the

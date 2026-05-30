@@ -161,6 +161,7 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
             (report as { analysis_started_at?: string | null })
               .analysis_started_at ?? null
           }
+          propertyAddress={report.property_address ?? null}
         />
       )}
 

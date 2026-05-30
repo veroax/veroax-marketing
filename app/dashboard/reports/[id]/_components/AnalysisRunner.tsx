@@ -29,7 +29,32 @@ type Props = {
   // without it, every visit resets the timer to 0 and a 30-minute-stuck
   // run looks like it just started.
   analysisStartedAt?: string | null;
+  // Property address from the report row, rendered prominently at the
+  // top of the in-flight panel so the agent can confirm which property
+  // they're watching when they have multiple analyses in-flight or
+  // when they navigate back from another tab.
+  propertyAddress?: string | null;
 };
+
+// The fixed step order the analyzer runs in. Used to render a
+// Cowork-style progress checklist showing where we are vs what's
+// left. Each entry maps to one or more audit_log event types that
+// signal completion of that step.
+type StepKey =
+  | "upload"
+  | "ocr"
+  | "cost_reference"
+  | "focused_passes"
+  | "post_focused_fetch"
+  | "synthesis";
+const STEP_ORDER: { key: StepKey; label: string }[] = [
+  { key: "upload", label: "Uploading and indexing documents" },
+  { key: "ocr", label: "OCR transcription of scanned PDFs" },
+  { key: "cost_reference", label: "Building regional cost reference" },
+  { key: "focused_passes", label: "Reviewing disclosures, inspections, HOA, hazards" },
+  { key: "post_focused_fetch", label: "Live market context and listing reconciliation" },
+  { key: "synthesis", label: "Finalizing report" },
+];
 
 const POLL_INTERVAL_MS = 4000;
 const COMPLETION_DISPLAY_MS = 2000; // dwell time on "Complete!" before page refresh
@@ -42,7 +67,11 @@ const COMPLETION_DISPLAY_MS = 2000; // dwell time on "Complete!" before page ref
 const STUCK_ELAPSED_THRESHOLD_SEC = 15 * 60; // 15 minutes total elapsed
 const STUCK_NO_EVENT_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes since last event
 
-export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
+export function AnalysisRunner({
+  reportId,
+  analysisStartedAt,
+  propertyAddress,
+}: Props) {
   const router = useRouter();
   const triggered = useRef(false);
   const [phase, setPhase] = useState<"running" | "completing" | "error">("running");
@@ -62,6 +91,7 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
     label: string;
     detail?: string;
   }>({ label: "Starting analysis…" });
+  const [stepStates, setStepStates] = useState<StepStates | null>(null);
   // lastEventAt also seeds from analysis_started_at so the stuck-detection
   // window measures "no events since the run actually began" instead of
   // "no events since this page rendered."
@@ -202,6 +232,7 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
         }
 
         setProgress(stageFromEvents(data.events));
+        setStepStates(stepStatesFromEvents(data.events));
       } catch {
         // Swallow polling errors, they're transient.
       }
@@ -312,6 +343,20 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-8">
+      {/* Property address header. Lets the agent confirm which
+          property they're watching when they have multiple analyses
+          in flight or come back from another tab. */}
+      {propertyAddress?.trim() ? (
+        <div className="mb-5 pb-4 border-b border-slate-100">
+          <p className="text-[10px] font-bold tracking-widest uppercase text-amber-700">
+            Analyzing
+          </p>
+          <h1 className="text-xl sm:text-2xl font-bold text-indigo-950 mt-1 leading-tight">
+            {propertyAddress}
+          </h1>
+        </div>
+      ) : null}
+
       <div className="flex items-start gap-4">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-100 shrink-0">
           <svg
@@ -343,6 +388,48 @@ export function AnalysisRunner({ reportId, analysisStartedAt }: Props) {
               Working
             </span>
           </p>
+
+          {/* Step-by-step progress checklist. Each step shows as a
+              filled green check when done, an indigo spinning ring
+              when active, a slate empty circle when pending, or
+              slate-light when skipped (e.g., OCR skipped when no
+              scanned PDFs in the package). Lets the agent see at a
+              glance where in the pipeline we are vs what's left,
+              mirroring the Cowork skill's progress UX. */}
+          {stepStates ? (
+            <ol className="mt-4 space-y-1.5">
+              {STEP_ORDER.map(({ key, label }) => {
+                const state = stepStates[key];
+                const passesLabel =
+                  key === "focused_passes" && stepStates.passes_total > 0
+                    ? ` (${stepStates.passes_completed}/${stepStates.passes_total})`
+                    : "";
+                return (
+                  <li
+                    key={key}
+                    className="flex items-center gap-2.5 text-sm"
+                  >
+                    <StepIcon state={state} />
+                    <span
+                      className={
+                        state === "done"
+                          ? "text-emerald-700 font-medium"
+                          : state === "active"
+                            ? "text-indigo-900 font-semibold"
+                            : state === "skipped"
+                              ? "text-slate-400 italic"
+                              : "text-slate-500"
+                      }
+                    >
+                      {label}
+                      {passesLabel}
+                      {state === "skipped" ? " (skipped)" : ""}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : null}
           <p className="text-xs text-gray-400 mt-3 leading-relaxed">
             Multi-pass analysis can take up to <strong>15 minutes</strong> on
             a large California disclosure package. We extract text from every
@@ -388,6 +475,160 @@ type PassStatus = {
   sub_total: number;
   completed: boolean;
 };
+
+// Per-step state derived from the same audit_log event stream that
+// drives stageFromEvents. Renders the Cowork-style progress checklist
+// so the agent sees not just "what's happening now" but "what's done,
+// what's left." Each step is "done" / "active" / "pending" / "skipped"
+// based on which audit events have landed.
+type StepState = "done" | "active" | "pending" | "skipped";
+type StepStates = Record<StepKey, StepState> & {
+  // Extra detail for the focused-passes step: how many sub-batches
+  // completed vs. total. Renders inline next to the step label.
+  passes_completed: number;
+  passes_total: number;
+};
+
+function stepStatesFromEvents(events: StatusEvent[]): StepStates {
+  const states: StepStates = {
+    upload: "pending",
+    ocr: "pending",
+    cost_reference: "pending",
+    focused_passes: "pending",
+    post_focused_fetch: "pending",
+    synthesis: "pending",
+    passes_completed: 0,
+    passes_total: 0,
+  };
+  let uploadStarted = false;
+  let uploadFileCount = 0;
+  let claudeStarted = false;
+  const passSubBatches = new Map<string, boolean>();
+  let ocrStarted = false;
+  let ocrCandidateCount: number | null = null;
+  let ocrCompleted = 0;
+  let costRefStarted = false;
+  let costRefDone = false;
+  let postFetchStarted = false;
+  let postFetchDone = false;
+  let synthStarted = false;
+  let synthDone = false;
+  let claudeCompleted = false;
+
+  for (const e of events) {
+    const md = e.metadata as Record<string, unknown>;
+    switch (e.event_type) {
+      case "analysis.upload_started":
+        uploadStarted = true;
+        uploadFileCount = (md.total_files as number) || uploadFileCount;
+        break;
+      case "analysis.file_uploaded":
+        // Each file_uploaded narrows our progress within the upload
+        // step; the step flips to done once OCR or claude_started
+        // fires (any later step starting implies upload is complete).
+        break;
+      case "analysis.ocr_prepass_started":
+        ocrStarted = true;
+        ocrCandidateCount =
+          typeof md.candidate_count === "number"
+            ? (md.candidate_count as number)
+            : null;
+        break;
+      case "analysis.ocr_prepass_completed":
+        ocrCompleted += 1;
+        break;
+      case "analysis.cost_reference_started":
+        costRefStarted = true;
+        break;
+      case "analysis.cost_reference_completed":
+        costRefDone = true;
+        break;
+      case "analysis.claude_started":
+        claudeStarted = true;
+        break;
+      case "analysis.pass_started": {
+        const key = `${md.group}-${md.sub_index}`;
+        if (!passSubBatches.has(key)) passSubBatches.set(key, false);
+        break;
+      }
+      case "analysis.pass_completed": {
+        const key = `${md.group}-${md.sub_index}`;
+        passSubBatches.set(key, true);
+        break;
+      }
+      case "analysis.post_focused_fetch_started":
+        postFetchStarted = true;
+        break;
+      case "analysis.post_focused_fetch_completed":
+        postFetchDone = true;
+        break;
+      case "analysis.synthesis_started":
+        synthStarted = true;
+        break;
+      case "analysis.synthesis_completed":
+        synthDone = true;
+        break;
+      case "analysis.claude_completed":
+        claudeCompleted = true;
+        break;
+    }
+  }
+
+  // upload: done as soon as any later step has started OR claude_started fires
+  if (uploadStarted) {
+    states.upload =
+      ocrStarted || costRefStarted || claudeStarted ? "done" : "active";
+  }
+
+  // ocr: skipped if no candidates; done when all candidates have
+  // completed; active otherwise. Note: claude_started fires after
+  // ocr completes (or skips), so claudeStarted implies ocr is done.
+  if (claudeStarted) {
+    if (ocrCandidateCount === 0) {
+      states.ocr = "skipped";
+    } else {
+      states.ocr = "done";
+    }
+  } else if (ocrStarted) {
+    if (ocrCandidateCount === 0) {
+      states.ocr = "skipped";
+    } else if (
+      ocrCandidateCount != null &&
+      ocrCompleted >= ocrCandidateCount
+    ) {
+      states.ocr = "done";
+    } else {
+      states.ocr = "active";
+    }
+  }
+
+  // cost_reference
+  if (costRefDone) states.cost_reference = "done";
+  else if (costRefStarted) states.cost_reference = "active";
+
+  // focused_passes
+  const totalPasses = passSubBatches.size;
+  const donePasses = Array.from(passSubBatches.values()).filter(Boolean).length;
+  states.passes_total = totalPasses;
+  states.passes_completed = donePasses;
+  if (postFetchStarted || synthStarted || synthDone) {
+    states.focused_passes = "done";
+  } else if (totalPasses > 0) {
+    states.focused_passes = donePasses >= totalPasses && totalPasses > 0
+      ? "done"
+      : "active";
+  }
+
+  // post_focused_fetch
+  if (postFetchDone || synthStarted || synthDone) states.post_focused_fetch = "done";
+  else if (postFetchStarted) states.post_focused_fetch = "active";
+
+  // synthesis
+  if (synthDone || claudeCompleted) states.synthesis = "done";
+  else if (synthStarted) states.synthesis = "active";
+
+  return states;
+}
 
 function stageFromEvents(events: StatusEvent[]): { label: string; detail?: string } {
   let total = 0;
@@ -539,6 +780,76 @@ function stageFromEvents(events: StatusEvent[]): { label: string; detail?: strin
     return { label: `Preparing to extract ${total} documents` };
   }
   return { label: "Starting analysis..." };
+}
+
+function StepIcon({ state }: { state: StepState }) {
+  if (state === "done") {
+    return (
+      <span
+        aria-label="completed step"
+        className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500 text-white shrink-0"
+      >
+        <svg
+          className="w-3 h-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+      </span>
+    );
+  }
+  if (state === "active") {
+    return (
+      <span
+        aria-label="step in progress"
+        className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-50 border border-indigo-300 shrink-0"
+      >
+        <svg
+          className="w-3 h-3 text-indigo-700 animate-spin"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="3"
+            opacity="0.25"
+          />
+          <path
+            d="M22 12a10 10 0 00-10-10"
+            stroke="currentColor"
+            strokeWidth="3"
+          />
+        </svg>
+      </span>
+    );
+  }
+  if (state === "skipped") {
+    return (
+      <span
+        aria-label="step skipped"
+        className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 text-slate-300 shrink-0 text-xs"
+      >
+        &ndash;
+      </span>
+    );
+  }
+  // pending
+  return (
+    <span
+      aria-label="step pending"
+      className="inline-block w-5 h-5 rounded-full border-2 border-slate-300 shrink-0"
+    />
+  );
 }
 
 function formatElapsed(seconds: number): string {
