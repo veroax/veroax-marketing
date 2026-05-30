@@ -2,20 +2,24 @@
 
 import { useEffect, useState } from "react";
 
-// Triggered by "Draft email to client" on the report page.
+// Triggered by "Draft email summary" on the report page.
+//
+// Repositioned product: the agent's analysis is the agent's PREP TOOL.
+// This email is a BRIEF SUMMARY inviting the client to a conversation,
+// not a delivery vehicle for the full analysis. No PDF is attached;
+// the full analysis stays with the agent.
 //
 // Flow:
 //   1. On open, POST /api/reports/[id]/email/draft → seed
-//      subject + body_plain + body_html + recipient_suggestion.
+//      subject + body_plain + body_html (a short greeting + signal +
+//      CTA to talk).
 //   2. Agent fills in the recipient, optionally edits subject/body.
 //   3. Two send options:
 //      - "Open in my email app", constructs a mailto: URL with the
-//        plain body, opens it, and tells the agent to attach the PDF
-//        manually (we expose a separate download link in the modal
-//        for that). Also logs the draft to email_drafts.
+//        plain body and opens it.
 //      - "Send via Veroax", POSTs to /api/reports/[id]/email/send
-//        with via='resend', which renders the PDF, attaches it, and
-//        delivers through Resend.
+//        with via='resend', which sends through Resend with Reply-To
+//        set to the agent's address.
 //
 // Recipient is required; subject is required; body must be non-empty.
 
@@ -110,7 +114,7 @@ export function EmailDraftModal({ reportId, isOpen, onClose }: Props) {
       setSuccess(
         data.warning
           ? `Sent. (Note: ${data.warning})`
-          : "Sent via Veroax, the PDF is attached.",
+          : "Sent. Your client will reply when they're ready to talk.",
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Send failed.");
@@ -143,20 +147,15 @@ export function EmailDraftModal({ reportId, isOpen, onClose }: Props) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
 
-      // Append a one-line attachment reminder to the body, the
-      // mailto: protocol doesn't carry attachments, so we tell the
-      // agent to grab the PDF from the link below.
-      const reminder =
-        "\n\n(The PDF is downloadable from your Veroax report page, attach it before sending.)";
-      const finalBody = bodyPlain + reminder;
+      // No attachment reminder: the email is intentionally just a
+      // brief summary inviting the conversation; the full analysis
+      // stays with the agent.
       const url =
         `mailto:${encodeURIComponent(recipient.trim())}` +
         `?subject=${encodeURIComponent(subject.trim())}` +
-        `&body=${encodeURIComponent(finalBody)}`;
+        `&body=${encodeURIComponent(bodyPlain)}`;
       window.location.href = url;
-      setSuccess(
-        "Opening your mail app… don't forget to attach the PDF (download link below).",
-      );
+      setSuccess("Opening your mail app…");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not open mail app.");
     } finally {
@@ -176,7 +175,7 @@ export function EmailDraftModal({ reportId, isOpen, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-2">
-          <h2 className="text-lg font-bold text-slate-900">Email this report to your client</h2>
+          <h2 className="text-lg font-bold text-slate-900">Draft an email summary</h2>
           <button
             type="button"
             onClick={onClose}
@@ -187,7 +186,9 @@ export function EmailDraftModal({ reportId, isOpen, onClose }: Props) {
           </button>
         </div>
         <p className="text-sm text-slate-600 mb-4">
-          We&apos;ve pre-filled a brief summary. Edit anything before sending.
+          We&apos;ve pre-filled a brief summary with a CTA inviting the
+          conversation. No findings detail or attachments, the analysis
+          stays with you. Edit anything before sending.
         </p>
 
         {loading ? (
@@ -227,14 +228,6 @@ export function EmailDraftModal({ reportId, isOpen, onClose }: Props) {
               />
             </Field>
 
-            <a
-              href={`/api/reports/${reportId}/pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block text-xs text-slate-600 hover:text-indigo-700 underline underline-offset-2"
-            >
-              ↓ Download the PDF so you can attach it manually (for mailto path)
-            </a>
           </div>
         )}
 

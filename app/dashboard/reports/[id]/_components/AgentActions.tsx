@@ -9,19 +9,26 @@ import { ArchiveButton } from "./ArchiveButton";
 // on the report page. Houses the modal state for "Add documents" and
 // the email-draft modal.
 //
-// As of the "PDF is no longer the headline" reframe (commits 09ead63 +
-// follow-ups), the action priority order is:
-//   1. View report (PRIMARY amber)   -> opens the live share-link
-//      URL in a new tab so the agent sees what the buyer would see.
-//      Lazy-generates the share code on first click.
-//   2. Copy share link (secondary)   -> same URL, copied to clipboard
-//      for pasting into a CRM or another email channel.
-//   3. Draft email to client         -> composes the buyer-facing
-//      email (still attaches the PDF, still includes the share link).
-//   4. Add documents to this report  -> re-analysis flow.
-//   5. Download PDF (secondary, demoted from primary) -> the static
-//      download for offline / printing / archive use.
-//   6. Archive (existing).
+// Repositioned product (commits d9e8a34 / b2534f3 onward): the analysis
+// is the AGENT'S prep tool, not something the agent forwards to the
+// buyer. So the action priority is now:
+//   1. Preview the analysis (PRIMARY amber) -> opens the same layout
+//      the agent uses to read their work, in a clean view that can be
+//      pulled up on a phone in front of the property. Routes through
+//      /r/{code} which is kept available as a quiet private link.
+//   2. Draft email (secondary) -> composes a brief summary email
+//      (overall rating + top concerns at a high level + CTA to talk)
+//      that the agent can edit and send to invite the conversation
+//      with their client. The full analysis stays in the agent's
+//      control; the email is the invitation, not the deliverable.
+//   3. Add documents (re-analysis flow).
+//   4. Download PDF -> offline reference, printing, archive.
+//   5. Archive (existing).
+//
+// REMOVED in the repositioning:
+//   - "Copy share link" button (was advertising the /r/{code} URL
+//     as a shareable buyer asset; route still works but is no longer
+//     surfaced as a sharing affordance).
 
 type Props = {
   reportId: string;
@@ -41,22 +48,20 @@ export function AgentActions({
 }: Props) {
   const [showAddDocs, setShowAddDocs] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
-  // Shared share-link state used by BOTH the primary "View report"
-  // button (opens the URL in a new tab) and the secondary "Copy
-  // share link" button (writes the URL to the clipboard). Both
-  // hit the same /api/reports/[id]/share-link endpoint; we cache
-  // the result on the first success so a follow-up click does not
-  // round-trip again.
+  // Preview-link state for the "Preview the analysis" button. Opens
+  // the /r/{code} URL in a new tab so the agent sees their work in
+  // the clean reader layout. The /r/{code} route is kept available
+  // as a quiet private link; we just stopped marketing it as a
+  // shareable buyer asset.
   const [shareState, setShareState] = useState<
     | { phase: "idle" }
-    | { phase: "loading"; intent: "view" | "copy" }
+    | { phase: "loading" }
     | { phase: "ready"; url: string }
-    | { phase: "copied"; url: string }
     | { phase: "error"; message: string }
   >({ phase: "idle" });
 
   async function ensureShareUrl(): Promise<string> {
-    if (shareState.phase === "ready" || shareState.phase === "copied") {
+    if (shareState.phase === "ready") {
       return shareState.url;
     }
     const res = await fetch(`/api/reports/${reportId}/share-link`, {
@@ -69,8 +74,8 @@ export function AgentActions({
     return String(data.url);
   }
 
-  async function handleView() {
-    setShareState({ phase: "loading", intent: "view" });
+  async function handlePreview() {
+    setShareState({ phase: "loading" });
     try {
       const url = await ensureShareUrl();
       setShareState({ phase: "ready", url });
@@ -78,28 +83,7 @@ export function AgentActions({
     } catch (err) {
       setShareState({
         phase: "error",
-        message: err instanceof Error ? err.message : "Share link failed.",
-      });
-    }
-  }
-
-  async function handleCopy() {
-    setShareState({ phase: "loading", intent: "copy" });
-    try {
-      const url = await ensureShareUrl();
-      try {
-        await navigator.clipboard.writeText(url);
-      } catch {
-        // clipboard write can fail in non-secure contexts; still
-        // surface the ready state so the agent can right-click +
-        // copy from the URL itself if needed.
-      }
-      setShareState({ phase: "copied", url });
-      setTimeout(() => setShareState({ phase: "ready", url }), 6000);
-    } catch (err) {
-      setShareState({
-        phase: "error",
-        message: err instanceof Error ? err.message : "Share link failed.",
+        message: err instanceof Error ? err.message : "Preview link failed.",
       });
     }
   }
@@ -107,54 +91,31 @@ export function AgentActions({
   return (
     <>
       <div className="flex flex-wrap gap-3">
-        {/* Primary CTA: View report. Opens the share-link URL in
-            a new tab so the agent sees exactly what the buyer
-            would see. This is now the default action, replacing
-            the old PDF-download-amber-primary that set the wrong
-            expectation about which format is the deliverable. */}
+        {/* Primary CTA: Preview the analysis. Opens /r/{code} in a
+            new tab so the agent can read the analysis in a clean
+            reader layout (mobile-friendly, no dashboard chrome).
+            Despite the underlying URL pattern, this is no longer
+            marketed as a share link. */}
         <button
           type="button"
-          onClick={handleView}
-          disabled={
-            shareState.phase === "loading" &&
-            shareState.intent === "view"
-          }
+          onClick={handlePreview}
+          disabled={shareState.phase === "loading"}
           className="inline-flex items-center gap-2 bg-amber-400 text-indigo-950 font-semibold px-5 py-2.5 rounded-lg hover:bg-amber-300 transition-colors shadow-sm text-sm disabled:opacity-60"
-          title="Open the live web report in a new tab, the same view your buyer sees from the share link"
+          title="Open the analysis in a clean reader layout, useful for pulling up on your phone in front of the property"
         >
           <span className="text-base leading-none">↗</span>
-          {shareState.phase === "loading" && shareState.intent === "view"
+          {shareState.phase === "loading"
             ? "Opening..."
-            : "View report"}
-        </button>
-        <button
-          type="button"
-          onClick={handleCopy}
-          disabled={
-            shareState.phase === "loading" &&
-            shareState.intent === "copy"
-          }
-          className={
-            shareState.phase === "copied"
-              ? "inline-flex items-center gap-2 bg-emerald-600 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow-sm"
-              : "inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 font-semibold px-5 py-2.5 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-60"
-          }
-          title="Copy the public link to your clipboard so you can paste it into a CRM or another email channel"
-        >
-          <span className="text-base leading-none">⧉</span>
-          {shareState.phase === "loading" && shareState.intent === "copy"
-            ? "Generating link..."
-            : shareState.phase === "copied"
-              ? "Link copied!"
-              : "Copy share link"}
+            : "Preview the analysis"}
         </button>
         <button
           type="button"
           onClick={() => setShowEmail(true)}
           className="inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 font-semibold px-5 py-2.5 rounded-lg text-sm hover:bg-slate-50"
+          title="Draft a brief summary email for your client that invites them into the conversation. You stay in control of the details."
         >
           <span className="text-base leading-none">✉</span>
-          Draft email to client
+          Draft email summary
         </button>
         <button
           type="button"
@@ -162,17 +123,16 @@ export function AgentActions({
           className="inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 font-semibold px-5 py-2.5 rounded-lg text-sm hover:bg-slate-50"
         >
           <span className="text-base leading-none">+</span>
-          Add documents to this report
+          Add documents
         </button>
-        {/* PDF download demoted from primary amber to secondary
-            white-outline. Still available for offline / printing /
-            archive use; no longer the headline action. */}
+        {/* PDF download stays as a secondary action for offline
+            reference / printing / agent records. */}
         <a
           href={`/api/reports/${reportId}/pdf`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 font-semibold px-5 py-2.5 rounded-lg text-sm hover:bg-slate-50"
-          title="Download the report as a branded PDF for email attachments, printing, or offline review"
+          title="Download the analysis as a branded PDF for offline review, printing, or your records"
         >
           <span className="text-base leading-none">↓</span>
           Download PDF
@@ -180,19 +140,6 @@ export function AgentActions({
         <ArchiveButton reportId={reportId} archived={archived} />
       </div>
 
-      {shareState.phase === "copied" && (
-        <p className="text-xs text-slate-600 mt-2 break-all">
-          Public link:{" "}
-          <a
-            href={shareState.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-indigo-700 underline underline-offset-2"
-          >
-            {shareState.url}
-          </a>
-        </p>
-      )}
       {shareState.phase === "error" && (
         <p className="text-xs text-red-700 mt-2">{shareState.message}</p>
       )}

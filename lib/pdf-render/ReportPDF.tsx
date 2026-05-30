@@ -1562,22 +1562,13 @@ function CoverPage({
           contractor bids before relying on them.
         </Text>
         <Text style={styles.disclaimer}>
-          This report is confidential and prepared solely for the named buyer
-          client. It does not constitute a warranty, guarantee, or professional
-          opinion regarding the condition, value, or suitability of the
-          property.
+          This analysis is a preliminary analytical aid generated for the
+          named agent. It does not constitute a warranty, guarantee, or
+          professional opinion regarding the condition, value, or
+          suitability of the property.
         </Text>
 
         <View style={styles.coverDivider} />
-
-        {clientName ? (
-          <View>
-            <Text style={[styles.preparedForLabel, { color: accentColor }]}>
-              PREPARED FOR
-            </Text>
-            <Text style={styles.preparedForName}>{clientName}</Text>
-          </View>
-        ) : null}
 
         <Text style={styles.preparedByLabel}>Prepared By</Text>
         {/* For subscription reports we lay the headshot to the left

@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
-import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
-import { composeExecutiveNarrative } from "@/lib/reports/narrative";
-import { deriveCostSummary } from "@/lib/reports/cost-summary";
 import type { ReportData } from "@/lib/anthropic/schema";
 import { requireUser } from "@/lib/auth/require";
 
 // POST /api/reports/[id]/email/draft
 //
-// Returns a pre-filled subject + body for a client-facing email
-// summarizing the report. The body is BRIEF, under 200 words, with
-// just the top 3 strengths and top 3 concerns. The agent edits in the
-// modal before sending (item 8).
+// Repositioned product behavior: the agent's analysis is the agent's
+// PREP TOOL, not something to forward to the buyer. This endpoint
+// produces a BRIEF email summary the agent uses to invite the
+// conversation with their client, NOT a delivery vehicle for the
+// analysis itself. The full report stays with the agent; the email
+// is the invitation.
 //
 // Returns:
 //   {
@@ -20,9 +19,21 @@ import { requireUser } from "@/lib/auth/require";
 //     body_html: string,
 //   }
 //
-// The PDF is NOT inlined into body_html, the modal advertises it as
-// an attachment, and either the mailto: handler (item 8) or the Resend
-// send call attaches the actual PDF bytes.
+// What's in the email:
+//   - A friendly greeting (uses the client's first name when available)
+//   - One sentence acknowledging the analysis is complete
+//   - One sentence with the overall rating + finding-count signal
+//   - A clear CTA inviting the client to reply / schedule a call
+//   - Optional scheduling URL line from the agent's profile
+//   - Signature from profile (full name, brokerage, DRE, phone, email)
+//
+// What's intentionally NOT in the email:
+//   - Specific findings (titles, descriptions, source quotes)
+//   - Cost exposure numbers
+//   - Talking points narrative
+//   - "PDF attached" language; the send route no longer attaches
+//     the PDF either
+//   - "Prepared for {client}" label
 
 export async function POST(
   _request: Request,
@@ -55,23 +66,14 @@ export async function POST(
     .eq("id", user.id)
     .maybeSingle();
 
-  // Prefer the agent's display email on the seeded email signature so
-  // what the client sees in the email matches what's printed on the
-  // PDF cover.
   const signatureEmail =
     (profile as { display_email?: string | null } | null)?.display_email
       ?.trim() || user.email || null;
 
-  // When the agent has saved a custom email signature on /settings,
-  // it REPLACES the auto-generated formatSignoff output verbatim.
-  // PDF cover always uses the structured Name/Brokerage/DRE fields
-  //, only the email signature is overridable.
   const customSignature = (
     profile as { email_signature?: string | null } | null
   )?.email_signature?.trim();
 
-  // Scheduling URL drives an explicit "Schedule a call: {url}" line
-  // right before the signature when set.
   const schedulingUrl = (
     profile as { scheduling_url?: string | null } | null
   )?.scheduling_url?.trim();
@@ -87,81 +89,53 @@ export async function POST(
       ? ((report as { client_name?: string }).client_name as string).trim()
       : null;
 
-  // Email body just needs the text; the triggered_rule badge is
-  // dashboard-only. Map to strings here so the body templates don't
-  // change shape.
-  const picked = composeAgentStrengthsAndConcerns(reportData);
-  const strengths = picked.strengths.map((s) => s.text);
-  const concerns = picked.concerns.map((c) => c.text);
-
-  // Same narrative the on-page "Talking points for your client" panel
-  // and the PDF cover's Executive Summary render. Single source of
-  // truth, what the agent reads on the dashboard, what the buyer
-  // reads in the email, and what's printed on the PDF cover are
-  // VERBATIM identical, so an agent forwarding a paragraph from the
-  // email matches the PDF exactly.
-  const talkingPoints = composeExecutiveNarrative(reportData);
-
-  // Overall rating + cost-exposure band so the email's hero card can
-  // mirror the dashboard's hero metadata strip. Optional, when the
-  // analysis didn't populate them, those bits just don't render.
+  // Aggregate counts only, never the finding list itself. The email
+  // tells the client "there's stuff to talk about" without spoiling
+  // the conversation the agent wants to have in person.
+  const criticalCount = reportData.critical_findings?.length ?? 0;
+  const moderateCount = reportData.moderate_findings?.length ?? 0;
   const overallRating = reportData.overall_rating?.label ?? null;
-  const grandTotal = deriveCostSummary(reportData).grand_total ?? null;
-  const costRange =
-    grandTotal && grandTotal.high > 0
-      ? `${formatUSD(grandTotal.low)}–${formatUSD(grandTotal.high)}`
-      : null;
 
-  // -------- Subject ----------------------------------------------
-  const subject = `Disclosure analysis for ${address}`;
+  // -------- Subject -----------------------------------------------
+  const subject = `Disclosure review for ${address}`;
 
-  // -------- Plain-text body --------------------------------------
+  // -------- Greeting ---------------------------------------------
   const greeting = clientName ? `Hi ${firstName(clientName)},` : "Hi,";
-  // Custom signature wins; otherwise auto-format from profile fields.
-  const signoff = customSignature ?? formatSignoff(profile, signatureEmail);
 
-  // Scheduling line is rendered ABOVE the signature when the agent
-  // has saved a scheduling URL. Filtered out of the join when absent
-  // so we don't leave a stray blank line.
+  // -------- Signal sentence ---------------------------------------
+  // Builds a single non-spoiler line that signals how much there is
+  // to talk about. Examples:
+  //   "There are 2 critical items and 4 moderate items I'd like to
+  //    walk you through."
+  //   "The package came back clean overall, with a few moderate
+  //    items worth discussing."
+  const findingsSignal = composeFindingsSignal({
+    criticalCount,
+    moderateCount,
+    overallRating,
+  });
+
+  // -------- Signoff ----------------------------------------------
+  const signoff = customSignature ?? formatSignoff(profile, signatureEmail);
   const schedulingLine = schedulingUrl
     ? `Schedule a call: ${schedulingUrl}`
     : null;
 
-  // Plain-text version of the rich layout. Talking points lead so even
-  // recipients on a text-only mail client (or screen readers) get the
-  // most important context first; the strengths / concerns lists
-  // follow, then the close.
+  // -------- Plain-text body --------------------------------------
   const bodyPlain = [
     greeting,
     "",
-    `I just finished reviewing the disclosure package on ${address}. Here's what stood out, talking points first, then the highlights.`,
+    `I just finished reviewing the disclosure package on ${address}.`,
     "",
-    ...(clientName || overallRating || costRange
-      ? [
-          ...(clientName ? [`Prepared for: ${clientName}`] : []),
-          `Property: ${address}`,
-          ...(overallRating ? [`Overall rating: ${overallRating}`] : []),
-          ...(costRange ? [`Estimated cost exposure: ${costRange}`] : []),
-          "",
-        ]
-      : []),
-    "TALKING POINTS",
-    ...talkingPoints.flatMap((p) => [p, ""]),
-    "TOP STRENGTHS",
-    ...strengths.map((s, i) => `  ${i + 1}. ${s}`),
+    findingsSignal,
     "",
-    "TOP CONCERNS",
-    ...concerns.map((c, i) => `  ${i + 1}. ${c}`),
-    "",
-    "I've attached the full report, call me when you've had a chance to read through it and we can talk next steps.",
+    "Reply to this email or give me a call when you have a few minutes and we'll walk through the specifics together. There are some details that are better discussed live than read in an email.",
     "",
     ...(schedulingLine ? [schedulingLine, ""] : []),
     signoff,
   ].join("\n");
 
   // -------- HTML body --------------------------------------------
-  // Custom signature: preserve line breaks by converting \n to <br>
-  // and escape everything else to keep it inert as HTML.
   const signoffHtml = customSignature
     ? escapeHtml(customSignature).replace(/\n/g, "<br>")
     : formatSignoffHtml(profile, signatureEmail);
@@ -169,20 +143,13 @@ export async function POST(
   const bodyHtml = renderHtmlBody({
     greeting,
     address,
-    clientName,
-    overallRating,
-    costRange,
-    talkingPoints,
-    strengths,
-    concerns,
+    findingsSignal,
     schedulingUrl: schedulingUrl ?? null,
     signoffHtml,
   });
 
   return NextResponse.json({
-    recipient_suggestion: clientName
-      ? `${clientName} <>`
-      : null,
+    recipient_suggestion: clientName ? `${clientName} <>` : null,
     subject,
     body_plain: bodyPlain,
     body_html: bodyHtml,
@@ -195,6 +162,40 @@ export async function POST(
 
 function firstName(fullName: string): string {
   return fullName.split(/[\s&,]/).filter(Boolean)[0] ?? fullName;
+}
+
+/**
+ * Build one non-spoiler sentence that signals scope without revealing
+ * the actual findings. Tailored to the counts so a clean package
+ * reads differently from a heavy one.
+ */
+function composeFindingsSignal(args: {
+  criticalCount: number;
+  moderateCount: number;
+  overallRating: string | null;
+}): string {
+  const { criticalCount, moderateCount, overallRating } = args;
+  // Critical + moderate together: "X critical and Y moderate items"
+  if (criticalCount > 0 && moderateCount > 0) {
+    const crit = criticalCount === 1 ? "1 critical item" : `${criticalCount} critical items`;
+    const mod = moderateCount === 1 ? "1 moderate item" : `${moderateCount} moderate items`;
+    return `There are ${crit} and ${mod} I'd like to walk you through, plus the routine items we'll cover as we go.`;
+  }
+  // Critical only
+  if (criticalCount > 0) {
+    const crit = criticalCount === 1 ? "one critical item" : `${criticalCount} critical items`;
+    return `There ${criticalCount === 1 ? "is" : "are"} ${crit} that I want to flag for you before we move forward.`;
+  }
+  // Moderate only
+  if (moderateCount > 0) {
+    const mod = moderateCount === 1 ? "one moderate item" : `${moderateCount} moderate items`;
+    return `The package came back clean on the critical items. There ${moderateCount === 1 ? "is" : "are"} ${mod} worth discussing, plus the standard things we always review on a California disclosure.`;
+  }
+  // Clean package
+  if (overallRating && /excellent|good|acceptable/i.test(overallRating)) {
+    return "The package came back clean overall. There are still a few details and standard items I'd like to walk through with you before we make the offer.";
+  }
+  return "The analysis is ready and there are a few items I'd like to walk through with you before we make the offer.";
 }
 
 type ProfileBits = {
@@ -231,136 +232,30 @@ function formatSignoffHtml(profile: ProfileBits, email: string | null): string {
 function renderHtmlBody(params: {
   greeting: string;
   address: string;
-  clientName: string | null;
-  overallRating: string | null;
-  costRange: string | null;
-  talkingPoints: string[];
-  strengths: string[];
-  concerns: string[];
+  findingsSignal: string;
   schedulingUrl: string | null;
   signoffHtml: string;
 }): string {
-  const {
-    greeting,
-    address,
-    clientName,
-    overallRating,
-    costRange,
-    talkingPoints,
-    strengths,
-    concerns,
-    schedulingUrl,
-    signoffHtml,
-  } = params;
-
-  // Color palette mirrors the on-page AgentSummary panels (Tailwind
-  // indigo-950 / amber-300 / emerald / red / slate). Inline styles only
-  //, most email clients strip <style> blocks or sandbox them. Border
-  // radius + background colors render well in Gmail, Apple Mail, and
-  // Outlook 365 / web; OWA on older desktop Outlook is less reliable
-  // with rounded corners but degrades to a clean rectangle which is
-  // still readable.
-  const li = (items: string[], color: string) =>
-    items
-      .map(
-        (s) =>
-          `<li style="margin:0 0 6px;color:${color};line-height:1.5;">${escapeHtml(s)}</li>`,
-      )
-      .join("");
-
-  // Hero banner, mirrors the dashboard's indigo header card.
-  // "Prepared For" label hidden when clientName is null, same as the
-  // dashboard's behavior.
-  const preparedFor = clientName
-    ? `<div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#fcd34d;text-transform:uppercase;margin:0 0 4px;">Prepared For · ${escapeHtml(clientName)}</div>`
-    : "";
-
-  // Metadata strip under the hero, rating + cost when available, in
-  // a compact horizontal row. Both fields graceful-degrade to nothing.
-  const metaParts: string[] = [];
-  if (overallRating) {
-    metaParts.push(
-      `<span style="color:#475569;"><span style="font-weight:600;color:#334155;">Overall rating</span> ${escapeHtml(overallRating)}</span>`,
-    );
-  }
-  if (costRange) {
-    metaParts.push(
-      `<span style="color:#475569;"><span style="font-weight:600;color:#334155;">Cost exposure</span> ${escapeHtml(costRange)}</span>`,
-    );
-  }
-  const metaStrip =
-    metaParts.length > 0
-      ? `<div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px;padding:10px 20px;font-size:12px;margin:-12px 0 18px;">${metaParts.join(' &nbsp;·&nbsp; ')}</div>`
-      : "";
-
-  const heroBorderRadius =
-    metaParts.length > 0 ? "12px 12px 0 0" : "12px";
-  const heroMarginBottom = metaParts.length > 0 ? "0" : "18px";
-
-  // Talking points, narrative paragraphs in a neutral card.
-  const talkingPointsHtml = talkingPoints
-    .map(
-      (p) =>
-        `<p style="margin:0 0 10px;color:#334155;line-height:1.6;">${escapeHtml(p)}</p>`,
-    )
-    .join("");
+  const { greeting, address, findingsSignal, schedulingUrl, signoffHtml } =
+    params;
 
   const schedulingHtml = schedulingUrl
-    ? `<p style="margin:22px 0 4px;color:#334155;">Schedule a call: <a href="${escapeAttr(schedulingUrl)}" style="color:#4338ca;">${escapeHtml(schedulingUrl)}</a></p>`
+    ? `<p style="margin:18px 0 0;color:#334155;">Schedule a call: <a href="${escapeAttr(schedulingUrl)}" style="color:#4338ca;">${escapeHtml(schedulingUrl)}</a></p>`
     : "";
 
   return `
-<div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;line-height:1.55;max-width:600px;">
+<div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;line-height:1.6;max-width:560px;font-size:15px;">
   <p style="margin:0 0 14px;">${escapeHtml(greeting)}</p>
-  <p style="margin:0 0 18px;">I just finished reviewing the disclosure package on <strong>${escapeHtml(address)}</strong>. Below are the talking points I'd lead with, plus the top strengths and concerns. The full report is attached.</p>
-
-  <!-- Hero banner -->
-  <div style="background-color:#1e1b4b;color:#ffffff;border-radius:${heroBorderRadius};padding:18px 22px;margin:0 0 ${heroMarginBottom};">
-    ${preparedFor}
-    <div style="font-size:18px;font-weight:700;line-height:1.3;">${escapeHtml(address)}</div>
-  </div>
-  ${metaStrip}
-
-  <!-- Talking points -->
-  <div style="background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin:0 0 14px;">
-    <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#334155;text-transform:uppercase;margin:0 0 12px;">Talking points</div>
-    ${talkingPointsHtml}
-  </div>
-
-  <!-- Top Strengths -->
-  <div style="background-color:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:16px 20px;margin:0 0 14px;">
-    <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#065f46;text-transform:uppercase;margin:0 0 10px;">Top Strengths</div>
-    <ol style="margin:0;padding:0 0 0 20px;">${li(strengths, "#022c22")}</ol>
-  </div>
-
-  <!-- Top Concerns -->
-  <div style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 20px;margin:0 0 18px;">
-    <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#991b1b;text-transform:uppercase;margin:0 0 10px;">Top Concerns</div>
-    <ol style="margin:0;padding:0 0 0 20px;">${li(concerns, "#450a0a")}</ol>
-  </div>
-
-  <p style="margin:0 0 0;color:#334155;">I&rsquo;ve attached the full report &mdash; call me when you&rsquo;ve had a chance to read through it and we can talk next steps.</p>
+  <p style="margin:0 0 14px;">I just finished reviewing the disclosure package on <strong>${escapeHtml(address)}</strong>.</p>
+  <p style="margin:0 0 14px;">${escapeHtml(findingsSignal)}</p>
+  <p style="margin:0 0 14px;">Reply to this email or give me a call when you have a few minutes and we'll walk through the specifics together. There are some details that are better discussed live than read in an email.</p>
   ${schedulingHtml}
   <p style="margin:24px 0 0;color:#0f172a;">${signoffHtml}</p>
 </div>`.trim();
 }
 
-// Stricter escape for use inside attribute values (href="..."). Keeps
-// the same shape as escapeHtml but always emits the entity form,
-// even where escapeHtml might leave a character unmolested.
 function escapeAttr(s: string): string {
   return escapeHtml(s);
-}
-
-// USD currency formatter for the email's cost-exposure metadata strip.
-// Whole-dollar precision is more readable in a casual client-facing
-// email than the cents-precise version the dashboard uses.
-function formatUSD(n: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
 }
 
 function escapeHtml(s: string): string {

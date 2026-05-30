@@ -162,13 +162,11 @@ export function PublicReportView({
       >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4">
           <p className="text-[10px] font-bold tracking-widest uppercase text-amber-300">
-            Your Disclosure Review
+            Disclosure Analysis
           </p>
           <p className="text-sm text-indigo-100 mt-1 break-words">
-            {clientName
-              ? `Prepared for ${clientName}`
-              : `Prepared for the buyer of ${propertyAddress}`}
-            {profile?.full_name ? ` by ${profile.full_name}` : ""}
+            {propertyAddress}
+            {profile?.full_name ? ` · ${profile.full_name}` : ""}
             {profile?.brokerage ? `, ${profile.brokerage}` : ""}
           </p>
         </div>
@@ -207,12 +205,6 @@ export function PublicReportView({
           <p className="text-[11px] font-mono text-slate-500 mt-2">
             Report ID {reportId.slice(0, 8)} &middot; Run #{analysisRunCount}
           </p>
-          {clientName ? (
-            <p className="text-sm text-slate-500 mt-3">
-              Prepared for{" "}
-              <span className="font-semibold text-slate-700">{clientName}</span>
-            </p>
-          ) : null}
           {reportName ? (
             <p className="text-xs text-slate-400 italic mt-0.5">
               Internal reference: {reportName}
