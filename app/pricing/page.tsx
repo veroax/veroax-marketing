@@ -44,8 +44,8 @@ export default function PricingPage() {
           </h1>
           <p className="text-base sm:text-lg text-slate-600 mt-4 leading-relaxed">
             Veroax analyses include unlimited document re-runs within
-            30 days, the public buyer-facing web report, and a
-            branded PDF download. Cancel or change tiers anytime.
+            30 days, the live dashboard view, and a downloadable PDF
+            for offline reference. Cancel or change tiers anytime.
           </p>
         </div>
 
@@ -148,11 +148,10 @@ export default function PricingPage() {
               Just trying it out?
             </h3>
             <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-              New accounts get one free analysis on us. The PDF is
-              watermarked so you can&apos;t hand it to a client until
-              you subscribe, but the dashboard view + the on-page
-              talking points are full quality so you can see exactly
-              what you&apos;d be buying.
+              New accounts get one free analysis on us, full quality,
+              no watermark. Run a real deal through Veroax before you
+              commit to a plan. After that, paid tiers gate by how
+              many analyses you run per month.
             </p>
             <Link
               href="/signup"
@@ -201,15 +200,15 @@ export default function PricingPage() {
             <li className="flex items-start gap-2">
               <span className="text-emerald-600 mt-0.5">✓</span>
               <span>
-                Public, mobile-friendly web report you can text to
-                your buyer at <span className="font-mono">/r/&#123;code&#125;</span>
+                Live dashboard view, mobile-friendly, available on
+                every device you use during the deal
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-600 mt-0.5">✓</span>
               <span>
-                Branded PDF with your photo, brokerage logo, DRE #,
-                and signature
+                Branded PDF with your photo, brokerage, and DRE for
+                offline review, printing, or your records
               </span>
             </li>
             <li className="flex items-start gap-2">

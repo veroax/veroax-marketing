@@ -44,7 +44,7 @@ const features = [
       </svg>
     ),
     title: "Confidence Tags",
-    desc: "Every finding is labeled High, Medium, or Low confidence so clients know what is a direct read versus an inference.",
+    desc: "Every finding is labeled High, Medium, or Low confidence so you know what is a direct read versus an inference before you advise.",
   },
   {
     icon: (
@@ -52,8 +52,8 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
       </svg>
     ),
-    title: "Agent QA Before Delivery",
-    desc: "Every report goes through a structured spot-check with the agent before anything goes to the client. No surprises.",
+    title: "Structured QA Pass",
+    desc: "Every analysis runs through a structured spot-check before it lands on your dashboard. The verifier pass catches findings the first pass missed and demotes ones it couldn't quote-verify against the source.",
   },
   {
     // Link + paper-stack icon, signals "live web + PDF" together.
@@ -62,8 +62,8 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
       </svg>
     ),
-    title: "Web Report + Shareable Link",
-    desc: "Review the analysis on your dashboard, send your buyer a private share link, or download a branded PDF for email or print. Same 14-section report, three channels.",
+    title: "Dashboard View + Offline PDF",
+    desc: "Read the analysis on your dashboard during the deal and download a branded PDF for offline reference, print, or your own records. Same 14-section content, both surfaces.",
   },
   {
     icon: (
@@ -72,7 +72,7 @@ const features = [
       </svg>
     ),
     title: "Privacy by Design",
-    desc: "Seller PII (names, mortgage balances, lender details) is purged from temp storage after every report is delivered.",
+    desc: "Seller PII (names, mortgage balances, lender details) is purged from temp storage after every analysis completes. Reports are scoped to your account via row-level security.",
   },
 ];
 
@@ -89,8 +89,8 @@ const steps = [
   },
   {
     number: "03",
-    title: "You review, then your client gets the link, the PDF, or both",
-    desc: "Before anything goes to the client, you see a structured summary of every critical and high finding on your dashboard. Approve it, make corrections if needed, and choose how to deliver: send your buyer a private share link to view the live report in their browser, attach a branded PDF, or use our built-in email draft to send both at once. Same report, three channels.",
+    title: "You review the analysis and walk into the conversation prepared",
+    desc: "Open the dashboard, read the critical and high findings, scan the HOA review, the environmental section, the cost summary, the negotiation guidance, the title vesting notes. Use it as the spine of the call with your buyer. Download the PDF for offline reference, or draft a short email summary to invite your client into a deeper conversation. The analysis is your prep tool; you stay in the driver's seat with your client.",
   },
 ];
 
@@ -165,11 +165,11 @@ export default function Home() {
             Veroax. AI-assisted disclosure analysis for residential real estate.
           </h1>
           <p className="text-lg sm:text-xl text-indigo-200 leading-relaxed max-w-2xl mx-auto">
-            Upload a disclosure package and get back a polished, 14-section,
-            client-ready buyer report. It includes severity-rated findings,
-            regional cost estimates, negotiation guidance, and an overall
-            property rating. Everything is grounded in what the documents
-            actually say.
+            Upload a disclosure package and get back a polished, 14-section
+            analysis. Severity-rated findings, regional cost estimates,
+            negotiation guidance, and an overall property rating. Built so
+            you can walk into the next conversation with your buyer knowing
+            exactly what the documents say.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
             <a
@@ -188,14 +188,13 @@ export default function Home() {
           <p className="text-xs text-indigo-200 pt-1">
             One free report per DRE license, no credit card required
           </p>
-          {/* Format strip. Sets the agent's expectation up front
-              that the deliverable is a live web report with a
-              shareable link, and that the branded PDF is the
-              optional static channel rather than the default. */}
+          {/* Format strip. Communicates the two surfaces the agent
+              actually works with: the live dashboard view they use
+              during the deal, and a downloadable PDF for offline
+              review (printing, archive, in-meeting note-taking). */}
           <p className="text-[11px] text-indigo-300/90 tracking-wide pt-3">
-            Live web report for your review &nbsp;&middot;&nbsp;
-            Private share link for your buyer &nbsp;&middot;&nbsp;
-            Branded PDF when you need it
+            Live dashboard view for your review &nbsp;&middot;&nbsp;
+            Downloadable PDF for offline reference
           </p>
         </div>
       </section>
@@ -222,11 +221,11 @@ export default function Home() {
               Features
             </span>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
-              Everything a buyer needs to make a confident decision
+              Everything you need to walk into the deal prepared
             </h2>
             <p className="text-gray-500 max-w-xl mx-auto text-base leading-relaxed">
               Built on California residential disclosure best practices, with safeguards that keep the
-              report defensible and the analysis honest. Florida, Texas, and Washington state are coming soon.
+              analysis defensible and the findings honest. Florida, Texas, and Washington state are coming soon.
             </p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -255,10 +254,10 @@ export default function Home() {
               Sample Report
             </span>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
-              See what your clients receive
+              What an analysis looks like
             </h2>
             <p className="text-gray-500 max-w-xl mx-auto text-base leading-relaxed">
-              Every report follows the same 14-section structure. The example below is a fictional property used for illustration only. The format and finding types reflect what a real report contains, but the property, owners, and details do not exist.
+              Every analysis follows the same 14-section structure. The example below is a fictional property used for illustration only. The format and finding types reflect what a real analysis contains, but the property, owners, and details do not exist.
             </p>
           </div>
 
@@ -271,15 +270,14 @@ export default function Home() {
                 <div className="w-3 h-3 rounded-full bg-yellow-400" />
                 <div className="w-3 h-3 rounded-full bg-green-400" />
               </div>
-              {/* URL bar reflects the SHARE LINK shape that buyers
-                  actually receive today (veroax.com/r/<12-char code>).
-                  Previously this read 'Sample_Property_Disclosure_
-                  Analysis.pdf' which set the wrong expectation that
-                  the PDF was the default deliverable. The PDF stays
-                  available as a download; the share link is the
-                  primary channel. */}
+              {/* URL bar reflects the AGENT'S DASHBOARD URL shape.
+                  Previously this showed the public share-link path
+                  (veroax.com/r/<code>) back when the share link
+                  was the marketed deliverable. With the repositioning
+                  to "agents use the analysis to prepare the deal",
+                  the dashboard view is the canonical surface. */}
               <div className="flex-1 mx-2 bg-white rounded px-3 py-1 text-xs text-gray-400 font-mono truncate">
-                veroax.com/r/sample-report-abc123
+                veroax.com/dashboard/reports/sample
               </div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded shrink-0">
                 Fictional Example
@@ -451,16 +449,14 @@ export default function Home() {
 
             </div>
           </div>
-          {/* Channel caption below the sample card. Reinforces the
-              "web is the default, PDF is the download" framing in
-              the context of the artifact the visitor just scrolled
-              through. */}
+          {/* Caption below the sample card. Reinforces the dashboard
+              is the canonical surface; the PDF is for offline. */}
           <p className="text-center text-xs text-gray-500 mt-5 leading-relaxed max-w-2xl mx-auto">
-            What your buyer sees when you share the live link.{" "}
+            Your analysis at a glance on the dashboard.{" "}
             <span className="text-gray-700 font-semibold">
               Also downloadable as a branded PDF
             </span>{" "}
-            for email attachments, printing, or offline review.
+            for offline review, printing, or your own records.
           </p>
         </div>
       </section>
@@ -474,7 +470,7 @@ export default function Home() {
               How it works
             </span>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
-              From disclosure package to client report in minutes
+              From disclosure package to defensible analysis in minutes
             </h2>
           </div>
           <div className="space-y-10">

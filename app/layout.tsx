@@ -15,7 +15,7 @@ const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 
 const SITE_DESCRIPTION =
-  "Turn a California residential disclosure package into a polished, 14-section buyer report in minutes. Severity-rated findings, regional cost estimates, negotiation guidance, and an overall property rating, all grounded in what the disclosures actually say.";
+  "Turn a California residential disclosure package into a polished, 14-section analysis in minutes. Severity-rated findings, regional cost estimates, negotiation guidance, and an overall property rating, all grounded in what the disclosures actually say. Built for agents preparing the deal.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

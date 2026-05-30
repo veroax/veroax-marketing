@@ -100,9 +100,9 @@ export const PLAN_TIERS: PlanTier[] = [
     priceAnnualUsd: 480, // $40/mo on annual; saves $108 vs monthly
     features: [
       "1 disclosure analysis / month",
-      "$59 per additional report",
-      "Branded PDF + public web-share link",
-      "Email + dashboard summary",
+      "$59 per additional analysis",
+      "Live dashboard view + downloadable PDF for offline review",
+      "Email summary draft you can send to invite the conversation",
       "30-day free re-analysis window",
       "Click-to-source for every finding",
     ],
@@ -119,7 +119,7 @@ export const PLAN_TIERS: PlanTier[] = [
     highlight: true,
     features: [
       "8 disclosure analyses / month",
-      "$35 per additional report",
+      "$35 per additional analysis",
       "Solo seat (no team)",
       "All Solo features",
       "Custom brokerage colors + logo",
@@ -137,9 +137,9 @@ export const PLAN_TIERS: PlanTier[] = [
     priceAnnualUsd: 4490,
     features: [
       "30 disclosure analyses / month, pooled team-wide",
-      "$25 per additional report",
+      "$25 per additional analysis",
       "Up to 10 agent seats",
-      "Team dashboard with shared report visibility",
+      "Team dashboard with shared analysis visibility",
       "Team owner + admin roles, agent invites",
       "All Professional features",
     ],
@@ -157,10 +157,10 @@ export const PLAN_TIERS: PlanTier[] = [
     isCustom: true,
     features: [
       "Unlimited teams and direct agents",
-      "Per-brokerage allocation (custom seats + reports)",
+      "Per-brokerage allocation (custom seats + analyses)",
       "Brokerage logo + DRE on every PDF cover",
       "Site-admin onboarding, dedicated CSM",
-      "Custom contract; per-report overage negotiated",
+      "Custom contract; per-analysis overage negotiated",
       "Single point of billing for the whole office",
     ],
   },
