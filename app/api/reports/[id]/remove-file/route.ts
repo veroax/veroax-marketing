@@ -1,4 +1,4 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { performAnalysis } from "@/lib/server/performAnalysis";
 import { safeFileMetadata } from "@/lib/audit/safe";
@@ -234,60 +234,69 @@ export async function POST(
     },
   });
 
-  // ----- Kick off re-analysis in the background --------------------
+  // ----- Run re-analysis synchronously -----------------------------
   // No updateContext, this isn't an "added docs" scenario, it's a
   // re-analysis on the leaner package. The findings should simply
-  // reflect what's left.
-  after(async () => {
+  // reflect what's left. Converted from after() to synchronous
+  // await; see /api/reports/[id]/analyze for the rationale.
+  void originalAnalysisDate;
+  try {
+    await performAnalysis({
+      admin,
+      userId: user.id,
+      userEmail: user.email ?? null,
+      report: {
+        id: report.id,
+        property_address: report.property_address,
+        source_file_path: report.source_file_path ?? folder,
+        listing_url:
+          (report as { listing_url?: string | null }).listing_url ?? null,
+        listing_text:
+          (report as { listing_text?: string | null }).listing_text ?? null,
+      },
+      // We don't pass updateContext here, there are no new added
+      // files, just fewer existing ones. The analyzer reads
+      // whatever PDFs remain in the folder.
+      updateContext: null,
+      skipNotificationEmail: true,
+    });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Re-analysis failed.";
     try {
-      await performAnalysis({
-        admin,
-        userId: user.id,
-        userEmail: user.email ?? null,
-        report: {
-          id: report.id,
-          property_address: report.property_address,
-          source_file_path: report.source_file_path ?? folder,
-          listing_url:
-            (report as { listing_url?: string | null }).listing_url ?? null,
-          listing_text:
-            (report as { listing_text?: string | null }).listing_text ?? null,
-        },
-        // We don't pass updateContext here, there are no new added
-        // files, just fewer existing ones. The analyzer reads
-        // whatever PDFs remain in the folder.
-        updateContext: null,
-        skipNotificationEmail: true,
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Re-analysis failed.";
-      try {
-        await admin
-          .from("reports")
-          .update({ status: "failed", failure_reason: message })
-          .eq("id", reportId);
-      } catch (markErr) {
-        console.error(
-          "[remove-file] failed to mark report as failed:",
-          markErr,
-        );
-      }
-      console.error("[remove-file] background work failed:", err);
+      await admin
+        .from("reports")
+        .update({ status: "failed", failure_reason: message })
+        .eq("id", reportId);
+    } catch (markErr) {
+      console.error(
+        "[remove-file] failed to mark report as failed:",
+        markErr,
+      );
     }
-    // After-the-fact suppression for unused variable in this scope
-    void originalAnalysisDate;
-  });
+    console.error("[remove-file] performAnalysis threw:", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        status: "failed",
+        removed: filename,
+        remaining: remainingOriginalFiles.length,
+        storage_objects_deleted: pathsToDelete.length,
+        error: message,
+      },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json(
     {
       ok: true,
-      status: "analyzing",
+      status: "qa_pending",
       removed: filename,
       remaining: remainingOriginalFiles.length,
       storage_objects_deleted: pathsToDelete.length,
       inside_free_window: insideFreeWindow,
     },
-    { status: 202 },
+    { status: 200 },
   );
 }

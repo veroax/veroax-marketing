@@ -1,4 +1,4 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { performAnalysis } from "@/lib/server/performAnalysis";
 import { countPages } from "@/lib/pdf/split";
@@ -220,55 +220,73 @@ export async function POST(
     },
   });
 
-  // ----- Kick off the re-analysis in the background -------------------
-  after(async () => {
+  // ----- Run the re-analysis synchronously ----------------------------
+  // Was after()-scheduled background work; converted to synchronous
+  // await mirroring /api/reports/[id]/analyze and /api/admin/reports/
+  // [id]/rerun. See those routes for the full rationale; the short
+  // version is that Vercel's after() proved unreliable on multiple
+  // production runs (zero analysis.* audit events, status stuck on
+  // 'analyzing'). The browser fetch holds the connection open;
+  // Cloudflare's proxy may drop it at ~100s but the function stays
+  // alive for the full maxDuration. The dashboard's /status polling
+  // continues observing audit events and detects completion from
+  // the database state even if the initial fetch rejects with a
+  // proxy-timeout error.
+  try {
+    await performAnalysis({
+      admin,
+      userId: user.id,
+      userEmail: user.email ?? null,
+      report: {
+        id: report.id,
+        property_address: report.property_address,
+        source_file_path: report.source_file_path ?? folder,
+        listing_url:
+          (report as { listing_url?: string | null }).listing_url ?? null,
+        listing_text:
+          (report as { listing_text?: string | null }).listing_text ?? null,
+      },
+      updateContext: {
+        originalAnalysisDate,
+        updateDate,
+        addedFilenames,
+      },
+      // Don't double-email the agent for re-analysis. The update is
+      // initiated by them from the dashboard; they're already watching
+      // the page.
+      skipNotificationEmail: true,
+    });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Update analysis failed.";
     try {
-      await performAnalysis({
-        admin,
-        userId: user.id,
-        userEmail: user.email ?? null,
-        report: {
-          id: report.id,
-          property_address: report.property_address,
-          source_file_path: report.source_file_path ?? folder,
-          listing_url:
-            (report as { listing_url?: string | null }).listing_url ?? null,
-          listing_text:
-            (report as { listing_text?: string | null }).listing_text ?? null,
-        },
-        updateContext: {
-          originalAnalysisDate,
-          updateDate,
-          addedFilenames,
-        },
-        // Don't double-email the agent for re-analysis. The update is
-        // initiated by them from the dashboard; they're already watching
-        // the page.
-        skipNotificationEmail: true,
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Update analysis failed.";
-      try {
-        await admin
-          .from("reports")
-          .update({ status: "failed", failure_reason: message })
-          .eq("id", reportId);
-      } catch (markErr) {
-        console.error("[update] failed to mark report as failed:", markErr);
-      }
-      console.error("[update] background work failed:", err);
+      await admin
+        .from("reports")
+        .update({ status: "failed", failure_reason: message })
+        .eq("id", reportId);
+    } catch (markErr) {
+      console.error("[update] failed to mark report as failed:", markErr);
     }
-  });
+    console.error("[update] performAnalysis threw:", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        status: "failed",
+        update_count: updateCount,
+        error: message,
+      },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json(
     {
       ok: true,
-      status: "analyzing",
+      status: "qa_pending",
       update_count: updateCount,
       inside_free_window: insideFreeWindow,
       added_count: addedFilenames.length,
     },
-    { status: 202 },
+    { status: 200 },
   );
 }
