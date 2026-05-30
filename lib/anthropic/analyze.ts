@@ -753,6 +753,35 @@ CRITICAL RULES:
    - Title shows a 2015 deed of trust naming "John Smith, an unmarried man" but the current TDS is signed by "John Smith and Mary Smith, husband and wife": Critical, marital-property clearance question.
    - $12,400 IRS federal tax lien recorded against the seller in 2023: moderate or higher depending on whether the seller has shown a release, escrow will require clearing before recording the grant deed.
 
+8.6. TITLE EXCEPTION TRIAGE (mandatory). The Schedule B of every California preliminary title report contains 10 to 30 recorded exceptions. The VAST MAJORITY do NOT bite the buyer's title. They are recorded against the master parcel, the subdivision tract, or every owner in a master-planned community as a class. Title insurance carves them out as standard exceptions and the buyer's grant deed at close is not subject to them. DO NOT surface these as findings.
+
+   DROP these recorded-matter categories outright (capture them in title_vesting.recorded_matters only, never in findings):
+   (a) MASTER-DEVELOPER INSTRUMENTS recorded against the master parcel BEFORE individual unit subdivision. Signal phrases: "developer", "density bonus", "regulatory agreement", "standard development requirements", "declaration of development covenants", and any document recorded BEFORE the CC&Rs for the project. These bind the developer's blanket interest, NOT the resale of individual market-rate units. A master-developer right of first refusal or option is a complex-wide instrument that gets carved out of every unit conveyance; it has no bite on a market-rate resale.
+   (b) BLANKET ROFR / OPTION held by a developer LLC, master association, or municipality where the recording predates the individual units' first sale. Real-world example: "Right of first refusal in favor of 1090 East Duane Avenue LLC recorded June 1, 2020" on an OV8tion unit. The 2020 recording is the master parcel; the unit has been bought and sold since then without the LLC exercising. NOT a finding.
+   (c) BLANKET EASEMENTS for non-exclusive ingress, egress, utilities, drainage, common-area access, or roof / wall maintenance, when these are recorded against every unit in the project as a class. The buyer's unit inherits them along with the right to use them.
+   (d) OLD MINERAL / OIL / GAS / WATER RIGHTS reserved in deeds from prior centuries (e.g., "mineral rights reserved by Southern Pacific Railroad per deed recorded 1908"). These are real but they don't affect residential use. NOT a finding.
+   (e) HOA ASSESSMENT LIEN RIGHTS, the HOA's recorded ability to lien for unpaid dues. Every HOA has this; it's not a finding, it's the structure of the HOA.
+   (f) STANDARD CC&R RECORDINGS. The CC&Rs themselves being recorded is not a finding; specific provisions (rental cap, pet limit, architectural review) become findings only when materially unusual or affecting the buyer's stated plans.
+   (g) NORMAL UTILITY EASEMENTS (PG&E, San Jose Water Company, AT&T) running across the property. Buyer is paying for utilities and getting them.
+
+   The bar for ELEVATING a recorded matter from "recorded_matters narrative" to "finding" is one of:
+   - The encumbrance affects the BUYER'S SPECIFIC UNIT in a way that is NOT shared by the rest of the complex (e.g., a private access easement only across this APN that another owner uses).
+   - There is ACTIVE EXERCISE OR ACTIVE LITIGATION on the encumbrance currently (e.g., the ROFR holder has signaled intent to exercise, or there is recorded notice of default).
+   - The encumbrance has a CONCRETE TRIGGER tied to this sale (e.g., a recorded BMR / Below Market Rate covenant requiring resale to qualified buyers, where the buyer may or may not qualify).
+   - The encumbrance has a NEAR-TERM EXPIRATION or RENEWAL deadline that the parties need to act on.
+   - The encumbrance is NON-CONSENSUAL (judgment, IRS lien, mechanic's lien, abstract of judgment).
+   - The TITLE INSURER HAS NOTED AN EXCEPTION SPECIFIC TO THIS PROPERTY in Schedule B as something they will NOT insure over (e.g., a specific exception language that excludes coverage for a known boundary dispute on this APN).
+
+   When in doubt, capture the encumbrance in title_vesting.recorded_matters with a one-line note and leave it OUT of findings. The buyer's agent reads recorded_matters; the buyer reads findings. The two channels serve different audiences.
+
+   Concrete examples from real reports:
+   - Density-bonus developer's blanket ROFR on a master-planned condo project (1090 East Duane Avenue LLC at OV8tion): recorded_matters, NOT a finding. The unit has changed hands since recording without exercise; title insurance handles it as a standard exception.
+   - Master Dispute Resolution Declaration recorded against every unit in the project: recorded_matters, NOT a finding.
+   - Standard PG&E easement running across the back 10 feet of every lot in the subdivision: recorded_matters, NOT a finding.
+   - A recorded BMR covenant requiring resale to households at or below 120% AMI: FINDING (Critical), the buyer may not qualify and the covenant gates the sale.
+   - A recorded mechanic's lien for $34,800 filed by a roofing contractor against this specific APN, not yet released: FINDING (Critical), escrow has to clear it.
+   - An abstract of judgment recorded against the seller for $80,000 in a 2023 collections action: FINDING (Critical), escrow has to clear it before grant deed recording.
+
 9. PROPERTY SNAPSHOT FIELDS, populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
    - apn (Assessor's Parcel Number): typically in the prelim title report, escrow instructions, or county tax bill (usually formatted like "123-45-678" in California).
    - mls_number: from any MLS printout, listing sheet, or BAREIS/CRMLS export.
