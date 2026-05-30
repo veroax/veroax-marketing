@@ -255,12 +255,15 @@ export function PublicReportView({
             market, parking, HOA dues, and market region without
             opening anything. Skipped entirely when no facts are
             available. */}
-        <PropertySnapshotSection snapshot={reportData.property_snapshot} />
+        <PropertySnapshotSection
+          snapshot={reportData.property_snapshot}
+          shareCode={shareCode}
+        />
 
         {/* The plain-language summary that opens the report. Title
             reads "Summary" rather than "Agent summary" since the
             buyer is the audience here, not the agent. */}
-        <Section title="Summary" defaultOpen>
+        <Section title="Summary" defaultOpen shareCode={shareCode}>
           <div className="space-y-3 text-sm sm:text-base text-slate-700 leading-relaxed">
             {narrative.map((p, i) => (
               <p key={i}>{p}</p>
@@ -306,6 +309,7 @@ export function PublicReportView({
             disclosure or a county mismatch is a contract-level
             issue that should be fixed before signature. */}
         <CrossDocumentSection
+          shareCode={shareCode}
           findings={reportData.cross_document_findings ?? null}
         />
 
@@ -313,6 +317,7 @@ export function PublicReportView({
         <Section
           title={`Critical findings (${criticalFindings.length})`}
           defaultOpen
+          shareCode={shareCode}
         >
           {criticalFindings.length === 0 ? (
             <p className="text-sm text-slate-500 italic">
@@ -336,6 +341,7 @@ export function PublicReportView({
         <Section
           title={`High & moderate findings (${moderateFindings.length})`}
           defaultOpen={false}
+          shareCode={shareCode}
         >
           {moderateFindings.length === 0 ? (
             <p className="text-sm text-slate-500 italic">
@@ -388,6 +394,7 @@ export function PublicReportView({
         <Section
           title={`Cosmetic notes (${cosmeticFindings.length})`}
           defaultOpen={false}
+          shareCode={shareCode}
         >
           {cosmeticFindings.length === 0 ? (
             <p className="text-sm text-slate-500 italic">
@@ -421,7 +428,7 @@ export function PublicReportView({
 
         {/* HOA */}
         {hoa?.applicable ? (
-          <Section title="HOA review" defaultOpen={false}>
+          <Section title="HOA review" defaultOpen={false} shareCode={shareCode}>
             <p className="text-sm text-slate-700 leading-relaxed">
               {hoa.summary}
             </p>
@@ -482,7 +489,7 @@ export function PublicReportView({
 
         {/* Environmental & hazards */}
         {environmental?.hazards && environmental.hazards.length > 0 ? (
-          <Section title="Environmental & hazard disclosures" defaultOpen={false}>
+          <Section title="Environmental & hazard disclosures" defaultOpen={false} shareCode={shareCode}>
             <p className="text-sm text-slate-700 leading-relaxed mb-3">
               {environmental.summary}
             </p>
@@ -514,7 +521,7 @@ export function PublicReportView({
 
         {/* Title & vesting */}
         {titleVesting ? (
-          <Section title="Title & vesting" defaultOpen={false}>
+          <Section title="Title & vesting" defaultOpen={false} shareCode={shareCode}>
             <p className="text-sm text-slate-700 leading-relaxed">
               {titleVesting.vesting_summary}
             </p>
@@ -556,7 +563,10 @@ export function PublicReportView({
             previous hero strip showed only grand_total; this
             section gives the buyer the full breakdown the
             Cowork skill renders in Section 10. */}
-        <CostSummarySection costSummary={reportData.cost_summary} />
+        <CostSummarySection
+          costSummary={reportData.cost_summary}
+          shareCode={shareCode}
+        />
 
         {/* Insurance & lender risk. Schema field that the public
             view never rendered. Two short lists that flag any
@@ -566,11 +576,12 @@ export function PublicReportView({
             slow the loan. */}
         <InsuranceLenderSection
           insuranceLenderRisk={reportData.insurance_lender_risk}
+          shareCode={shareCode}
         />
 
         {/* Negotiation leverage */}
         {negotiation?.leverage_points && negotiation.leverage_points.length > 0 ? (
-          <Section title="Negotiation leverage" defaultOpen={false}>
+          <Section title="Negotiation leverage" defaultOpen={false} shareCode={shareCode}>
             <p className="text-sm text-slate-700 leading-relaxed mb-3">
               {negotiation.summary}
             </p>
@@ -584,7 +595,7 @@ export function PublicReportView({
 
         {/* Market context */}
         {marketContext?.summary ? (
-          <Section title="Market context" defaultOpen={false}>
+          <Section title="Market context" defaultOpen={false} shareCode={shareCode}>
             <p className="text-sm text-slate-700 leading-relaxed">
               {marketContext.summary}
             </p>
@@ -625,7 +636,7 @@ export function PublicReportView({
 
         {/* Suggested inspection follow-ups */}
         {inspectionFollowUps.length > 0 ? (
-          <Section title="Suggested inspection follow-ups" defaultOpen={false}>
+          <Section title="Suggested inspection follow-ups" defaultOpen={false} shareCode={shareCode}>
             <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
               {inspectionFollowUps.map((f, i) => (
                 <li key={i}>
@@ -651,6 +662,7 @@ export function PublicReportView({
             buyer's diligence list. */}
         <OutstandingQuestionsSection
           questions={reportData.outstanding_questions ?? []}
+          shareCode={shareCode}
         />
 
         {/* Document inventory. Schema has documents_provided +
@@ -663,6 +675,7 @@ export function PublicReportView({
             interpretation, not a file list. */}
         <DocumentInventorySection
           inventory={reportData.document_inventory}
+          shareCode={shareCode}
         />
 
         {/* Overall rating detail. The section title was "Why this
@@ -674,7 +687,7 @@ export function PublicReportView({
             one place. */}
         {reportData.overall_rating?.why_this_rating ||
         reportData.overall_rating?.conditions_on_which_this_depends ? (
-          <Section title="Why this rating" defaultOpen={false}>
+          <Section title="How does this home rate?" defaultOpen={false} shareCode={shareCode}>
             <div className="mb-3">
               <span
                 className="text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-md inline-block"
@@ -841,8 +854,10 @@ export function PublicReportView({
 // level issues the buyer should fix before signature.
 function CrossDocumentSection({
   findings,
+  shareCode,
 }: {
   findings: ReportData["cross_document_findings"];
+  shareCode: string;
 }) {
   if (!findings || findings.length === 0) return null;
   const hasCritical = findings.some((f) => f.severity === "critical");
@@ -851,6 +866,7 @@ function CrossDocumentSection({
     <Section
       title={`Cross-document consistency (${findings.length})`}
       defaultOpen={hasCritical}
+      shareCode={shareCode}
     >
       <p className="text-xs text-slate-500 italic mb-3">
         Disagreements between documents in the disclosure package.
@@ -918,8 +934,10 @@ function CrossDocumentSection({
 // doesn't grow for sparse / legacy reports.
 function PropertySnapshotSection({
   snapshot,
+  shareCode,
 }: {
   snapshot: ReportData["property_snapshot"];
+  shareCode: string;
 }) {
   const rows: Array<[string, string]> = [];
   const push = (label: string, value: string | null | undefined) => {
@@ -970,7 +988,7 @@ function PropertySnapshotSection({
   if (rows.length === 0) return null;
 
   return (
-    <Section title="Property snapshot" defaultOpen>
+    <Section title="Property snapshot" defaultOpen shareCode={shareCode}>
       <dl className="divide-y divide-slate-100">
         {rows.map(([label, value]) => (
           <div
@@ -1008,7 +1026,7 @@ function PermitComplianceSection({
   if (!summary && findings.length === 0) return null;
 
   return (
-    <Section title="Permit & compliance review" defaultOpen={false}>
+    <Section title="Permit & compliance review" defaultOpen={false} shareCode={shareCode}>
       {summary ? (
         <p className="text-sm text-slate-700 leading-relaxed mb-3">
           {summary}
@@ -1048,8 +1066,10 @@ function PermitComplianceSection({
 // with each item's individual range, plus a bold grand-total row.
 function CostSummarySection({
   costSummary,
+  shareCode,
 }: {
   costSummary: ReportData["cost_summary"] | null | undefined;
+  shareCode: string;
 }) {
   if (!costSummary) return null;
   const lineItems = costSummary.line_items ?? [];
@@ -1058,7 +1078,7 @@ function CostSummarySection({
   if (lineItems.length === 0 && !hasGrand) return null;
 
   return (
-    <Section title="Cost summary" defaultOpen={false}>
+    <Section title="Cost summary" defaultOpen={false} shareCode={shareCode}>
       {lineItems.length > 0 ? (
         <div className="space-y-4">
           {lineItems.map((group, gi) => (
@@ -1106,8 +1126,10 @@ function CostSummarySection({
 // closing even when the property itself is fine.
 function InsuranceLenderSection({
   insuranceLenderRisk,
+  shareCode,
 }: {
   insuranceLenderRisk: ReportData["insurance_lender_risk"] | null | undefined;
+  shareCode: string;
 }) {
   if (!insuranceLenderRisk) return null;
   const summary = insuranceLenderRisk.summary?.trim() ?? "";
@@ -1116,7 +1138,7 @@ function InsuranceLenderSection({
   if (!summary && insurance.length === 0 && lender.length === 0) return null;
 
   return (
-    <Section title="Insurance & lender risk" defaultOpen={false}>
+    <Section title="Insurance & lender risk" defaultOpen={false} shareCode={shareCode}>
       {summary ? (
         <p className="text-sm text-slate-700 leading-relaxed">{summary}</p>
       ) : null}
@@ -1160,14 +1182,17 @@ function InsuranceLenderSection({
 // agent / seller / lender.
 function OutstandingQuestionsSection({
   questions,
+  shareCode,
 }: {
   questions: string[];
+  shareCode: string;
 }) {
   if (!questions || questions.length === 0) return null;
   return (
     <Section
       title={`Questions to ask the listing agent (${questions.length})`}
       defaultOpen={false}
+      shareCode={shareCode}
     >
       <ol className="space-y-2.5 text-sm text-slate-700 list-decimal list-inside">
         {questions.map((q, i) => (
@@ -1185,8 +1210,10 @@ function OutstandingQuestionsSection({
 // view of completeness, not the storage contents.
 function DocumentInventorySection({
   inventory,
+  shareCode,
 }: {
   inventory: ReportData["document_inventory"] | null | undefined;
+  shareCode: string;
 }) {
   if (!inventory) return null;
   const provided = inventory.documents_provided ?? [];
@@ -1197,6 +1224,7 @@ function DocumentInventorySection({
     <Section
       title={`Document inventory (${provided.length} provided, ${missing.length} missing)`}
       defaultOpen={false}
+      shareCode={shareCode}
     >
       {provided.length > 0 ? (
         <>
@@ -1274,31 +1302,48 @@ function DocumentInventorySection({
 function Section({
   title,
   defaultOpen = false,
+  shareCode,
   children,
 }: {
   title: string;
   defaultOpen?: boolean;
+  // shareCode threads the public report's auth-token so the section
+  // header can render its own flag affordance (built on the same
+  // public flag endpoint that per-finding flags use). The flag's
+  // finding_title is "Section: <title>" and severity is "section",
+  // so /admin/finding-flags can filter section-level feedback
+  // separately from per-finding feedback.
+  shareCode?: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-5 sm:px-6 py-4 hover:bg-slate-50 transition-colors"
-        aria-expanded={open}
-      >
-        <h2 className="text-base sm:text-lg font-bold text-slate-900 text-left">
-          {title}
-        </h2>
-        <span
-          className={`text-slate-400 text-sm transition-transform ${open ? "rotate-180" : ""}`}
-          aria-hidden="true"
+      <div className="flex items-center px-5 sm:px-6 py-4 gap-2 hover:bg-slate-50 transition-colors">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex-1 flex items-center justify-between text-left"
+          aria-expanded={open}
         >
-          ▼
-        </span>
-      </button>
+          <h2 className="text-base sm:text-lg font-bold text-slate-900">
+            {title}
+          </h2>
+          <span
+            className={`text-slate-400 text-sm transition-transform ml-2 ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          >
+            ▼
+          </span>
+        </button>
+        {shareCode ? (
+          <PublicFindingFlagButton
+            shareCode={shareCode}
+            findingTitle={`Section: ${title}`}
+            findingSeverity="section"
+          />
+        ) : null}
+      </div>
       {open ? (
         <div className="px-5 sm:px-6 pb-5 sm:pb-6 border-t border-slate-100 pt-4">
           {children}

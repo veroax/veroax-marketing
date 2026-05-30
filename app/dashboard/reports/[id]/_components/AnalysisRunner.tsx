@@ -34,6 +34,12 @@ type Props = {
   // they're watching when they have multiple analyses in-flight or
   // when they navigate back from another tab.
   propertyAddress?: string | null;
+  // True when this is a re-run (analysis_run_count > 1), false for
+  // first-time analyses. Drives the header eyebrow text and gives
+  // the agent visible feedback that the click-Retry flow actually
+  // restarted the analyzer instead of just sitting on the failure
+  // card.
+  isRerun?: boolean;
 };
 
 // The fixed step order the analyzer runs in. Used to render a
@@ -71,6 +77,7 @@ export function AnalysisRunner({
   reportId,
   analysisStartedAt,
   propertyAddress,
+  isRerun,
 }: Props) {
   const router = useRouter();
   const triggered = useRef(false);
@@ -345,11 +352,15 @@ export function AnalysisRunner({
     <div className="bg-white rounded-2xl border border-slate-200 p-8">
       {/* Property address header. Lets the agent confirm which
           property they're watching when they have multiple analyses
-          in flight or come back from another tab. */}
+          in flight or come back from another tab. Eyebrow flips to
+          "Re-running analysis" when isRerun=true so the agent gets
+          visual confirmation that a retry actually restarted the
+          worker (instead of just sitting on the failure card the
+          way it did before commit f9faf62 + this commit). */}
       {propertyAddress?.trim() ? (
         <div className="mb-5 pb-4 border-b border-slate-100">
           <p className="text-[10px] font-bold tracking-widest uppercase text-amber-700">
-            Analyzing
+            {isRerun ? "Re-running analysis" : "Analyzing"}
           </p>
           <h1 className="text-xl sm:text-2xl font-bold text-indigo-950 mt-1 leading-tight">
             {propertyAddress}

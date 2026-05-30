@@ -1068,7 +1068,7 @@ function AdminReportContent({ reportData }: { reportData: ReportData }) {
           </p>
           {rating.why_this_rating ? (
             <p className="text-sm text-slate-800 leading-relaxed mt-3">
-              <span className="font-semibold">Why this rating:</span>{" "}
+              <span className="font-semibold">How does this home rate?</span>{" "}
               {rating.why_this_rating}
             </p>
           ) : null}

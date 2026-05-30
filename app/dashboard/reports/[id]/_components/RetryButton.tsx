@@ -15,14 +15,24 @@ export function RetryButton({ reportId }: { reportId: string }) {
   async function retry() {
     setBusy(true);
     setErr(null);
+    // /analyze is synchronous (commit 947ccf5), so awaiting the full
+    // fetch would keep the user staring at the failure card for the
+    // entire 6-13 minute analysis. Race the fetch against a 3s timer
+    // so we refresh the page as soon as /analyze has updated
+    // reports.status to 'analyzing' (which happens within the first
+    // ~500ms of the route handler). After the refresh the page
+    // renders the in-flight AnalysisRunner with its step checklist
+    // instead of the static failure card. The fetch continues in
+    // the background; a real failure flips reports.status back to
+    // 'failed' which the refreshed page picks up via /status polling.
+    const fetchPromise = fetch(`/api/reports/${reportId}/analyze`, {
+      method: "POST",
+    }).catch(() => null);
     try {
-      const res = await fetch(`/api/reports/${reportId}/analyze`, {
-        method: "POST",
-      });
-      if (!res.ok && res.status !== 409) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Retry failed (HTTP ${res.status}).`);
-      }
+      await Promise.race([
+        fetchPromise,
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
       router.refresh();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Retry failed.");
