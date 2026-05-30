@@ -43,7 +43,11 @@ import {
 } from "@/lib/anthropic/pdf-ocr";
 import { generateShareCode } from "@/lib/share/code";
 import { consumeReportCredit, freeUpdateWindow } from "@/lib/billing/credits";
-import { SUPPORT } from "@/lib/site";
+import {
+  renderEmailLayout,
+  plainTextSupportFooter,
+  firstNameFrom,
+} from "@/lib/email/layout";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
 
@@ -844,8 +848,27 @@ export async function performAnalysis(
 
   if (userEmail && !skipNotificationEmail) {
     try {
+      // Look up the user's full_name so the email can greet them by
+      // first name. Best-effort: if the profile lookup fails or
+      // full_name is null, we fall back to a generic "there" greeting.
+      let recipientFullName: string | null = null;
+      try {
+        const { data: profile } = await admin
+          .from("profiles")
+          .select("full_name")
+          .eq("id", userId)
+          .maybeSingle();
+        recipientFullName =
+          (profile as { full_name?: string | null } | null)?.full_name ?? null;
+      } catch (lookupErr) {
+        console.warn(
+          "[performAnalysis] profile lookup for greeting failed:",
+          lookupErr,
+        );
+      }
       await sendReportReadyEmail({
         to: userEmail,
+        recipientFullName,
         reportId,
         propertyAddress:
           report.property_address ?? extractedAddress ?? "your property",
@@ -859,6 +882,7 @@ export async function performAnalysis(
 
 async function sendReportReadyEmail(params: {
   to: string;
+  recipientFullName?: string | null;
   reportId: string;
   propertyAddress: string;
   report: ReportData;
@@ -896,10 +920,12 @@ async function sendReportReadyEmail(params: {
       ? `[${rating}] Veroax report: ${params.propertyAddress}`
       : `Veroax report ready: ${params.propertyAddress}`;
 
+  const firstName = firstNameFrom(params.recipientFullName);
   await sendTransactional({
     to: params.to,
     subject,
     text: buildReportReadyPlainText({
+      firstName,
       propertyAddress: params.propertyAddress,
       reportUrl,
       rating,
@@ -912,6 +938,7 @@ async function sendReportReadyEmail(params: {
       concerns: concerns.map((c) => c.text),
     }),
     html: buildReportReadyHtml({
+      firstName,
       propertyAddress: params.propertyAddress,
       reportUrl,
       rating,
@@ -960,6 +987,7 @@ function formatUsdCompact(n: number): string {
 }
 
 function buildReportReadyPlainText(args: {
+  firstName: string;
   propertyAddress: string;
   reportUrl: string;
   rating: string;
@@ -972,6 +1000,8 @@ function buildReportReadyPlainText(args: {
   concerns: string[];
 }): string {
   return [
+    `Hi ${args.firstName},`,
+    "",
     `Your Veroax disclosure analysis for ${args.propertyAddress} is ready.`,
     "",
     `OVERALL RATING: ${args.rating}`,
@@ -990,12 +1020,12 @@ function buildReportReadyPlainText(args: {
     "",
     `Open the full report: ${args.reportUrl}`,
     "",
-    ", Veroax",
-    `${SUPPORT.email} · ${SUPPORT.phone}`,
+    plainTextSupportFooter(),
   ].join("\n");
 }
 
 function buildReportReadyHtml(args: {
+  firstName: string;
   propertyAddress: string;
   reportUrl: string;
   rating: string;
@@ -1036,50 +1066,57 @@ function buildReportReadyHtml(args: {
     ? `<tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Buyer out-of-pocket</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${escapeHtml(args.costLine)}</td></tr>`
     : "";
 
-  return `
-  <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;line-height:1.55;max-width:600px;margin:0 auto;">
-    <div style="background-color:${args.ratingBg};color:${args.ratingFg};padding:24px 24px 20px;border-radius:12px 12px 0 0;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;opacity:0.85;margin:0 0 6px;">Veroax · Disclosure Analysis</div>
-      <div style="font-size:18px;font-weight:700;line-height:1.3;margin:0 0 14px;">${escapeHtml(args.propertyAddress)}</div>
-      <div style="display:inline-block;background-color:${args.ratingBadge};color:#0f172a;font-weight:700;font-size:11px;padding:6px 12px;border-radius:6px;letter-spacing:0.5px;text-transform:uppercase;">${escapeHtml(args.rating)}</div>
-    </div>
+  // The bespoke rating-colored hero card stays as the lead block in
+  // the body (it's the part of the email that signals severity at
+  // a glance). The header / support card / footer come from the
+  // shared layout so every email matches.
+  const bodyHtml = `
+                <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1e293b;">
+                  Hi ${escapeHtml(args.firstName)}, your analysis is ready.
+                </p>
 
-    <div style="background:#fff;border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px;padding:20px 22px;">
-      <table style="width:100%;border-collapse:collapse;margin:0 0 16px;">
-        <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Critical / high findings</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${args.criticalCount}</td></tr>
-        <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Moderate findings</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${args.moderateCount}</td></tr>
-        <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Cosmetic findings</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${args.cosmeticCount}</td></tr>
-        ${costRow}
-      </table>
+                <div style="background-color:${args.ratingBg};color:${args.ratingFg};padding:20px 22px 18px;border-radius:12px;margin:0 0 18px;">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;opacity:0.85;margin:0 0 6px;">Veroax · Disclosure Analysis</div>
+                  <div style="font-size:17px;font-weight:700;line-height:1.3;margin:0 0 12px;">${escapeHtml(args.propertyAddress)}</div>
+                  <div style="display:inline-block;background-color:${args.ratingBadge};color:#0f172a;font-weight:700;font-size:11px;padding:6px 12px;border-radius:6px;letter-spacing:0.5px;text-transform:uppercase;">${escapeHtml(args.rating)}</div>
+                </div>
 
-      <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin:0 0 14px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#334155;text-transform:uppercase;margin:0 0 10px;">Agent Summary</div>
-        ${narrativeHtml}
-      </div>
+                <table style="width:100%;border-collapse:collapse;margin:0 0 16px;">
+                  <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Critical / high findings</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${args.criticalCount}</td></tr>
+                  <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Moderate findings</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${args.moderateCount}</td></tr>
+                  <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Cosmetic findings</td><td style="padding:6px 0;color:#0f172a;font-weight:700;text-align:right;font-size:13px;">${args.cosmeticCount}</td></tr>
+                  ${costRow}
+                </table>
 
-      <div style="background-color:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:14px 16px;margin:0 0 12px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#065f46;text-transform:uppercase;margin:0 0 8px;">Top Strengths</div>
-        <ol style="margin:0;padding:0 0 0 20px;">${liGreen(args.strengths)}</ol>
-      </div>
+                <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin:0 0 14px;">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#334155;text-transform:uppercase;margin:0 0 10px;">Agent Summary</div>
+                  ${narrativeHtml}
+                </div>
 
-      <div style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;margin:0 0 18px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#991b1b;text-transform:uppercase;margin:0 0 8px;">Top Concerns</div>
-        <ol style="margin:0;padding:0 0 0 20px;">${liRed(args.concerns)}</ol>
-      </div>
+                <div style="background-color:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:14px 16px;margin:0 0 12px;">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#065f46;text-transform:uppercase;margin:0 0 8px;">Top Strengths</div>
+                  <ol style="margin:0;padding:0 0 0 20px;">${liGreen(args.strengths)}</ol>
+                </div>
 
-      <div style="text-align:center;margin:6px 0 0;">
-        <a href="${args.reportUrl}" style="display:inline-block;background:#fbbf24;color:#1e1b4b;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:10px;box-shadow:0 4px 12px rgba(251,191,36,0.25);">Open the full report →</a>
-      </div>
+                <div style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;margin:0 0 18px;">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#991b1b;text-transform:uppercase;margin:0 0 8px;">Top Concerns</div>
+                  <ol style="margin:0;padding:0 0 0 20px;">${liRed(args.concerns)}</ol>
+                </div>
 
-      <p style="margin:18px 0 0;color:#64748b;font-size:12px;line-height:1.5;">
-        Review the Critical &amp; High-Priority section before sharing with your client. The client-facing PDF preserves the same talking points and findings.
-      </p>
-    </div>
+                <p style="margin:14px 0 8px;color:#64748b;font-size:12px;line-height:1.5;">
+                  Review the Critical &amp; High-Priority section before you sit down with your buyer. The analysis is yours to use as the spine of your client conversation.
+                </p>`;
 
-    <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;text-align:center;">
-      Veroax, Inc &middot; <a href="mailto:${SUPPORT.email}" style="color:#94a3b8;">${SUPPORT.email}</a> &middot; ${SUPPORT.phone}
-    </p>
-  </div>`;
+  return renderEmailLayout({
+    eyebrow: "Veroax · Report Ready",
+    headline: "Your analysis is ready",
+    documentTitle: `Veroax report: ${args.propertyAddress}`,
+    bodyHtml,
+    ctaText: "Open the full report",
+    ctaUrl: args.reportUrl,
+    reasonReceiving:
+      "You're receiving this because you ran a disclosure analysis on",
+  });
 }
 
 function escapeHtml(s: string): string {

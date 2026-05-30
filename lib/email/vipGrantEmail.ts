@@ -10,15 +10,16 @@
 // re-send the email, which is fine, the receiver won't be
 // surprised.
 //
-// HTML design constraints mirror lib/email/welcomeEmail.ts:
-//   - Inline CSS only
-//   - 600px max-width container
-//   - Indigo gradient header
-//   - Amber accent on the "VIP" wordmark
-//   - Plain-text fallback
+// Chrome (header, support card, footer) comes from lib/email/layout.ts
+// so this matches the welcome email's look.
 
 import { sendTransactional } from "@/lib/email/sender";
-import { SUPPORT } from "@/lib/site";
+import {
+  renderEmailLayout,
+  plainTextSupportFooter,
+  firstNameFrom,
+  escapeHtml,
+} from "./layout";
 
 export type VipGrantEmailParams = {
   // The recipient who was just granted VIP.
@@ -44,23 +45,13 @@ const SITE_URL =
 // staging, or prod.
 const VIP_GRANT_BCC = "michael@veroax.com";
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 export async function sendVipGrantEmail({
   recipientEmail,
   recipientFullName,
   adminEmail,
   adminFullName,
 }: VipGrantEmailParams): Promise<{ ok: boolean; error?: string }> {
-  const firstName =
-    (recipientFullName ?? "").split(" ")[0]?.trim() || "there";
+  const firstName = firstNameFrom(recipientFullName);
   const safeFirstName = escapeHtml(firstName);
 
   // Admin display name for the signature + subject line. Falls back
@@ -72,8 +63,7 @@ export async function sendVipGrantEmail({
   const safeAdminDisplay = escapeHtml(adminDisplay);
   const safeAdminEmail = escapeHtml(adminEmail);
 
-  // Subject per founder spec (option 3 from the design review):
-  // "{AdminName} just flipped on your Veroax VIP access".
+  // Subject per founder spec: "{AdminName} just flipped on your Veroax VIP access".
   const subject = `${adminDisplay} just flipped on your Veroax VIP access`;
 
   const html = buildHtml({
@@ -88,18 +78,12 @@ export async function sendVipGrantEmail({
   });
 
   // Reply-To override: replies go to the granting admin, not the
-  // generic support inbox. This is a personal email; the
-  // recipient should be able to hit reply and get to the real
+  // generic support inbox. Recipient hits reply, talks to the real
   // person who granted them VIP.
   //
-  // BCC the founder's mailbox so there's always a paper trail of
-  // what went out, regardless of which admin granted. The
-  // recipient does not see this address.
-  //
-  // Edge case: if the granting admin IS the BCC mailbox, the BCC
-  // would double-deliver to the same inbox. Drop the BCC in that
-  // case so we don't send the founder two copies of every email
-  // they personally triggered.
+  // BCC the founder so there's always a paper trail. Drop the BCC
+  // when the granting admin IS the BCC mailbox, otherwise the
+  // founder would get two copies of every email they triggered.
   const bccRecipients =
     adminEmail.toLowerCase() === VIP_GRANT_BCC.toLowerCase()
       ? undefined
@@ -130,39 +114,11 @@ function buildHtml({
   safeAdminDisplay: string;
   safeAdminEmail: string;
 }): string {
-  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-  <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>You're a Veroax VIP</title>
-  </head>
-  <body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1e293b;">
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:#f8fafc;">
-      <tr>
-        <td align="center" style="padding:32px 16px;">
-          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width:600px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.06);">
-
-            <!-- Header -->
-            <tr>
-              <td style="background:linear-gradient(135deg,#1e1b4b 0%,#0f0e2e 100%);padding:32px 40px;text-align:left;">
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                  <tr>
-                    <td>
-                      <p style="margin:0;color:#fbbf24;font-size:11px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;">Veroax &middot; VIP</p>
-                      <h1 style="margin:8px 0 0;color:#ffffff;font-size:26px;line-height:32px;font-weight:700;">You're a Veroax VIP, ${safeFirstName}.</h1>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- Body -->
-            <tr>
-              <td style="padding:32px 40px 8px;">
+  const bodyHtml = `
                 <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1e293b;">
                   Quick personal note: I just turned on VIP access on your
-                  Veroax account, and I wanted to make sure you knew what that
-                  means.
+                  Veroax account, and I wanted to make sure you knew what
+                  that means.
                 </p>
 
                 <p style="margin:24px 0 12px;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#1e1b4b;">
@@ -172,11 +128,11 @@ function buildHtml({
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:0 0 24px;">
                   ${bulletRow(
                     "Unlimited reports.",
-                    "No credit gate, no 'you have N reports left' warnings.",
+                    "No credit gate, no \"you have N reports left\" warnings.",
                   )}
                   ${bulletRow(
                     "No watermark.",
-                    "Every PDF is client-ready, the same way a paying agent's reports are.",
+                    "Every analysis is fully usable, the same as a paying agent's.",
                   )}
                   ${bulletRow(
                     "All 14 report sections.",
@@ -189,48 +145,34 @@ function buildHtml({
                 </table>
 
                 <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1e293b;">
-                  Why you, why now: you're on a short list of people whose use
-                  of Veroax is shaping what it becomes. Every report you run,
-                  every observation you send back, every weird edge case you
-                  find is the work that turns a tool into something
-                  California's buyer's agents actually trust. I notice it,
-                  and I want to make sure you have everything you need to put
-                  the product through real-world work without thinking twice
-                  about whether it costs you something.
+                  Why you, why now: you're on a short list of people whose
+                  use of Veroax is shaping what it becomes. Every report
+                  you run, every observation you send back, every weird
+                  edge case you find is the work that turns a tool into
+                  something California's buyer's agents actually trust. I
+                  notice it, and I want to make sure you have everything
+                  you need to put the product through real-world work
+                  without thinking twice about whether it costs you
+                  something.
                 </p>
 
                 <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1e293b;">
-                  So, thank you. Genuinely. Building something useful in this
-                  space is harder than I expected, and the fact that you're
-                  willing to use Veroax on real disclosures, with real clients,
-                  on real stakes is what makes the work worth doing. Please
-                  keep telling me what's broken, what's missing, what could be
-                  sharper. Reply to this email if anything comes up, it lands
-                  in my inbox directly.
+                  So, thank you. Genuinely. Building something useful in
+                  this space is harder than I expected, and the fact that
+                  you're willing to use Veroax on real disclosures is what
+                  makes the work worth doing. Please keep telling me
+                  what's broken, what's missing, what could be sharper.
+                  Reply to this email if anything comes up, it lands in
+                  my inbox directly.
                 </p>
 
-                <p style="margin:0 0 28px;font-size:15px;line-height:24px;color:#1e293b;">
-                  Your VIP status is already active. Sign in below when you're
-                  ready to run your next report.
+                <p style="margin:0 0 24px;font-size:15px;line-height:24px;color:#1e293b;">
+                  Your VIP status is already active. Sign in below when
+                  you're ready to run your next analysis.
                 </p>
 
-                <!-- Primary CTA -->
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:8px 0 32px;">
-                  <tr>
-                    <td style="background-color:#fbbf24;border-radius:8px;">
-                      <a href="${SITE_URL}/dashboard" style="display:inline-block;padding:13px 28px;color:#0f0e2e;font-size:15px;font-weight:700;text-decoration:none;letter-spacing:0.01em;">
-                        Open your dashboard
-                      </a>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- Signature -->
-            <tr>
-              <td style="padding:0 40px 32px;">
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-top:1px solid #e2e8f0;">
+                <!-- Signature -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-top:1px solid #e2e8f0;margin:8px 0 0;">
                   <tr>
                     <td style="padding:24px 0 0;">
                       <p style="margin:0;font-size:14px;line-height:21px;color:#1e293b;">
@@ -249,30 +191,18 @@ function buildHtml({
                       </p>
                     </td>
                   </tr>
-                </table>
-              </td>
-            </tr>
+                </table>`;
 
-            <!-- Footer -->
-            <tr>
-              <td style="padding:0 40px 28px;text-align:center;">
-                <p style="margin:0;font-size:11px;line-height:18px;color:#94a3b8;">
-                  Veroax, Inc. &middot; ${SUPPORT.address.street}, ${SUPPORT.address.city}, ${SUPPORT.address.region} ${SUPPORT.address.postalCode}
-                </p>
-                <p style="margin:6px 0 0;font-size:11px;line-height:18px;color:#94a3b8;">
-                  You're receiving this because an admin granted VIP access on
-                  your account at
-                  <a href="${SITE_URL}" style="color:#94a3b8;text-decoration:underline;">veroax.com</a>.
-                </p>
-              </td>
-            </tr>
-
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+  return renderEmailLayout({
+    eyebrow: "Veroax · VIP",
+    headline: `You're a Veroax VIP, ${safeFirstName}.`,
+    documentTitle: "You're a Veroax VIP",
+    bodyHtml,
+    ctaText: "Open your dashboard",
+    ctaUrl: `${SITE_URL}/dashboard`,
+    reasonReceiving:
+      "You're receiving this because an admin granted VIP access on your account at",
+  });
 }
 
 function bulletRow(label: string, body: string): string {
@@ -314,28 +244,12 @@ function buildPlainText({
     "",
     "  - Unlimited reports. No credit gate, no 'you have N reports left'",
     "    warnings.",
-    "  - No watermark. Every PDF is client-ready, the same way a paying",
-    "    agent's reports are.",
-    "  - All 14 report sections. Full feature surface, no second-class",
-    "    anything.",
-    "  - Same pipeline as paying agents. Listing-data reconciliation,",
-    "    verifier pass, regional cost reference, the full multi-pass",
-    "    analysis.",
+    "  - No watermark. Every analysis is fully usable.",
+    "  - All 14 report sections. Full feature surface.",
+    "  - Same pipeline as paying agents.",
     "",
     "Why you, why now: you're on a short list of people whose use of",
-    "Veroax is shaping what it becomes. Every report you run, every",
-    "observation you send back, every weird edge case you find is the",
-    "work that turns a tool into something California's buyer's agents",
-    "actually trust. I notice it, and I want to make sure you have",
-    "everything you need to put the product through real-world work",
-    "without thinking twice about whether it costs you something.",
-    "",
-    "So, thank you. Genuinely. Building something useful in this space",
-    "is harder than I expected, and the fact that you're willing to use",
-    "Veroax on real disclosures, with real clients, on real stakes is",
-    "what makes the work worth doing. Please keep telling me what's",
-    "broken, what's missing, what could be sharper. Reply to this email",
-    "if anything comes up, it lands in my inbox directly.",
+    "Veroax is shaping what it becomes.",
     "",
     "Your VIP status is already active. Sign in when you're ready to",
     `run your next report: ${SITE_URL}/dashboard`,
@@ -345,5 +259,7 @@ function buildPlainText({
     adminDisplay,
     adminEmail,
     "Veroax, Inc.",
+    "",
+    plainTextSupportFooter(),
   ].join("\n");
 }

@@ -14,6 +14,11 @@ import { sendTransactional } from "@/lib/email/sender";
 import { requireAdmin } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { newInviteToken } from "@/lib/team/membership";
+import {
+  renderEmailLayout,
+  plainTextSupportFooter,
+  escapeHtml as escapeHtmlShared,
+} from "@/lib/email/layout";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.veroax.com";
@@ -133,16 +138,60 @@ export async function POST(
   // failure (or a missing RESEND_API_KEY in dev) is logged but does
   // not block the admin's request.
   const acceptUrl = `${SITE_URL}/invite/brokerage/${token}`;
+  const safeBrokerageName = escapeHtmlShared(brokerage.name);
+  const safeRole = escapeHtmlShared(role);
+  const bodyHtml = `
+                <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1e293b;">
+                  Hi there,
+                </p>
+                <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1e293b;">
+                  You've been invited to join <strong>${safeBrokerageName}</strong>
+                  on Veroax as <strong>${safeRole}</strong>.
+                </p>
+                <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1e293b;">
+                  Veroax is an AI-assisted disclosure analysis tool for
+                  California real estate agents. Joining ${safeBrokerageName}
+                  gives you access to the brokerage's shared report quota and
+                  unified branding.
+                </p>
+                <p style="margin:0 0 12px;font-size:13px;line-height:20px;color:#64748b;">
+                  Or paste this link into your browser:
+                  <br />
+                  <a href="${acceptUrl}" style="color:#4f46e5;text-decoration:underline;word-break:break-all;">${acceptUrl}</a>
+                </p>
+                <p style="margin:0 0 8px;font-size:13px;line-height:20px;color:#64748b;">
+                  This invite expires in 14 days.
+                </p>`;
+  const html = renderEmailLayout({
+    eyebrow: "Veroax · Brokerage Invitation",
+    headline: `Join ${brokerage.name} on Veroax`,
+    documentTitle: `Invitation to join ${brokerage.name} on Veroax`,
+    bodyHtml,
+    ctaText: "Accept invitation",
+    ctaUrl: acceptUrl,
+    reasonReceiving:
+      `You're receiving this because an admin invited you to ${brokerage.name} at`,
+  });
+  const text = [
+    `Hi there,`,
+    "",
+    `You've been invited to join ${brokerage.name} on Veroax as ${role}.`,
+    "",
+    "Veroax is an AI-assisted disclosure analysis tool for California real",
+    `estate agents. Joining ${brokerage.name} gives you access to the`,
+    "brokerage's shared report quota and unified branding.",
+    "",
+    `Accept invitation: ${acceptUrl}`,
+    "",
+    "This invite expires in 14 days.",
+    "",
+    plainTextSupportFooter(),
+  ].join("\n");
   const inviteResult = await sendTransactional({
     to: email,
     subject: `Invitation to join ${brokerage.name} on Veroax`,
-    html: `
-          <p>You've been invited to join <strong>${escapeHtml(brokerage.name)}</strong> on Veroax as <strong>${escapeHtml(role)}</strong>.</p>
-          <p>Veroax is an AI-assisted disclosure analysis tool for California real estate agents. Joining ${escapeHtml(brokerage.name)} gives you access to the brokerage's shared report quota and unified branding.</p>
-          <p><a href="${acceptUrl}" style="display:inline-block;background:#0F0E2E;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Accept invitation</a></p>
-          <p style="color:#888;font-size:12px;">Or paste this link into your browser: ${acceptUrl}</p>
-          <p style="color:#888;font-size:12px;">This invite expires in 14 days.</p>
-        `,
+    text,
+    html,
   });
   if (inviteResult.skipped) {
     console.warn(

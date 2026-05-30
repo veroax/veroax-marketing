@@ -15,6 +15,11 @@ import { sendTransactional } from "@/lib/email/sender";
 import { requireUser } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { newInviteToken } from "@/lib/team/membership";
+import {
+  renderEmailLayout,
+  plainTextSupportFooter,
+  escapeHtml as escapeHtmlShared,
+} from "@/lib/email/layout";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -138,7 +143,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // Fetch the team name for the email body.
+  // Fetch the team name and the inviter's friendly name for the
+  // email body. Falls back to email when no full_name profile field
+  // is set on the inviter.
   const { data: teamRow } = await admin
     .from("teams")
     .select("name")
@@ -146,22 +153,84 @@ export async function POST(request: Request) {
     .maybeSingle();
   const teamName =
     (teamRow as { name?: string } | null)?.name ?? "your team";
-  const inviterName = user.email ?? "Your colleague";
+
+  let inviterFriendlyName = user.email ?? "Your colleague";
+  try {
+    const { data: inviterProfile } = await admin
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    const inviterFullName =
+      (inviterProfile as { full_name?: string | null } | null)?.full_name ??
+      null;
+    if (inviterFullName && inviterFullName.trim().length > 0) {
+      inviterFriendlyName = inviterFullName.trim();
+    }
+  } catch {
+    // best-effort; inviter friendly name falls back to email
+  }
 
   // Send the invite email via Resend. Failure here doesn't undo the
   // invite row; an admin can resend later. sendTransactional swallows
   // both API-level errors and missing-key conditions internally.
   const acceptUrl = `${SITE_URL}/invite/${token}`;
+  const safeInviter = escapeHtmlShared(inviterFriendlyName);
+  const safeTeamName = escapeHtmlShared(teamName);
+  const bodyHtml = `
+                <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1e293b;">
+                  Hi there,
+                </p>
+                <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1e293b;">
+                  <strong>${safeInviter}</strong> invited you to join
+                  <strong>${safeTeamName}</strong> on Veroax.
+                </p>
+                <p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1e293b;">
+                  Veroax is an AI-assisted disclosure analysis tool for
+                  California real estate agents. Joining ${safeTeamName}
+                  gives you access to the team's shared report quota and
+                  lets the team owner see the reports you generate.
+                </p>
+                <p style="margin:0 0 12px;font-size:13px;line-height:20px;color:#64748b;">
+                  Or paste this link into your browser:
+                  <br />
+                  <a href="${acceptUrl}" style="color:#4f46e5;text-decoration:underline;word-break:break-all;">${acceptUrl}</a>
+                </p>
+                <p style="margin:0 0 8px;font-size:13px;line-height:20px;color:#64748b;">
+                  This invite expires in 14 days. If you didn't expect
+                  this email, you can ignore it safely.
+                </p>`;
+  const html = renderEmailLayout({
+    eyebrow: "Veroax · Invitation",
+    headline: `Join ${teamName} on Veroax`,
+    documentTitle: `You're invited to join ${teamName} on Veroax`,
+    bodyHtml,
+    ctaText: "Accept invite",
+    ctaUrl: acceptUrl,
+    reasonReceiving:
+      `You're receiving this because ${inviterFriendlyName} sent you an invite at`,
+  });
+  const text = [
+    `Hi there,`,
+    "",
+    `${inviterFriendlyName} invited you to join ${teamName} on Veroax.`,
+    "",
+    "Veroax is an AI-assisted disclosure analysis tool for California real",
+    `estate agents. Joining ${teamName} gives you access to the team's`,
+    "shared report quota and lets the team owner see the reports you generate.",
+    "",
+    `Accept invite: ${acceptUrl}`,
+    "",
+    "This invite expires in 14 days. If you didn't expect this email, you",
+    "can ignore it safely.",
+    "",
+    plainTextSupportFooter(),
+  ].join("\n");
   const inviteResult = await sendTransactional({
     to: email,
     subject: `You're invited to join ${teamName} on Veroax`,
-    html: `
-          <p>${escapeHtml(inviterName)} invited you to join <strong>${escapeHtml(teamName)}</strong> on Veroax.</p>
-          <p>Veroax is an AI-assisted disclosure analysis tool for California real estate agents. Joining ${escapeHtml(teamName)} gives you access to the team's shared report quota and lets the team owner see reports you generate.</p>
-          <p><a href="${acceptUrl}" style="display:inline-block;background:#0F0E2E;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Accept invite</a></p>
-          <p style="color:#888;font-size:12px;">Or paste this link into your browser: ${acceptUrl}</p>
-          <p style="color:#888;font-size:12px;">This invite expires in 14 days. If you didn't expect this email, you can ignore it.</p>
-        `,
+    text,
+    html,
   });
   if (inviteResult.skipped) {
     console.warn(
