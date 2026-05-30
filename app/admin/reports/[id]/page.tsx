@@ -586,6 +586,71 @@ function AdminReportContent({ reportData }: { reportData: ReportData }) {
               }
             />
           ) : null}
+          {/* Cowork-parity fields populated by the 5f45a99 prompt
+              overhaul. All optional, only render when extracted. */}
+          {(property as { hazard_zone_summary?: string | null } | null)
+            ?.hazard_zone_summary ? (
+            <Row
+              label="Hazard zones"
+              value={
+                (property as { hazard_zone_summary?: string | null })
+                  .hazard_zone_summary!
+              }
+            />
+          ) : null}
+          {(property as { fema_flood_zone?: string | null } | null)
+            ?.fema_flood_zone ? (
+            <Row
+              label="FEMA flood"
+              value={
+                (property as { fema_flood_zone?: string | null })
+                  .fema_flood_zone!
+              }
+            />
+          ) : null}
+          {(property as { adu_status?: string | null } | null)?.adu_status ? (
+            <Row
+              label="ADU"
+              value={(property as { adu_status?: string | null }).adu_status!}
+            />
+          ) : null}
+          {(property as { solar_status?: string | null } | null)
+            ?.solar_status ? (
+            <Row
+              label="Solar"
+              value={
+                (property as { solar_status?: string | null }).solar_status!
+              }
+            />
+          ) : null}
+          {(property as { named_sellers?: string | null } | null)
+            ?.named_sellers ? (
+            <Row
+              label="Sellers"
+              value={
+                (property as { named_sellers?: string | null }).named_sellers!
+              }
+            />
+          ) : null}
+          {(property as { named_listing_team?: string | null } | null)
+            ?.named_listing_team ? (
+            <Row
+              label="Listing team"
+              value={
+                (property as { named_listing_team?: string | null })
+                  .named_listing_team!
+              }
+            />
+          ) : null}
+          {(property as { package_date?: string | null } | null)
+            ?.package_date ? (
+            <Row
+              label="Package date"
+              value={
+                (property as { package_date?: string | null }).package_date!
+              }
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -755,6 +820,211 @@ function AdminReportContent({ reportData }: { reportData: ReportData }) {
               </li>
             ) : null}
           </ul>
+        </div>
+      ) : null}
+
+      {/* Cost summary line items (Cowork-parity rendering). */}
+      {reportData.cost_summary?.line_items &&
+      reportData.cost_summary.line_items.length > 0 ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
+            Cost summary
+          </h3>
+          <div className="space-y-3 text-sm">
+            {reportData.cost_summary.line_items.map((group, gi) => (
+              <div key={gi}>
+                <p className="text-[10px] font-bold tracking-widest uppercase text-slate-600 mb-1">
+                  {group.category}
+                </p>
+                <ul className="space-y-1">
+                  {group.items.map((it, ii) => (
+                    <li
+                      key={ii}
+                      className="flex items-start justify-between gap-3"
+                    >
+                      <span className="text-slate-700 flex-1 min-w-0 break-words">
+                        {it.label}
+                      </span>
+                      <span className="text-slate-700 tabular-nums shrink-0 text-xs">
+                        ${(it.cost.low ?? 0).toLocaleString()} to $
+                        {(it.cost.high ?? 0).toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Permit & compliance review (Cowork Section 9 parity). */}
+      {reportData.permit_compliance &&
+      (reportData.permit_compliance.summary?.trim() ||
+        (reportData.permit_compliance.findings?.length ?? 0) > 0) ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+            Permit &amp; compliance
+          </h3>
+          {reportData.permit_compliance.summary?.trim() ? (
+            <p className="text-sm text-slate-800 leading-relaxed mb-2">
+              {reportData.permit_compliance.summary}
+            </p>
+          ) : null}
+          {(reportData.permit_compliance.findings?.length ?? 0) > 0 ? (
+            <ul className="space-y-1.5 text-sm text-slate-700">
+              {reportData.permit_compliance.findings!.slice(0, 5).map(
+                (f, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-slate-400">&middot;</span>
+                    <span>
+                      <span className="font-semibold">{f.title}</span>
+                      {f.description ? `: ${f.description}` : ""}
+                    </span>
+                  </li>
+                ),
+              )}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Insurance & lender risk (Cowork Section 7 partial parity). */}
+      {reportData.insurance_lender_risk &&
+      (reportData.insurance_lender_risk.summary?.trim() ||
+        (reportData.insurance_lender_risk.insurance_concerns?.length ?? 0) >
+          0 ||
+        (reportData.insurance_lender_risk.lender_concerns?.length ?? 0) >
+          0) ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+            Insurance &amp; lender risk
+          </h3>
+          {reportData.insurance_lender_risk.summary?.trim() ? (
+            <p className="text-sm text-slate-800 leading-relaxed mb-2">
+              {reportData.insurance_lender_risk.summary}
+            </p>
+          ) : null}
+          <div className="grid sm:grid-cols-2 gap-4">
+            {(reportData.insurance_lender_risk.insurance_concerns?.length ??
+              0) > 0 ? (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600 mb-1">
+                  Insurance concerns
+                </p>
+                <ul className="space-y-0.5 text-xs text-slate-700">
+                  {reportData.insurance_lender_risk.insurance_concerns!.map(
+                    (c, i) => (
+                      <li key={i} className="flex gap-1">
+                        <span className="text-slate-400">&middot;</span>
+                        <span>{c}</span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
+            ) : null}
+            {(reportData.insurance_lender_risk.lender_concerns?.length ?? 0) >
+            0 ? (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600 mb-1">
+                  Lender concerns
+                </p>
+                <ul className="space-y-0.5 text-xs text-slate-700">
+                  {reportData.insurance_lender_risk.lender_concerns!.map(
+                    (c, i) => (
+                      <li key={i} className="flex gap-1">
+                        <span className="text-slate-400">&middot;</span>
+                        <span>{c}</span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Outstanding questions (Cowork Section 13 parity). */}
+      {reportData.outstanding_questions &&
+      reportData.outstanding_questions.length > 0 ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+            Questions to ask the listing agent (
+            {reportData.outstanding_questions.length})
+          </h3>
+          <ol className="space-y-1 text-sm text-slate-800 list-decimal list-inside">
+            {reportData.outstanding_questions.slice(0, 10).map((q, i) => (
+              <li key={i}>{q}</li>
+            ))}
+            {reportData.outstanding_questions.length > 10 ? (
+              <li className="list-none text-xs text-slate-500 italic">
+                ...{reportData.outstanding_questions.length - 10} more in the
+                PDF.
+              </li>
+            ) : null}
+          </ol>
+        </div>
+      ) : null}
+
+      {/* Document inventory (Cowork Section 2 parity). */}
+      {reportData.document_inventory &&
+      ((reportData.document_inventory.documents_provided?.length ?? 0) > 0 ||
+        (reportData.document_inventory.documents_missing?.length ?? 0) > 0) ? (
+        <div className="border-t border-slate-100 pt-5">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+            Document inventory (
+            {reportData.document_inventory.documents_provided?.length ?? 0}{" "}
+            provided,{" "}
+            {reportData.document_inventory.documents_missing?.length ?? 0}{" "}
+            missing)
+          </h3>
+          {(reportData.document_inventory.documents_provided?.length ?? 0) >
+          0 ? (
+            <ul className="divide-y divide-slate-100 text-sm mb-3">
+              {reportData.document_inventory.documents_provided!.map((d, i) => {
+                const status =
+                  (d as { status?: string | null }).status?.trim() || null;
+                const notes =
+                  (d as { notes?: string | null }).notes?.trim() || null;
+                const tone =
+                  status && /stale|partial|coversheet/i.test(status)
+                    ? "text-amber-700 bg-amber-50"
+                    : "text-emerald-700 bg-emerald-50";
+                return (
+                  <li key={i} className="py-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-slate-800 font-medium flex-1 min-w-0 break-words">
+                        {d.name}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${tone}`}
+                      >
+                        {status || "Provided"}
+                      </span>
+                    </div>
+                    {notes ? (
+                      <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                        {notes}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+          {(reportData.document_inventory.documents_missing?.length ?? 0) >
+          0 ? (
+            <ul className="space-y-0.5 text-xs text-slate-700">
+              {reportData.document_inventory.documents_missing!.map((m, i) => (
+                <li key={i} className="flex gap-1.5">
+                  <span className="text-red-600 font-bold">missing:</span>
+                  <span>{m}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
 
