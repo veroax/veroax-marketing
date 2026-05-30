@@ -36,6 +36,10 @@ import type { ReportData } from "@/lib/anthropic/schema";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
 import { validateCriticalQuotes } from "@/lib/reports/quote-validator";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
+import {
+  ocrPdfWithClaude,
+  looksLikeScannedPdf,
+} from "@/lib/anthropic/pdf-ocr";
 import { generateShareCode } from "@/lib/share/code";
 import { consumeReportCredit, freeUpdateWindow } from "@/lib/billing/credits";
 import { SUPPORT } from "@/lib/site";
@@ -127,6 +131,13 @@ export async function performAnalysis(
   // quotes cannot be verified. See docs/internal/COWORK_VEROAX_DIFF.md
   // item 1 for the why.
   const corpusChunks: string[] = [];
+  // Per-doc extracted text, keyed by filename. Used by the OCR
+  // pre-pass below to detect which PDF-mode documents look like
+  // scans (very low chars-per-page from pdftotext-style extraction)
+  // and need a Claude-vision OCR transcription before the focused
+  // passes run. Born-digital PDFs land in here with thousands of
+  // chars per page and skip the OCR call entirely.
+  const perDocExtractedText = new Map<string, string>();
   // PII rule: do not store raw filenames anywhere audit_log can see
   // them. Each entry holds the safe digest + extension + reason.
   const failedExtractions: Array<{
@@ -225,9 +236,17 @@ export async function performAnalysis(
       // best-effort: a failure here just means quote validation can't
       // confirm a Critical finding's source quote for this document
       // (the validator treats unmatched-but-no-corpus as benign).
+      // We also stash the extracted text per-doc so the OCR pre-pass
+      // below can detect scanned PDFs (very low chars-per-page from
+      // text-layer extraction) and run a Claude-vision transcription
+      // before the focused passes.
+      let perDocText = "";
       try {
         const corpus = await extractText(buffer);
-        if (corpus.text) corpusChunks.push(corpus.text);
+        if (corpus.text) {
+          corpusChunks.push(corpus.text);
+          perDocText = corpus.text;
+        }
       } catch {
         // Swallow; corpus stays without this doc's text. The
         // analyzer still proceeds with the native PDF.
@@ -264,6 +283,13 @@ export async function performAnalysis(
           addedAt,
           pdfBase64: chunk.buffer.toString("base64"),
         });
+        // Stash the per-doc extracted text under the CHUNK
+        // filename (not the source filename) so the OCR-detector
+        // looks at the right key when iterating documents[].
+        // Single-chunk path uses the full extracted text; multi-
+        // chunk path uses the same text for every chunk (the
+        // detector compares chars vs pages, which still works).
+        if (perDocText) perDocExtractedText.set(chunk.name, perDocText);
         await admin.from("audit_log").insert({
           user_id: userId,
           report_id: reportId,
@@ -345,6 +371,101 @@ export async function performAnalysis(
       },
     });
   }
+
+  // ===== OCR pre-pass =====
+  // Detect PDF-mode documents that look like scans (almost no text
+  // produced by local text-layer extraction) and replace them with
+  // Claude-vision-transcribed text before the focused passes. See
+  // lib/anthropic/pdf-ocr for the rationale: Anthropic's native PDF
+  // endpoint sometimes returns "this is unreadable" on scanned
+  // documents instead of attempting transcription, which leaves
+  // the analyzer with nothing to work from. A separate OCR-focused
+  // call to Claude with vision input transcribes them reliably.
+  const ocrCandidates = documents.filter((d) => {
+    if (!d.pdfBase64) return false; // already text-mode
+    if (d.pages <= 0) return false;
+    const extracted = perDocExtractedText.get(d.filename) ?? "";
+    return looksLikeScannedPdf({
+      extractedText: extracted,
+      pages: d.pages,
+    });
+  });
+
+  if (ocrCandidates.length > 0) {
+    await admin.from("audit_log").insert({
+      user_id: userId,
+      report_id: reportId,
+      event_type: "analysis.ocr_prepass_started",
+      metadata: {
+        candidate_count: ocrCandidates.length,
+        total_pdf_docs: documents.filter((d) => d.pdfBase64).length,
+      },
+    });
+
+    // Run OCR for all candidates in parallel. Wall-clock is the
+    // slowest single PDF, not the sum. Each call typically takes
+    // 15 to 60 seconds. Failures are caught per-candidate so one
+    // bad PDF doesn't break the whole pre-pass.
+    const ocrResults = await Promise.all(
+      ocrCandidates.map(async (doc) => {
+        try {
+          const result = await ocrPdfWithClaude({
+            pdfBase64: doc.pdfBase64!,
+            pages: doc.pages,
+            filename: doc.filename,
+          });
+          return { doc, result, error: null as string | null };
+        } catch (err) {
+          return {
+            doc,
+            result: null,
+            error: err instanceof Error ? err.message : "OCR failed",
+          };
+        }
+      }),
+    );
+
+    for (const { doc, result, error } of ocrResults) {
+      const idx = documents.findIndex((d) => d.filename === doc.filename);
+      if (idx < 0) continue;
+      await admin.from("audit_log").insert({
+        user_id: userId,
+        report_id: reportId,
+        event_type: "analysis.ocr_prepass_completed",
+        metadata: {
+          ...safeFileMetadata(doc.filename),
+          pages: doc.pages,
+          succeeded: result !== null && result.appears_substantive,
+          chars_returned: result?.text.length ?? 0,
+          input_tokens: result?.input_tokens ?? 0,
+          output_tokens: result?.output_tokens ?? 0,
+          error_message: error ?? undefined,
+        },
+      });
+      if (result && result.appears_substantive) {
+        // Replace the PDF-mode doc with text-mode: set the text
+        // field to the OCR transcription and clear pdfBase64 so
+        // the analyzer routes through text-mode in the focused
+        // pass. Also push the OCR'd text into the corpus so the
+        // post-analyzer quote validator can match against it.
+        documents[idx] = {
+          ...documents[idx],
+          text: result.text,
+          pdfBase64: null,
+          tokens: estimateTokens(result.text),
+        };
+        corpusChunks.push(result.text);
+      }
+      // When the OCR call failed OR returned non-substantive
+      // output, we LEAVE the document as PDF-mode and let the
+      // analyzer try its luck via Anthropic's native PDF endpoint.
+      // The "Walk Away" rating with "unreadable" findings the
+      // founder saw on 434 Hibiscus came from this fallback path,
+      // so failing softly is not ideal but is the right posture
+      // when OCR itself can't do better.
+    }
+  }
+  // ===== End OCR pre-pass =====
 
   const groups: Record<PassGroup, Document[]> = {
     seller_disclosures: [],
