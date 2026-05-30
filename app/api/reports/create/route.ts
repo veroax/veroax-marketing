@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { balanceForUser } from "@/lib/billing/credits";
 import { requireUser } from "@/lib/auth/require";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { extractAddressFromListingUrl } from "@/lib/listing/parse-address";
 
 // Creates a new "reports" row owned by the authenticated user.
 // Returns the report ID and user ID so the client can build the
@@ -60,9 +61,17 @@ export async function POST(request: Request) {
   // property_address remains accepted for backwards compatibility but
   // is deprecated as user input. New uploads should leave it null and
   // let the analysis derive the canonical address from the documents.
-  const propertyAddress = trim(body?.property_address);
+  // When property_address is not provided but a Zillow / Redfin URL
+  // is, parse the slug for a best-effort placeholder so the
+  // AnalysisRunner can display "what report is running" before the
+  // focused passes extract the canonical address.
+  const submittedAddress = trim(body?.property_address);
   const listingUrl = trim(body?.listing_url);
   const listingText = trim(body?.listing_text);
+  const parsedAddress = submittedAddress
+    ? null
+    : extractAddressFromListingUrl(listingUrl);
+  const propertyAddress = submittedAddress ?? parsedAddress;
 
   // Resolve team + brokerage attribution. Service-role read because
   // the user-scoped client's RLS on team_members is own-row-only,

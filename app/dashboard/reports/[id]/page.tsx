@@ -163,6 +163,12 @@ export default async function ReportDetailPage({ params }: { params: Params }) {
               .analysis_started_at ?? null
           }
           propertyAddress={report.property_address ?? null}
+          reportName={
+            (report as { report_name?: string | null }).report_name ?? null
+          }
+          listingUrl={
+            (report as { listing_url?: string | null }).listing_url ?? null
+          }
           isRerun={
             ((report as { analysis_run_count?: number | null })
               .analysis_run_count ?? 1) > 1

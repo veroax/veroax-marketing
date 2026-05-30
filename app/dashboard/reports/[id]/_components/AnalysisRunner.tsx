@@ -34,6 +34,12 @@ type Props = {
   // they're watching when they have multiple analyses in-flight or
   // when they navigate back from another tab.
   propertyAddress?: string | null;
+  // Fallback identifiers when property_address is still null at the
+  // time of render (analyzer hasn't extracted the canonical address
+  // yet). Agent labels and listing URLs both help disambiguate which
+  // run is in flight.
+  reportName?: string | null;
+  listingUrl?: string | null;
   // True when this is a re-run (analysis_run_count > 1), false for
   // first-time analyses. Drives the header eyebrow text and gives
   // the agent visible feedback that the click-Retry flow actually
@@ -77,6 +83,8 @@ export function AnalysisRunner({
   reportId,
   analysisStartedAt,
   propertyAddress,
+  reportName,
+  listingUrl,
   isRerun,
 }: Props) {
   const router = useRouter();
@@ -357,16 +365,29 @@ export function AnalysisRunner({
           visual confirmation that a retry actually restarted the
           worker (instead of just sitting on the failure card the
           way it did before commit f9faf62 + this commit). */}
-      {propertyAddress?.trim() ? (
-        <div className="mb-5 pb-4 border-b border-slate-100">
-          <p className="text-[10px] font-bold tracking-widest uppercase text-amber-700">
-            {isRerun ? "Re-running analysis" : "Analyzing"}
-          </p>
-          <h1 className="text-xl sm:text-2xl font-bold text-indigo-950 mt-1 leading-tight">
-            {propertyAddress}
-          </h1>
-        </div>
-      ) : null}
+      {(() => {
+        const headline =
+          propertyAddress?.trim() ||
+          reportName?.trim() ||
+          listingUrl?.trim() ||
+          null;
+        if (!headline) return null;
+        const isUrl = headline.startsWith("http");
+        return (
+          <div className="mb-5 pb-4 border-b border-slate-100">
+            <p className="text-[10px] font-bold tracking-widest uppercase text-amber-700">
+              {isRerun ? "Re-running analysis" : "Analyzing"}
+            </p>
+            <h1
+              className={`mt-1 leading-tight font-bold text-indigo-950 ${
+                isUrl ? "text-sm break-all" : "text-xl sm:text-2xl"
+              }`}
+            >
+              {headline}
+            </h1>
+          </div>
+        );
+      })()}
 
       <div className="flex items-start gap-4">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-100 shrink-0">
@@ -434,7 +455,11 @@ export function AnalysisRunner({
                     >
                       {label}
                       {passesLabel}
-                      {state === "skipped" ? " (skipped)" : ""}
+                      {state === "skipped"
+                        ? key === "ocr"
+                          ? " (skipped, not applicable)"
+                          : " (skipped)"
+                        : ""}
                     </span>
                   </li>
                 );

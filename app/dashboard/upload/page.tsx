@@ -53,7 +53,10 @@ export default function UploadPage() {
   // Report metadata (none of these become the property's address ,
   // the address is derived from the disclosure documents themselves).
   const [reportName, setReportName] = useState("");
-  const [clientName, setClientName] = useState("");
+  // Client name was removed from the UI when the product repositioned
+  // from "agent shares with client" to "agent uses to analyze for
+  // themselves". The database column is retained for possible future
+  // reuse. Submitted as null on every new report.
   const [listingUrl, setListingUrl] = useState("");
   const [mlsPdfFile, setMlsPdfFile] = useState<File | null>(null);
   const mlsInputRef = useRef<HTMLInputElement>(null);
@@ -145,7 +148,7 @@ export default function UploadPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           report_name: reportName.trim() || null,
-          client_name: clientName.trim() || null,
+          client_name: null,
           listing_url: listingUrl.trim() || null,
         }),
       });
@@ -308,28 +311,6 @@ export default function UploadPage() {
           works, client name, property nickname, offer round. The
           property&apos;s actual address gets pulled from the disclosure
           documents.
-        </p>
-      </div>
-
-      {/* Client name, appears on the cover under "Prepared For". */}
-      <div>
-        <label
-          htmlFor="client_name"
-          className="block text-sm font-medium text-slate-700 mb-1.5"
-        >
-          Client name <span className="text-gray-400 font-normal">(optional)</span>
-        </label>
-        <input
-          id="client_name"
-          type="text"
-          value={clientName}
-          onChange={(e) => setClientName(e.target.value)}
-          placeholder="Jane & John Smith"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          The buyer client this report is for. Appears on the cover page
-          under &ldquo;Prepared For.&rdquo;
         </p>
       </div>
 
