@@ -20,7 +20,20 @@ export type ExtractedDocument = {
  * embedded OCR layer (most title-company exports OCR before delivery).
  */
 export async function extractText(pdfBuffer: Buffer): Promise<ExtractedDocument> {
-  const data = new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength);
+  // CRITICAL: must COPY the bytes, not VIEW the underlying
+  // ArrayBuffer. PDFjs (underlying unpdf) detaches the ArrayBuffer
+  // of whatever Uint8Array you pass it. If we hand it a VIEW into
+  // pdfBuffer's memory (which `new Uint8Array(buf.buffer, byteOffset,
+  // byteLength)` does), the original Buffer becomes a 0-byte
+  // detached buffer after this call. Any downstream code that
+  // tried to base64-encode the same Buffer would get an empty
+  // string, which is exactly the bug that made the analyzer see
+  // every PDF as blank from commit 24a3948 through 5176401.
+  //
+  // `new Uint8Array(pdfBuffer)` (without buffer/byteOffset args)
+  // COPIES the bytes into a new ArrayBuffer, so pdfjs can detach
+  // its copy without affecting the original Buffer.
+  const data = new Uint8Array(pdfBuffer);
   const pdf = await getDocumentProxy(data);
   const result = await unpdfExtract(pdf, { mergePages: true });
   return {
