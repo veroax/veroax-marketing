@@ -946,7 +946,23 @@ Almost every cost-bearing finding sourced from HOA documents is HOA-paid, not ow
 - Reserve shortfall or planned special assessment → cost_responsibility = "hoa" on the project finding; the buyer's exposure (a future dues increase or pro-rata special assessment) belongs in hoa_facts.concerns
 DO NOT mark a finding Critical because the HOA project costs $500K. The dollar figure shows the scope, but cost_responsibility="hoa" means it never lands on the buyer's repair-cost line. Severity for the BUYER reflects probability of a special assessment hitting them, the size of likely dues increases, and whether reserves are healthy enough to absorb the project, those are typically Moderate or High concerns, not Critical, unless reserves are dangerously underfunded relative to the imminent project (active hazard equivalent).
 
-Items that ARE owner-paid even when sourced from HOA docs: balcony exclusive-use maintenance assigned to the unit owner per CC&Rs, in-unit fixtures the HOA explicitly disclaims, the buyer's pro-rata share of a special assessment ALREADY LEVIED. Tag those cost_responsibility = "owner" (or "shared" with explanation).`,
+Items that ARE owner-paid even when sourced from HOA docs: balcony exclusive-use maintenance assigned to the unit owner per CC&Rs, in-unit fixtures the HOA explicitly disclaims, the buyer's pro-rata share of a special assessment ALREADY LEVIED. Tag those cost_responsibility = "owner" (or "shared" with explanation).
+
+COMMUNITY-LEVEL ENVIRONMENTAL CONDITIONS DOCUMENTED IN HOA RECORDS, mandatory cross-pass surface. The hazards pass only reads the NHD, which DOES NOT capture active community environmental conditions like vapor-intrusion mitigation systems, ongoing groundwater plume monitoring, soil-vapor or sub-slab sampling programs, Regional Water Board oversight, or Phase II ESA results. Those conditions live in the HOA package: board minutes, the operating budget cover letter, environmental consultant reports (GeoKinetics, ENGEO, ERM, etc.), and correspondence from the Regional Water Quality Control Board. They are MATERIAL: they affect indoor air quality, future dues / assessments, lender underwriting, and resale.
+
+When HOA documents disclose a COMMUNITY-LEVEL environmental condition, populate BOTH:
+- A Finding in the findings array (severity critical when sampling has shown exceedances or the system actively mitigates an ongoing release; severity high when monitoring is required but no recent exceedances; severity moderate when the condition is historic, closed, or buyer's specific exposure is unclear), with source citing the specific board minute date and any consultant report number, and recommended_action listing the documents the buyer must request (OM&M plan, latest sampling report, Regional Water Board correspondence, unit-specific sub-slab or indoor-air screen consideration).
+- An entry in environmental_hazards with name (e.g., "Community vapor-intrusion mitigation system (PCE / vinyl chloride)"), severity matching the Finding, and notes covering: what the contaminant is, the regulatory framework (Regional Water Board case number when available), who currently funds the system (builder vs. HOA vs. responsible party), and whether the subject unit's specific building has been sampled.
+
+Specific community-environmental conditions to watch for in HOA records:
+- Vapor-intrusion mitigation systems (active or required) for chlorinated solvents (TCE, PCE, perchloroethylene, tetrachloroethylene, vinyl chloride, 1,1-DCE) common in Silicon Valley / South Bay legacy-semiconductor areas including Stewart Drive, East Arques, MTV NASA-Ames vicinity, and parts of the Mountain View, Sunnyvale, Santa Clara semiconductor corridor
+- Ongoing groundwater plume monitoring, well-installation requirements, deed restrictions for site activity
+- Soil-vapor sampling exceedances reported by a third-party consultant
+- Regional Water Quality Control Board case numbers, Site Cleanup Program, ISCP, NPL Superfund-adjacent properties where the HOA / developer accepts continuing obligations
+- Historic asbestos surveys for older common-area structures (built before 1981)
+- Active mold remediation programs in common areas
+
+A finding with name "Community vapor-intrusion mitigation system" is a CRITICAL when the package shows recent sampling exceedances; "uncertain long-term cost allocation" is the standard recommended_action item.`,
 
   hazards: `You are analyzing the NATURAL HAZARDS group: NHD reports, environmental disclosures, supplemental hazard documents.
 
@@ -2042,15 +2058,38 @@ function synthesizeReportInCode(
     concerns: dedupeStrings(mergedConcerns),
   };
 
-  // Environmental, take the hazards pass's content.
-  const environmentalHazards = focused.flatMap(
-    (p) => p.environmental_hazards ?? [],
-  );
+  // Environmental, aggregate from EVERY pass. The hazards pass writes
+  // NHD-zone entries (fault, flood, fire, seismic), but the HOA pass
+  // can ALSO write entries for community-level environmental conditions
+  // disclosed in board minutes (vapor-intrusion mitigation, groundwater
+  // plumes, regional water board oversight). Those HOA-sourced
+  // entries are material and must surface in the environmental section.
+  //
+  // Dedupe by lowercased name so a vapor-intrusion entry written by
+  // both the HOA pass and the hazards pass collapses into one.
+  const envSeenNames = new Set<string>();
+  const environmentalHazards: NonNullable<ReportData["environmental"]>["hazards"] = [];
+  for (const p of focused) {
+    for (const h of p.environmental_hazards ?? []) {
+      const k = (h.name ?? "").trim().toLowerCase();
+      if (!k || envSeenNames.has(k)) continue;
+      envSeenNames.add(k);
+      environmentalHazards.push(h);
+    }
+  }
+  // Surface community-environmental severity in the summary line so
+  // the section header signals when the HOA pass found a material
+  // condition (vapor intrusion, groundwater plume, etc.).
+  const criticalEnvCount = environmentalHazards.filter(
+    (h) => h.severity === "critical" || h.severity === "high",
+  ).length;
   const environmental = {
     summary:
       environmentalHazards.length === 0
         ? "No significant natural hazards identified in the disclosed documents."
-        : `${environmentalHazards.length} hazard zone${environmentalHazards.length === 1 ? "" : "s"} applicable to this property. Review each below for insurance and lender implications.`,
+        : criticalEnvCount > 0
+          ? `${environmentalHazards.length} environmental item${environmentalHazards.length === 1 ? "" : "s"} applicable, including ${criticalEnvCount} critical or high severity item${criticalEnvCount === 1 ? "" : "s"} that the buyer must review before contingency removal.`
+          : `${environmentalHazards.length} hazard zone${environmentalHazards.length === 1 ? "" : "s"} applicable to this property. Review each below for insurance and lender implications.`,
     hazards: environmentalHazards,
   };
 
