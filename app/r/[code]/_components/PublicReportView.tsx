@@ -584,19 +584,95 @@ export function PublicReportView({
           shareCode={shareCode}
         />
 
-        {/* Negotiation leverage */}
-        {negotiation?.leverage_points && negotiation.leverage_points.length > 0 ? (
-          <Section title="Negotiation leverage" defaultOpen={false} shareCode={shareCode}>
-            <p className="text-sm text-slate-700 leading-relaxed mb-3">
-              {negotiation.summary}
-            </p>
-            <ol className="space-y-2 text-sm text-slate-700 list-decimal list-inside">
-              {negotiation.leverage_points.map((p, i) => (
-                <li key={i}>{p}</li>
-              ))}
-            </ol>
-          </Section>
-        ) : null}
+        {/* Negotiation leverage. Renders the Cowork-parity narrative
+            (five labeled paragraphs) when populated; otherwise falls
+            back to the flat leverage_points list from earlier reports. */}
+        {(() => {
+          const np = negotiation as
+            | (typeof negotiation & {
+                price_justification?: string | null;
+                seller_repair_requests?: string | null;
+                buyer_credit_requests?: string | null;
+                contingency_recommendations?: string | null;
+                walk_away_considerations?: string | null;
+              })
+            | null;
+          const paragraphs: Array<{ heading: string; body: string }> = [];
+          if (np?.price_justification) {
+            paragraphs.push({
+              heading: "Price reduction justification",
+              body: np.price_justification,
+            });
+          }
+          if (np?.seller_repair_requests) {
+            paragraphs.push({
+              heading: "Seller repair requests",
+              body: np.seller_repair_requests,
+            });
+          }
+          if (np?.buyer_credit_requests) {
+            paragraphs.push({
+              heading: "Buyer credit requests",
+              body: np.buyer_credit_requests,
+            });
+          }
+          if (np?.contingency_recommendations) {
+            paragraphs.push({
+              heading: "Contingency recommendations",
+              body: np.contingency_recommendations,
+            });
+          }
+          if (np?.walk_away_considerations) {
+            paragraphs.push({
+              heading: "Walk-away considerations",
+              body: np.walk_away_considerations,
+            });
+          }
+          if (paragraphs.length > 0) {
+            return (
+              <Section
+                title="Negotiation leverage points"
+                defaultOpen={false}
+                shareCode={shareCode}
+              >
+                <div className="space-y-4">
+                  {paragraphs.map((p, i) => (
+                    <div key={i}>
+                      <h4 className="text-sm font-semibold text-slate-800 mb-1">
+                        {p.heading}
+                      </h4>
+                      <p className="text-sm text-slate-700 leading-relaxed">
+                        {p.body}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            );
+          }
+          if (
+            negotiation?.leverage_points &&
+            negotiation.leverage_points.length > 0
+          ) {
+            return (
+              <Section
+                title="Negotiation leverage"
+                defaultOpen={false}
+                shareCode={shareCode}
+              >
+                <p className="text-sm text-slate-700 leading-relaxed mb-3">
+                  {negotiation.summary}
+                </p>
+                <ol className="space-y-2 text-sm text-slate-700 list-decimal list-inside">
+                  {negotiation.leverage_points.map((p, i) => (
+                    <li key={i}>{p}</li>
+                  ))}
+                </ol>
+              </Section>
+            );
+          }
+          return null;
+        })()}
 
         {/* Market context */}
         {marketContext?.summary ? (

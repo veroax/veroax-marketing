@@ -274,6 +274,18 @@ export type ReportData = {
   negotiation: {
     summary: string;
     leverage_points: string[];
+    // Cowork-parity narrative paragraphs. The PDF and the public
+    // report render these as five labeled paragraphs that read like
+    // an agent walking the buyer through the negotiation playbook:
+    // (A) Price reduction justification, (B) Seller repair requests,
+    // (C) Buyer credit requests, (D) Contingency recommendations,
+    // (E) Walk-away considerations. When populated, the leverage_points
+    // bullet list is hidden in favor of the narrative.
+    price_justification?: string | null;
+    seller_repair_requests?: string | null;
+    buyer_credit_requests?: string | null;
+    contingency_recommendations?: string | null;
+    walk_away_considerations?: string | null;
   };
   insurance_lender_risk: {
     summary: string;
@@ -500,6 +512,19 @@ export type FocusedAnalysis = {
   };
   overall_rating_why?: string;
   overall_rating_conditions?: string;
+  // Cowork-parity negotiation narrative. Five labeled paragraphs the
+  // PDF and public report render as the "Negotiation Leverage Points"
+  // section (Cowork section 11). When ANY of these are populated the
+  // narrative replaces the flat leverage_points bullet list in the
+  // final report. Populated by the pass with the broadest context
+  // (typically seller_disclosures, since it sees TDS+SPQ+MLS+prelim).
+  negotiation_paragraphs?: {
+    price_justification?: string | null;
+    seller_repair_requests?: string | null;
+    buyer_credit_requests?: string | null;
+    contingency_recommendations?: string | null;
+    walk_away_considerations?: string | null;
+  };
 };
 
 export const FOCUSED_TOOL_SCHEMA = {
@@ -848,6 +873,38 @@ export const FOCUSED_TOOL_SCHEMA = {
       overall_rating_conditions: {
         type: "string",
         description: "Short paragraph listing the conditions that must hold for the rating to remain valid.",
+      },
+      negotiation_paragraphs: {
+        type: "object",
+        description:
+          "Negotiation playbook for the buyer's agent, written as five labeled paragraphs. The PDF / public report renders this as the 'Negotiation Leverage Points' section. Populate when this pass has enough context to write the playbook (typically the seller_disclosures pass, since it sees the MLS printout for pricing context). Each paragraph is 2-5 sentences.",
+        properties: {
+          price_justification: {
+            type: ["string", "null"],
+            description:
+              "Why a price discussion is supported by the findings + market signals. Reference list-price history, days on market, comparable units, zestimate, and the highest-severity findings. Example: 'The listing has already moved: priced at $X on Y, cut Z% to $W on V, now at N days on market. The combination signals buyer resistance. The HVAC findings, the underfunded reserves, and the vapor-mitigation matter are all documented bases for a price discussion rather than emotional points.'",
+          },
+          seller_repair_requests: {
+            type: ["string", "null"],
+            description:
+              "Items the buyer should ask the seller to FIX before close (versus take as a credit). Strongest candidates are health/safety items and anything a lender or appraiser may flag, e.g., 'Strongest candidate for a seller repair is the HVAC system, because it did not function at inspection and a buyer's lender or appraiser may flag a non-working system. Request a licensed HVAC contractor diagnosis and repair, with documentation, or a credit in lieu.'",
+          },
+          buyer_credit_requests: {
+            type: ["string", "null"],
+            description:
+              "Items better handled as a closing credit than a seller repair. Items where the buyer wants control of timing and contractor choice, or items where the scope is uncertain at contract.",
+          },
+          contingency_recommendations: {
+            type: ["string", "null"],
+            description:
+              "What MUST be in hand before the buyer removes inspection or HOA contingencies. List the 2-4 concrete preconditions, e.g., 'Do not remove the inspection or HOA contingencies until three things are in hand: (1) a licensed HVAC evaluation; (2) written confirmation from Boardwalk on the emergency special assessment (status, amount, payoff, transfer); (3) the vapor-intrusion OM&M plan, the latest sampling report, and Regional Water Board correspondence.'",
+          },
+          walk_away_considerations: {
+            type: ["string", "null"],
+            description:
+              "Direct guidance on when walking away is the rational move. Frame as 'be direct with the buyer'. Identify the 1-3 specific scenarios that would change the economics enough to walk, e.g., 'If the vapor sampling shows the subject building among the exceedances and the long-term monitoring cost is being shifted to owners, or if the emergency assessment turns out to be large and unpaid, the value and carrying-cost case weakens materially. Those are the scenarios in which walking, or repricing hard, is the rational move. Absent those, this is a manageable purchase.'",
+          },
+        },
       },
     },
     $defs: {

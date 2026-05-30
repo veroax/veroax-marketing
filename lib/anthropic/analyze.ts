@@ -838,6 +838,24 @@ CRITICAL RULES:
 
    This section was added because the Cowork skill's Section 3 (Cross-Document Consistency Findings) is its most differentiated content; ours was producing none, which is the single biggest accuracy gap on the same packages.
 
+10.7. NEGOTIATION NARRATIVE (mandatory when this pass sees the MLS printout and / or pricing data). The Cowork report's section 11 is five labeled paragraphs that read like an agent walking the buyer through the negotiation playbook. Veroax's flat leverage_points list is the lowest-leverage piece of the report; replacing it with these five paragraphs is one of the highest-impact quality lifts.
+
+   Populate negotiation_paragraphs with all five fields when your pass has the context. Typically only the seller_disclosures pass sees the MLS printout (where pricing context lives), so other passes can leave this null.
+
+   The five paragraphs, with the Cowork pattern to follow:
+
+   A) price_justification: 2-5 sentences explaining why a price discussion is supported. Reference list-price history (current price vs original, percent reduction, date of reduction), days on market, comparable units (sibling units in the same complex), zestimate when available, and the highest-severity findings. Example: "The listing has already moved: priced at $1,975,000 on 4/4/2026, cut 6.3% to $1,849,888 on 5/20, now at 55 days on market. That combination signals buyer resistance. The HVAC findings, the underfunded reserves, and the vapor-mitigation matter are all legitimate, documented bases for a price discussion rather than emotional points."
+
+   B) seller_repair_requests: 2-5 sentences identifying items the buyer should ask the seller to FIX before close. Strongest candidates are health/safety, anything a lender or appraiser will flag (non-functioning HVAC, electrical hazards, active leaks). Items that are HOA-maintained (exterior stucco, common-area drainage) are NOT seller-repair candidates and should be called out as such.
+
+   C) buyer_credit_requests: 2-5 sentences on items better handled as a closing credit than a seller repair. Credit makes sense when: the buyer wants control of timing and contractor choice; the scope is uncertain at contract; the seller is motivated and would rather close than coordinate work; the work is cosmetic enough that the seller's preferred contractor may not match the buyer's standards.
+
+   D) contingency_recommendations: 2-5 sentences listing the concrete preconditions for contingency removal. Format as numbered preconditions. Example: "Do not remove the inspection or HOA contingencies until three things are in hand: (1) a licensed HVAC evaluation; (2) written confirmation from [management company] on the emergency special assessment (status, amount, payoff, transfer); (3) the vapor-intrusion OM&M plan, the latest sampling report, and Regional Water Board correspondence."
+
+   E) walk_away_considerations: 2-5 sentences. Frame as direct guidance. Identify the 1-3 specific scenarios that would change the economics enough to walk. End with whether, absent those scenarios, the property is a manageable purchase. Example: "Be direct with the buyer: the unit is sound, but two items could change the economics. If the vapor sampling shows the subject building among the exceedances and the long-term monitoring cost is being shifted to owners, or if the emergency assessment turns out to be large and unpaid, the value and carrying-cost case weakens materially. Those are the scenarios in which walking, or repricing hard, is the rational move. Absent those, this is a manageable purchase."
+
+   All five paragraphs are grounded in your finding set + the property snapshot + the documents you saw. Do NOT invent specifics. If your pass has zero high-severity findings, the paragraphs will be shorter and more reassuring; the structure is the same.
+
 11. CALL THE submit_focused_analysis TOOL EXACTLY ONCE with your structured analysis. Do not produce any other text output.`;
 
 const FOCUSED_GROUP_INSTRUCTIONS: Record<PassGroup, string> = {
@@ -2192,12 +2210,81 @@ function synthesizeReportInCode(
     .filter((f) => f.confidence === "high")
     .map((f) => `${f.title}, ${f.recommended_action}`);
 
+  // Pass-rank indexing used by BOTH the negotiation paragraphs (below)
+  // and the rating-text composition (further down). Computed here once
+  // so the negotiation block can reference it.
+  const RATING_GROUP_RANK: Record<PassGroup, number> = {
+    seller_disclosures: 0,
+    inspections: 1,
+    hoa: 2,
+    hazards: 3,
+  };
+  const indexedFocused = focused.map((analysis, i) => ({
+    analysis,
+    group: passGroups[i] ?? null,
+    rank: passGroups[i] ? RATING_GROUP_RANK[passGroups[i]] : 99,
+    findingCount: analysis.findings?.length ?? 0,
+  }));
+
+  // Cowork-parity narrative paragraphs. Pick from the pass with the
+  // broadest context (same group-rank logic as overall_rating_why),
+  // then merge per-field across passes so a paragraph populated by
+  // one pass plus a paragraph populated by another both make it in.
+  const negotiationCandidates = [...indexedFocused]
+    .filter((p) => {
+      const np = (p.analysis as { negotiation_paragraphs?: unknown })
+        .negotiation_paragraphs;
+      return np != null && typeof np === "object";
+    })
+    .sort((a, b) => a.rank - b.rank || b.findingCount - a.findingCount);
+  const mergedNegotiationParagraphs: {
+    price_justification: string | null;
+    seller_repair_requests: string | null;
+    buyer_credit_requests: string | null;
+    contingency_recommendations: string | null;
+    walk_away_considerations: string | null;
+  } = {
+    price_justification: null,
+    seller_repair_requests: null,
+    buyer_credit_requests: null,
+    contingency_recommendations: null,
+    walk_away_considerations: null,
+  };
+  for (const cand of negotiationCandidates) {
+    const np = (cand.analysis as { negotiation_paragraphs?: Record<string, string | null> })
+      .negotiation_paragraphs ?? {};
+    for (const key of Object.keys(mergedNegotiationParagraphs) as Array<
+      keyof typeof mergedNegotiationParagraphs
+    >) {
+      if (!mergedNegotiationParagraphs[key]) {
+        const value = cleanEditorialString(np[key]);
+        if (value) mergedNegotiationParagraphs[key] = value;
+      }
+    }
+  }
+  const hasAnyNarrative = Object.values(mergedNegotiationParagraphs).some(
+    (v) => v && v.trim().length > 0,
+  );
+
   const negotiation = {
     summary:
       leveragePoints.length === 0
         ? "Limited negotiation leverage from the documented findings."
         : `${leveragePoints.length} high-confidence critical/high finding${leveragePoints.length === 1 ? "" : "s"} provide${leveragePoints.length === 1 ? "s" : ""} meaningful negotiation leverage.`,
     leverage_points: leveragePoints,
+    ...(hasAnyNarrative
+      ? {
+          price_justification: mergedNegotiationParagraphs.price_justification,
+          seller_repair_requests:
+            mergedNegotiationParagraphs.seller_repair_requests,
+          buyer_credit_requests:
+            mergedNegotiationParagraphs.buyer_credit_requests,
+          contingency_recommendations:
+            mergedNegotiationParagraphs.contingency_recommendations,
+          walk_away_considerations:
+            mergedNegotiationParagraphs.walk_away_considerations,
+        }
+      : {}),
   };
 
   // Overall rating, rule-based on FILTERED finding counts so obvious-
@@ -2218,18 +2305,8 @@ function synthesizeReportInCode(
   //
   // Tiebreaker within the same group rank: the pass that produced the
   // most findings (signal of how much context it actually engaged with).
-  const RATING_GROUP_RANK: Record<PassGroup, number> = {
-    seller_disclosures: 0,
-    inspections: 1,
-    hoa: 2,
-    hazards: 3,
-  };
-  const indexedFocused = focused.map((analysis, i) => ({
-    analysis,
-    group: passGroups[i] ?? null,
-    rank: passGroups[i] ? RATING_GROUP_RANK[passGroups[i]] : 99,
-    findingCount: (analysis.findings?.length ?? 0),
-  }));
+  // RATING_GROUP_RANK and indexedFocused are declared earlier (negotiation
+  // paragraphs use the same indexing).
   const ratingWhyCandidate = [...indexedFocused]
     .filter((p) => p.analysis.overall_rating_why)
     .sort((a, b) => a.rank - b.rank || b.findingCount - a.findingCount)[0];

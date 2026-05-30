@@ -2487,22 +2487,59 @@ function SectionInsuranceLender({ report }: { report: ReportData }) {
 }
 
 function SectionNegotiation({ report }: { report: ReportData }) {
+  const np = report.negotiation as
+    | (NonNullable<ReportData["negotiation"]> & {
+        price_justification?: string | null;
+        seller_repair_requests?: string | null;
+        buyer_credit_requests?: string | null;
+        contingency_recommendations?: string | null;
+        walk_away_considerations?: string | null;
+      })
+    | null
+    | undefined;
+  const paragraphs: Array<{ heading: string; body: string }> = [];
+  if (np?.price_justification) {
+    paragraphs.push({ heading: "A. Price Reduction Justification", body: np.price_justification });
+  }
+  if (np?.seller_repair_requests) {
+    paragraphs.push({ heading: "B. Seller Repair Requests", body: np.seller_repair_requests });
+  }
+  if (np?.buyer_credit_requests) {
+    paragraphs.push({ heading: "C. Buyer Credit Requests", body: np.buyer_credit_requests });
+  }
+  if (np?.contingency_recommendations) {
+    paragraphs.push({ heading: "D. Contingency Recommendations", body: np.contingency_recommendations });
+  }
+  if (np?.walk_away_considerations) {
+    paragraphs.push({ heading: "E. Walk-Away Considerations", body: np.walk_away_considerations });
+  }
   return (
     <View>
-      <SectionBanner number={12} title="Negotiation Leverage" />
-      <Text style={styles.body}>
-        {report.negotiation?.summary}
-      </Text>
-      {report.negotiation?.leverage_points?.length ? (
+      <SectionBanner number={12} title="Negotiation Leverage Points" />
+      {paragraphs.length > 0 ? (
         <View>
-          {report.negotiation.leverage_points.map((p, i) => (
-            <View key={i} style={styles.bullet}>
-              <Text style={styles.bulletDot}>·</Text>
-              <Text style={styles.bulletText}>{p}</Text>
+          {paragraphs.map((p, i) => (
+            <View key={i} style={{ marginBottom: 10 }}>
+              <Text style={[styles.body, { fontFamily: "Helvetica-Bold", marginBottom: 4 }]}>{p.heading}</Text>
+              <Text style={styles.body}>{p.body}</Text>
             </View>
           ))}
         </View>
-      ) : null}
+      ) : (
+        <View>
+          <Text style={styles.body}>{report.negotiation?.summary}</Text>
+          {report.negotiation?.leverage_points?.length ? (
+            <View>
+              {report.negotiation.leverage_points.map((p, i) => (
+                <View key={i} style={styles.bullet}>
+                  <Text style={styles.bulletDot}>·</Text>
+                  <Text style={styles.bulletText}>{p}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      )}
     </View>
   );
 }
