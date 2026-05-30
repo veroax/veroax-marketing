@@ -2759,8 +2759,15 @@ function mergeProperty(
     days_on_market: null,
     market_region: null,
     // Optional extensions, populated by whichever focused pass found
-    // the source document (APN/title → seller_disclosures, MLS/list →
-    // seller_disclosures or whatever pass got the MLS printout, etc.).
+    // the source document (APN/title goes to seller_disclosures, MLS
+    // / list to seller_disclosures or whatever pass got the MLS
+    // printout, etc.). CRITICAL: every property_snapshot key that
+    // SHOULD be merged from focused passes must be present in this
+    // initializer. The merge loop iterates Object.keys(merged); any
+    // field missing here gets silently dropped from the final
+    // synthesized report. The Cowork-parity fields below were
+    // populating in the focused-pass JSON output but vanishing in
+    // synthesis until this initializer was extended.
     apn: null,
     mls_number: null,
     list_date: null,
@@ -2774,6 +2781,17 @@ function mergeProperty(
     unit_number: null,
     floor: null,
     unit_features: null,
+    // Cowork-parity fields from the 5f45a99 extraction-discipline
+    // prompt overhaul. The analyzer prompts the focused passes to
+    // populate these when present in the source documents.
+    adu_status: null,
+    solar_status: null,
+    fema_flood_zone: null,
+    hazard_zone_summary: null,
+    named_sellers: null,
+    named_listing_team: null,
+    disclosure_prep_service: null,
+    package_date: null,
   };
   // Walk passes in order (seller_disclosures first via splitDocumentsForBudget
   // ordering); fill in the first non-null value for each field.
