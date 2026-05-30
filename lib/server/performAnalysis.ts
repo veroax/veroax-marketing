@@ -422,6 +422,37 @@ export async function performAnalysis(
     metadata: {
       candidate_count: ocrCandidates.length,
       total_pdf_docs: documents.filter((d) => d.pdfBase64).length,
+      total_docs: documents.length,
+      // Surface the doc shape so we can see whether pdfBase64
+      // actually got set during the upload loop. The metadata
+      // value here is the keys present + a length-of-base64
+      // estimate, NOT the base64 itself (audit_log shouldn't
+      // carry PDF contents).
+      first_doc_shape: documents[0]
+        ? {
+            keys: Object.keys(documents[0]),
+            filename_hash: safeFileMetadata(documents[0].filename)
+              .filename_sha256_12,
+            pages: documents[0].pages,
+            has_pdfBase64: Boolean(documents[0].pdfBase64),
+            pdfBase64_length:
+              typeof documents[0].pdfBase64 === "string"
+                ? documents[0].pdfBase64.length
+                : null,
+            text_length:
+              typeof documents[0].text === "string"
+                ? documents[0].text.length
+                : null,
+          }
+        : null,
+      // Same for the second and third docs so we can rule out a
+      // first-doc-specific anomaly.
+      second_doc_has_pdfBase64: documents[1]
+        ? Boolean(documents[1].pdfBase64)
+        : null,
+      third_doc_has_pdfBase64: documents[2]
+        ? Boolean(documents[2].pdfBase64)
+        : null,
       detection_details: detectionDetails,
     },
   });
