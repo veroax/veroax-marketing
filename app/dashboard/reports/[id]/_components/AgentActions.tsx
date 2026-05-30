@@ -12,10 +12,11 @@ import { ArchiveButton } from "./ArchiveButton";
 // Repositioned product (commits d9e8a34 / b2534f3 onward): the analysis
 // is the AGENT'S prep tool, not something the agent forwards to the
 // buyer. So the action priority is now:
-//   1. Preview the analysis (PRIMARY amber) -> opens the same layout
-//      the agent uses to read their work, in a clean view that can be
-//      pulled up on a phone in front of the property. Routes through
-//      /r/{code} which is kept available as a quiet private link.
+//   1. View the analysis (PRIMARY amber) -> opens the analysis in a
+//      clean reader layout (mobile-friendly, no dashboard chrome),
+//      useful for pulling up on a phone in front of the property.
+//      Routes through /r/{code} which is kept available as a quiet
+//      private link.
 //   2. Draft email (secondary) -> composes a brief summary email
 //      (overall rating + top concerns at a high level + CTA to talk)
 //      that the agent can edit and send to invite the conversation
@@ -48,11 +49,11 @@ export function AgentActions({
 }: Props) {
   const [showAddDocs, setShowAddDocs] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
-  // Preview-link state for the "Preview the analysis" button. Opens
-  // the /r/{code} URL in a new tab so the agent sees their work in
-  // the clean reader layout. The /r/{code} route is kept available
-  // as a quiet private link; we just stopped marketing it as a
-  // shareable buyer asset.
+  // View-link state for the "View the analysis" button. Opens the
+  // /r/{code} URL in a new tab so the agent reads their work in the
+  // clean reader layout (mobile-friendly, no dashboard chrome). The
+  // /r/{code} route is kept available as a quiet private link; we
+  // just stopped marketing it as a shareable buyer asset.
   const [shareState, setShareState] = useState<
     | { phase: "idle" }
     | { phase: "loading" }
@@ -74,7 +75,7 @@ export function AgentActions({
     return String(data.url);
   }
 
-  async function handlePreview() {
+  async function handleView() {
     setShareState({ phase: "loading" });
     try {
       const url = await ensureShareUrl();
@@ -83,7 +84,7 @@ export function AgentActions({
     } catch (err) {
       setShareState({
         phase: "error",
-        message: err instanceof Error ? err.message : "Preview link failed.",
+        message: err instanceof Error ? err.message : "Could not open the analysis.",
       });
     }
   }
@@ -91,14 +92,14 @@ export function AgentActions({
   return (
     <>
       <div className="flex flex-wrap gap-3">
-        {/* Primary CTA: Preview the analysis. Opens /r/{code} in a
-            new tab so the agent can read the analysis in a clean
-            reader layout (mobile-friendly, no dashboard chrome).
-            Despite the underlying URL pattern, this is no longer
-            marketed as a share link. */}
+        {/* Primary CTA: View the analysis. Opens /r/{code} in a new
+            tab so the agent can read the analysis in a clean reader
+            layout (mobile-friendly, no dashboard chrome). Despite
+            the underlying URL pattern, this is no longer marketed
+            as a share link. */}
         <button
           type="button"
-          onClick={handlePreview}
+          onClick={handleView}
           disabled={shareState.phase === "loading"}
           className="inline-flex items-center gap-2 bg-amber-400 text-indigo-950 font-semibold px-5 py-2.5 rounded-lg hover:bg-amber-300 transition-colors shadow-sm text-sm disabled:opacity-60"
           title="Open the analysis in a clean reader layout, useful for pulling up on your phone in front of the property"
@@ -106,7 +107,7 @@ export function AgentActions({
           <span className="text-base leading-none">↗</span>
           {shareState.phase === "loading"
             ? "Opening..."
-            : "Preview the analysis"}
+            : "View the analysis"}
         </button>
         <button
           type="button"

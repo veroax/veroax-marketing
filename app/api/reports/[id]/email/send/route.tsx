@@ -82,6 +82,41 @@ export async function POST(
     return NextResponse.json({ error: "Report not found." }, { status: 404 });
   }
 
+  // Profile-completeness gate. The signature in the email body uses
+  // the agent's full name, DRE license, brokerage, phone, and email.
+  // Without at least full_name + dre_license, the email reads as
+  // unsigned and undermines trust with the client. We also confirm a
+  // usable email exists for the Reply-To header so the client's
+  // reply has somewhere to go. Applied to BOTH the mailto and
+  // resend paths.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, dre_license, display_email")
+    .eq("id", user.id)
+    .maybeSingle();
+  const profileFullName = (
+    profile as { full_name?: string | null } | null
+  )?.full_name?.trim();
+  const profileDre = (
+    profile as { dre_license?: string | null } | null
+  )?.dre_license?.trim();
+  const profileDisplayEmail = (
+    profile as { display_email?: string | null } | null
+  )?.display_email?.trim();
+  const usableEmail = profileDisplayEmail || user.email || null;
+  const missingFields: string[] = [];
+  if (!profileFullName) missingFields.push("full name");
+  if (!profileDre) missingFields.push("DRE license");
+  if (!usableEmail) missingFields.push("email address");
+  if (missingFields.length > 0) {
+    return NextResponse.json(
+      {
+        error: `Complete your agent profile before sending emails. Missing: ${missingFields.join(", ")}. Visit /dashboard/settings to add them.`,
+      },
+      { status: 412 },
+    );
+  }
+
   // ---------- mailto path ----------
   // The mail client is the actual sender. We just record what the
   // agent intended so we can show "you emailed Jane on Mar 14" later
@@ -117,19 +152,9 @@ export async function POST(
     );
   }
 
-  // Pick up the agent's display email so client replies route back
-  // to the agent's client-facing address rather than the signup
-  // mailbox. This is the only profile field we still need on the
-  // resend path; the PDF rendering + branding lookups are gone with
-  // the repositioning.
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_email")
-    .eq("id", user.id)
-    .maybeSingle();
-  const replyToEmail =
-    (profile as { display_email?: string | null } | null)?.display_email
-      ?.trim() || user.email || undefined;
+  // Reply-To uses the agent's profile display_email when set; falls
+  // back to their auth email. Both are validated by the gate above.
+  const replyToEmail = usableEmail ?? undefined;
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   // We send from a Veroax-controlled address (Resend won't deliver
