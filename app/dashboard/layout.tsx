@@ -176,29 +176,132 @@ export default async function DashboardLayout({
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile header. Includes a compact support row below the
-            logo so phone + email are always reachable on mobile
-            (sidebar is hidden on small screens). */}
+        {/* Mobile header with a hamburger-menu reveal that mirrors
+            the desktop sidebar nav. Uses <details>/<summary> so we
+            stay server-only and don't need client state: clicking a
+            link inside navigates away which collapses the menu
+            implicitly. The same nav links and the Admin link that
+            appear in the sidebar appear here on mobile. */}
         <header className="md:hidden border-b border-slate-200 bg-white">
-          <div className="h-14 px-4 flex items-center justify-between">
-            <Link href="/dashboard" aria-label="Veroax">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/brand/final/veroax-lockup-light.svg"
-                alt="Veroax"
-                style={{ height: 22 }}
-              />
-            </Link>
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                className="text-xs text-slate-500 underline underline-offset-2"
+          <details className="group">
+            <summary className="h-14 px-4 flex items-center justify-between list-none cursor-pointer [&::-webkit-details-marker]:hidden">
+              <Link href="/dashboard" aria-label="Veroax">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/final/veroax-lockup-light.svg"
+                  alt="Veroax"
+                  style={{ height: 22 }}
+                />
+              </Link>
+              <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                <span aria-hidden="true" className="block group-open:hidden">
+                  {/* Hamburger icon */}
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </span>
+                <span aria-hidden="true" className="hidden group-open:block">
+                  {/* X icon */}
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </span>
+                <span className="block group-open:hidden">Menu</span>
+                <span className="hidden group-open:block">Close</span>
+              </span>
+            </summary>
+
+            {/* Menu panel. Drops in below the header bar; same link
+                inventory as the desktop sidebar. Admin gets the same
+                red accent badge so the visual signal carries across
+                surfaces. */}
+            <nav className="px-2 pb-3 pt-1 border-t border-slate-100 bg-white">
+              <Link
+                href="/dashboard"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
               >
-                Sign out
-              </button>
-            </form>
-          </div>
-          <div className="px-4 pb-2 flex items-center gap-3 text-[11px] text-slate-600">
+                Reports
+              </Link>
+              <Link
+                href="/dashboard/upload"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                New report
+              </Link>
+              <Link
+                href="/dashboard/archive"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Archive
+              </Link>
+              <Link
+                href="/dashboard/team"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Team
+              </Link>
+              {showBrokerageLink ? (
+                <Link
+                  href="/dashboard/brokerage"
+                  className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+                >
+                  Brokerage
+                </Link>
+              ) : null}
+              <Link
+                href="/dashboard/billing"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Billing
+              </Link>
+              <Link
+                href="/dashboard/settings"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Settings
+              </Link>
+              {isAdmin ? (
+                <Link
+                  href="/admin"
+                  className="flex items-center justify-between mt-2 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-900 hover:bg-slate-100 border-t border-slate-200 pt-3"
+                >
+                  <span>Admin</span>
+                  <span className="text-[9px] font-bold tracking-widest uppercase bg-red-700 text-white px-1.5 py-0.5 rounded">
+                    Admin
+                  </span>
+                </Link>
+              ) : null}
+              <form action={logoutAction} className="mt-2 border-t border-slate-200 pt-3">
+                <button
+                  type="submit"
+                  className="block w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100"
+                >
+                  Sign out
+                </button>
+              </form>
+            </nav>
+          </details>
+
+          {/* Support contact row stays below the (collapsed or open)
+              menu so phone + email are always one tap away on
+              mobile, regardless of menu state. */}
+          <div className="px-4 pb-2 flex items-center gap-3 text-[11px] text-slate-600 border-t border-slate-100 pt-2">
             <a
               href={`tel:${SUPPORT.phoneTel}`}
               className="hover:text-slate-900"
