@@ -46,9 +46,11 @@ export function composeExecutiveNarrative(report: ReportData): string[] {
   const typeLabel = p?.property_type
     ? p.property_type.toLowerCase()
     : "property";
-  const yearPart = p?.year_built
-    ? `built in ${p.year_built}`
-    : "of unknown vintage";
+  // Year built is omitted entirely when not extracted. The previous
+  // "of unknown vintage" phrasing read as a defect of the analysis
+  // when the truth is simply that the source documents didn't expose
+  // a year. If you know the year, say it; if you don't, say nothing.
+  const yearPart = p?.year_built ? ` built in ${p.year_built}` : "";
   const sqftPart = p?.square_feet
     ? `, ${p.square_feet.toLocaleString()} sq ft`
     : "";
@@ -64,14 +66,14 @@ export function composeExecutiveNarrative(report: ReportData): string[] {
     p?.days_on_market != null
       ? `, with ${p.days_on_market} day${p.days_on_market === 1 ? "" : "s"} on market`
       : "";
-  let para1 = `This report reviews the seller's disclosure package for a ${typeLabel} ${yearPart}${sqftPart}${bedBath}${regionPart}${pricePart}${domPart}.`;
-  // Weave in the named parties when extracted. Mirrors the Cowork
-  // narrative which always names sellers + listing team + prep
-  // service + package date in the executive summary.
+  let para1 = `This report reviews the seller's disclosure package for a ${typeLabel}${yearPart}${sqftPart}${bedBath}${regionPart}${pricePart}${domPart}.`;
+  // Listing team + package date are the only party-line items the
+  // narrative needs. Founder feedback: the disclosure prep service
+  // ("First American Real Estate Disclosures Corporation, JCP-LGS
+  // division") is one tiny part of the package and noise to the
+  // reader. Sellers are not surfaced in the executive narrative,
+  // they appear in the property snapshot rows.
   const partyBits: string[] = [];
-  if (p?.disclosure_prep_service?.trim()) {
-    partyBits.push(`prepared via ${p.disclosure_prep_service.trim()}`);
-  }
   if (p?.named_listing_team?.trim()) {
     partyBits.push(`assembled by ${p.named_listing_team.trim()}`);
   }
@@ -79,10 +81,7 @@ export function composeExecutiveNarrative(report: ReportData): string[] {
     partyBits.push(`dated ${p.package_date.trim()}`);
   }
   if (partyBits.length > 0) {
-    para1 += ` The package was ${partyBits.join(", ")}.`;
-  }
-  if (p?.named_sellers?.trim()) {
-    para1 += ` Sellers of record per the signed TDS and SPQ: ${p.named_sellers.trim()}.`;
+    para1 += ` Package ${partyBits.join(", ")}.`;
   }
   para1 +=
     " Every finding below is grounded in the documents that were actually provided; this is not a substitute for licensed professional inspection, attorney review, or lender underwriting.";

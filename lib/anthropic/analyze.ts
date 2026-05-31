@@ -599,6 +599,15 @@ CRITICAL RULES:
    - MODERATE: $1,000-$5,000 OR 1-5 year horizon. Examples: water heater near end of life, deferred exterior paint, minor plumbing fixtures, dated GFCI status.
    - COSMETIC: <$1,000 OR purely aesthetic. Examples: minor drywall cracks, dated finishes, worn carpet, minor exterior touch-up.
 
+   IMPORTANT CALIBRATION ANTI-PATTERNS (do NOT mark Critical):
+   - HVAC system NOT cooling but components are recent (< 7 years old) and the failure mode reads as a service call (low charge, dirty coils, control board, blower motor): this is HIGH, not Critical. Repair range is $400 to $9,000. Even full replacement is $8,000 to $18,000 which does not block close or financing. The buyer negotiates a credit or seller repair; the deal is not at risk.
+   - SPECIAL ASSESSMENT with a known dollar amount that has been approved by the board: this is MODERATE (not High, not Critical). The amount becomes a negotiation line item; lenders treat known special assessments as routine seller-side payoffs at close.
+   - HOA DUES INCREASING 5 to 15 percent year over year: this is INFORMATIONAL or low MODERATE, not High. Most California HOAs raise dues annually to cover insurance and reserve contributions; a 7 to 12 percent bump is the regional baseline, not a finding.
+   - HOA RESERVES at 40 to 60 percent funded: this is MODERATE, with framing that the buyer's exposure is a possible future dues increase or special assessment, not an immediate cost. Surface at HIGH only when reserves are below 30 percent AND there's a documented imminent capital project that reserves cannot cover.
+   - REGIONAL ENVIRONMENTAL HAZARDS already covered by section 8.7 (seismic liquefaction, SGMA basin, NPL proximity in legacy semiconductor corridors): do NOT mark Critical / High. Surface as Moderate with the regional-baseline framing.
+
+   When you write a Critical finding, the test is "would a buyer's lender or insurer block this deal, or is this an active hazard the buyer would walk away from?" If the answer is "no, but it's expensive to fix", that's HIGH, not Critical.
+
 4. CONFIDENCE reflects directness of evidence:
    - HIGH: the document explicitly states the issue.
    - MEDIUM: the document implies the issue but doesn't state it directly.
@@ -2194,6 +2203,63 @@ function synthesizeReportInCode(
     hazards: environmentalHazards,
   };
 
+  // Dedupe: drop moderate_findings whose title strongly matches an
+  // environmental_hazards entry. The hazard already renders in the
+  // Environmental section with full notes; surfacing the same
+  // condition again under "moderate concerns" is double-counting
+  // and inflates the rating's perception of severity. Mirror the
+  // same filter for cosmetic for symmetry.
+  //
+  // Matching strategy: normalize each title / hazard name to
+  // lowercased alphanumeric-only tokens and check intersection.
+  // We require at least 2 tokens of overlap (so "Seismic Hazard
+  // Zone Liquefaction" matches the hazards entry "State Seismic
+  // Hazard Zone, Liquefaction" but a generic "Hazard" doesn't
+  // sweep everything).
+  const tokenize = (s: string): Set<string> => {
+    const tokens = (s ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((t) => t.length >= 4); // drop "in", "of", "the", etc.
+    return new Set(tokens);
+  };
+  const STOPWORDS = new Set([
+    "zone",
+    "site",
+    "sites",
+    "area",
+    "areas",
+    "near",
+    "with",
+    "multiple",
+  ]);
+  const meaningfulTokens = (s: string): Set<string> => {
+    const t = tokenize(s);
+    for (const w of STOPWORDS) t.delete(w);
+    return t;
+  };
+  const hazardTokenSets = environmentalHazards.map((h) =>
+    meaningfulTokens(h.name ?? ""),
+  );
+  const isDuplicateOfHazard = (f: Finding): boolean => {
+    const fTokens = meaningfulTokens(f.title ?? "");
+    for (const ht of hazardTokenSets) {
+      let overlap = 0;
+      for (const t of fTokens) {
+        if (ht.has(t)) overlap += 1;
+        if (overlap >= 2) return true;
+      }
+    }
+    return false;
+  };
+  const dedupedModerateFindings = moderateFindings.filter(
+    (f) => !isDuplicateOfHazard(f),
+  );
+  const dedupedCosmeticFindings = cosmeticFindings.filter(
+    (f) => !isDuplicateOfHazard(f),
+  );
+
   // Permit compliance, combine summaries and findings.
   const permitSummaries = focused
     .map((p) => p.permit_compliance?.summary)
@@ -2376,54 +2442,40 @@ function synthesizeReportInCode(
   // Findings. This matches what the reader sees in the report: the
   // rating reflects findings the BUYER faces, not building-wide HOA
   // business we already redirected into the HOA section.
-  // Pick the rating narrative from the pass with the BROADEST context.
-  // seller_disclosures sees TDS+SPQ+MLS+prelim+AVID, the richest source.
-  // hazards sees only the NHD and writes narrow narratives like
-  // "This is a natural hazard disclosure report only". When passGroups
-  // is provided, prefer passes by group rank; otherwise fall back to
-  // the legacy first-found behavior.
+  // Rating narrative is composed SYNTHESIS-SIDE from the merged
+  // finding set, not pulled from any one focused pass. Per-pass
+  // narratives suffer from "I only saw the JCP" tunnel-vision
+  // because each pass writes from the documents IT received, not
+  // the full package the synthesizer can see. Founder feedback on
+  // Saint Remi (run #4) was that the rating_why read "This JCP
+  // environmental and hazard report is the only document in the
+  // package" when the package also contained TDS, SPQ, AVID, 294
+  // pages of HOA docs, and a prelim title; the hazards pass's
+  // narrative was incorrectly winning the rank picker.
   //
-  // Tiebreaker within the same group rank: the pass that produced the
-  // most findings (signal of how much context it actually engaged with).
-  // RATING_GROUP_RANK and indexedFocused are declared earlier (negotiation
-  // paragraphs use the same indexing).
-  const ratingWhyCandidate = [...indexedFocused]
-    .filter((p) => p.analysis.overall_rating_why)
-    .sort((a, b) => a.rank - b.rank || b.findingCount - a.findingCount)[0];
-  const ratingConditionsCandidate = [...indexedFocused]
-    .filter((p) => p.analysis.overall_rating_conditions)
-    .sort((a, b) => a.rank - b.rank || b.findingCount - a.findingCount)[0];
-  const ratingWhyText = cleanEditorialString(
-    ratingWhyCandidate?.analysis.overall_rating_why,
-  );
-  const ratingConditionsText = cleanEditorialString(
-    ratingConditionsCandidate?.analysis.overall_rating_conditions,
-  );
+  // The composeFallbackRatingWhy / composeFallbackRatingConditions
+  // helpers below produce a grounded narrative from the actual
+  // findings list, the rating bucket, and the cost summary. They
+  // were previously labeled "fallback" because they only fired when
+  // a pass's narrative was missing; now they're the canonical
+  // source for the editorial paragraphs.
   const baseRating = determineOverallRating({
     criticalCount: criticalFindings.filter((f) => f.severity === "critical")
       .length,
     highCount: criticalFindings.filter((f) => f.severity === "high").length,
-    moderateCount: moderateFindings.length,
-    cosmeticCount: cosmeticFindings.length,
+    moderateCount: dedupedModerateFindings.length,
+    cosmeticCount: dedupedCosmeticFindings.length,
   });
-  // Code-side fallback for the editorial fields. Claude is asked to
-  // populate these in the prompt but doesn't always, and they're
-  // synthesizable from data we already have, so the report shouldn't
-  // ship with them blank. Fallback is conservative and clearly
-  // generic when used; the real value still comes from the analyzer.
-  const fallbackWhy = composeFallbackRatingWhy(
-    baseRating.label,
-    criticalFindings,
-    moderateFindings,
-    cosmeticFindings,
-  );
-  const fallbackConditions = composeFallbackRatingConditions(
-    criticalFindings,
-  );
   const overallRating = {
     ...baseRating,
-    why_this_rating: ratingWhyText ?? fallbackWhy,
-    conditions_on_which_this_depends: ratingConditionsText ?? fallbackConditions,
+    why_this_rating: composeFallbackRatingWhy(
+      baseRating.label,
+      criticalFindings,
+      dedupedModerateFindings,
+      dedupedCosmeticFindings,
+    ),
+    conditions_on_which_this_depends:
+      composeFallbackRatingConditions(criticalFindings),
   };
 
   // Inspection follow-ups, market context, title & vesting, each
@@ -2508,8 +2560,8 @@ function synthesizeReportInCode(
     document_inventory: documentInventory,
     completeness_audit: { summary: completenessSummary, issues: completenessIssues },
     critical_findings: criticalFindings,
-    moderate_findings: moderateFindings,
-    cosmetic_findings: cosmeticFindings,
+    moderate_findings: dedupedModerateFindings,
+    cosmetic_findings: dedupedCosmeticFindings,
     permit_compliance: permitCompliance,
     hoa,
     environmental,
