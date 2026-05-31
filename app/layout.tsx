@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { getSiteConfig } from "@/lib/siteConfig";
 import { GoogleAnalytics } from "./_components/GoogleAnalytics";
@@ -113,13 +114,44 @@ export default async function RootLayout({
   const reqHeaders = await headers();
   const pathname = reqHeaders.get("x-pathname") ?? "";
   const suppressChip = pathname.startsWith("/r/");
+  // Suppress Google Analytics on /admin/* so admin browsing doesn't
+  // pollute the marketing-funnel metrics. Founder-only navigation
+  // through user impersonation, billing audits, integrations
+  // dashboards, etc. is not a signal we want competing with real
+  // visitor traffic in GA reports. Marketing, dashboard, and the
+  // public /r/<code> surfaces continue to be tracked when a GA ID
+  // is configured.
+  const suppressGA = pathname.startsWith("/admin");
+
+  // Belt-and-suspenders for the GA suppression: if the admin clicks
+  // from /dashboard to /admin within the same SPA session, gtag.js
+  // is already loaded in memory and GA4 Enhanced Measurement will
+  // fire automatic page_view events on history changes. Setting
+  // window['ga-disable-MEASUREMENT_ID'] = true is the official GA
+  // opt-out toggle; on /admin we set it true, everywhere else we
+  // set it false so navigation BACK to /dashboard resumes tracking.
+  // Runs after every navigation because Next.js re-evaluates the
+  // layout's <Script> tags on each RSC commit.
+  const gaToggleScript = gaId
+    ? `window['ga-disable-${gaId.replace(/'/g, "")}'] = ${suppressGA ? "true" : "false"};`
+    : null;
 
   return (
     <html lang="en" className={`${geist.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-white text-gray-900">
+        {gaToggleScript ? (
+          <Script
+            id="ga-admin-toggle"
+            strategy="afterInteractive"
+          >
+            {gaToggleScript}
+          </Script>
+        ) : null}
         {children}
         <SignedInChip hidden={suppressChip} />
-        {gaId ? <GoogleAnalytics measurementId={gaId} /> : null}
+        {gaId && !suppressGA ? (
+          <GoogleAnalytics measurementId={gaId} />
+        ) : null}
       </body>
     </html>
   );
