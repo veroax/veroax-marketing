@@ -120,26 +120,165 @@ export default async function AdminLayout({
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="md:hidden h-14 px-4 flex items-center justify-between border-b border-slate-200 bg-white">
-          <Link href="/admin" aria-label="Veroax admin" className="flex items-center gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/final/veroax-lockup-light.svg"
-              alt="Veroax"
-              style={{ height: 22 }}
-            />
-            <span className="text-[10px] font-bold uppercase tracking-widest bg-red-700 text-white px-1.5 py-0.5 rounded">
-              Admin
-            </span>
-          </Link>
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="text-xs text-slate-500 underline underline-offset-2"
-            >
-              Sign out
-            </button>
-          </form>
+        {/* Mobile header with a hamburger menu that mirrors the
+            admin sidebar nav. Without this, mobile admins could not
+            reach /admin/tasks, /admin/users, /admin/brokerages, etc.
+            Uses <details>/<summary> so it stays server-only and no
+            client state is needed; clicking a link navigates and the
+            new page renders with the menu collapsed. */}
+        <header className="md:hidden border-b border-slate-200 bg-white">
+          <details className="group">
+            <summary className="h-14 px-4 flex items-center justify-between list-none cursor-pointer [&::-webkit-details-marker]:hidden">
+              <Link
+                href="/admin"
+                aria-label="Veroax admin"
+                className="flex items-center gap-2"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/final/veroax-lockup-light.svg"
+                  alt="Veroax"
+                  style={{ height: 22 }}
+                />
+                <span className="text-[10px] font-bold uppercase tracking-widest bg-red-700 text-white px-1.5 py-0.5 rounded">
+                  Admin
+                </span>
+              </Link>
+              <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                <span aria-hidden="true" className="block group-open:hidden">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </span>
+                <span aria-hidden="true" className="hidden group-open:block">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </span>
+                <span className="block group-open:hidden">Menu</span>
+                <span className="hidden group-open:block">Close</span>
+              </span>
+            </summary>
+            <nav className="px-2 pb-3 pt-1 border-t border-slate-100 bg-white">
+              <Link
+                href="/admin"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/admin/tasks"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Tasks
+              </Link>
+              <Link
+                href="/admin/users"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Users
+              </Link>
+              <Link
+                href="/admin/brokerages"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Brokerages
+              </Link>
+              <Link
+                href="/admin/reports"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                All reports
+              </Link>
+              <Link
+                href="/admin/free-credits"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Free credits
+              </Link>
+              <Link
+                href="/admin/alerts"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Alert history
+              </Link>
+              <Link
+                href="/admin/audit"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Audit log
+              </Link>
+              <Link
+                href="/admin/report-errors"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Error inbox
+              </Link>
+              <Link
+                href="/admin/finding-flags"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Finding flags
+              </Link>
+              <Link
+                href="/admin/regressions"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Regressions
+              </Link>
+              <Link
+                href="/admin/health"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                System health
+              </Link>
+              <Link
+                href="/admin/integrations"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Integrations
+              </Link>
+              <Link
+                href="/admin/docs/billing-setup"
+                className="block px-3 py-2.5 rounded-lg text-sm text-slate-800 hover:bg-slate-100"
+              >
+                Billing setup doc
+              </Link>
+              <Link
+                href="/dashboard"
+                className="block mt-2 px-3 py-2.5 rounded-lg text-sm text-slate-700 hover:bg-slate-100 border-t border-slate-200 pt-3"
+              >
+                ← Agent dashboard
+              </Link>
+              <form
+                action={logoutAction}
+                className="mt-2 border-t border-slate-200 pt-3"
+              >
+                <button
+                  type="submit"
+                  className="block w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100"
+                >
+                  Sign out
+                </button>
+              </form>
+            </nav>
+          </details>
         </header>
 
         {/* Admin-mode banner, narrow strip at the top of every admin
