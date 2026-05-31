@@ -108,12 +108,12 @@ export default function Home() {
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-md"
         style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)" }}>
-        <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/brand/final/veroax-lockup-dark.svg"
             alt="Veroax"
-            style={{ height: 44 }}
+            className="h-9 sm:h-11 w-auto shrink-0"
           />
           <nav className="hidden sm:flex items-center gap-8 text-sm text-indigo-200">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -121,10 +121,16 @@ export default function Home() {
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <a href="#contact" className="hover:text-white transition-colors">Contact</a>
           </nav>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Sign in: visible at every breakpoint. Was previously
+                hidden on mobile (hidden sm:inline), which left
+                existing-account users on phones with no entry point
+                to /login from the homepage. The text-base / weight
+                bump on mobile keeps it tappable next to the amber
+                CTA. */}
             <a
               href="/login"
-              className="hidden sm:inline text-sm text-indigo-200 hover:text-white transition-colors"
+              className="text-sm font-semibold text-indigo-100 hover:text-white transition-colors sm:font-normal sm:text-indigo-200"
             >
               Sign in
             </a>
