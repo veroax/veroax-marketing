@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { ReportData, Finding } from "@/lib/anthropic/schema";
 import { deriveCostSummary } from "@/lib/reports/cost-summary";
+import { FormattedHazardSummary } from "@/lib/reports/format-hazards";
 import { ReportErrorButton } from "@/components/ReportErrorButton";
 import { PublicFindingFlagButton } from "./PublicFindingFlagButton";
 
@@ -1012,12 +1013,16 @@ function PropertySnapshotSection({
   snapshot: ReportData["property_snapshot"];
   shareCode: string;
 }) {
-  const rows: Array<[string, string]> = [];
+  const rows: Array<[string, ReactNode]> = [];
   const push = (label: string, value: string | null | undefined) => {
     if (value == null) return;
     const v = typeof value === "string" ? value.trim() : String(value);
     if (!v) return;
     rows.push([label, v]);
+  };
+  const pushNode = (label: string, value: ReactNode) => {
+    if (value == null) return;
+    rows.push([label, value]);
   };
 
   push("Property type", snapshot?.property_type ?? null);
@@ -1070,11 +1075,16 @@ function PropertySnapshotSection({
     push("HOA dues", `${formatUSD(snapshot.hoa_dues_monthly)} / month`);
   push("Parking", snapshot?.parking ?? null);
   push("Market region", snapshot?.market_region ?? null);
-  // Cowork-parity fields. These are populated by the analyzer
-  // when the source documents contain them; legacy reports leave
-  // them null and the rows are skipped.
-  push("Hazard zones", snapshot?.hazard_zone_summary ?? null);
-  push("FEMA flood zone", snapshot?.fema_flood_zone ?? null);
+  // Hazard zones inventory. FEMA flood is rolled into this string
+  // ("NOT IN FEMA flood zone; ..."), so we no longer render a
+  // separate FEMA row. Positive (NOT IN) entries get bolded by the
+  // FormattedHazardSummary helper.
+  if (snapshot?.hazard_zone_summary?.trim()) {
+    pushNode(
+      "Hazard zones",
+      <FormattedHazardSummary summary={snapshot.hazard_zone_summary} />,
+    );
+  }
   push("Solar", snapshot?.solar_status ?? null);
   push("ADU", snapshot?.adu_status ?? null);
   push("Sellers", snapshot?.named_sellers ?? null);

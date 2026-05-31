@@ -783,6 +783,49 @@ CRITICAL RULES:
    - A recorded mechanic's lien for $34,800 filed by a roofing contractor against this specific APN, not yet released: FINDING (Critical), escrow has to clear it.
    - An abstract of judgment recorded against the seller for $80,000 in a 2023 collections action: FINDING (Critical), escrow has to clear it before grant deed recording.
 
+8.7. REGIONAL BASELINE CALIBRATION (mandatory). Hazards that the surrounding county or region SHARES at the same baseline level must NOT be rated as if they single out this property. A finding's severity is the DELTA between this property and what every other buyer in the same area also has to accept, not the absolute existence of the hazard. Concrete California examples:
+
+   - SEISMIC HAZARD ZONE (LIQUEFACTION). Most of the Santa Clara Valley floor, the entire Bay Area shore plain, most of the Sacramento Valley near rivers, and most of coastal Los Angeles County are in state-mapped liquefaction zones. Being IN a liquefaction zone is the regional baseline for Bay Area condo and SFR buyers; it does NOT singularly elevate this property. Cap such findings at MODERATE severity unless one of these elevators applies: (a) the property has a documented prior history of liquefaction damage, (b) the inspection or NHD calls out a SITE-SPECIFIC geotechnical concern beyond the generic zone designation, (c) the buyer's lender or insurer has flagged it as a condition for funding. Without one of those, surface as moderate with the framing "standard liquefaction zone designation, typical for the [region]; site-specific geotechnical evaluation recommended."
+
+   - EARTHQUAKE FAULT ZONE (ALQUIST-PRIOLO). The Alquist-Priolo Earthquake Fault Zone Act covers known active fault traces. If the property IS in an AP zone, it's a real finding (potential ground rupture risk). If it's NOT in one, no finding. The regional baseline is "general Bay Area seismic risk applies to every property"; that is NOT a finding either, it's an insurance discussion.
+
+   - GENERAL CALIFORNIA SEISMICITY. Every California property has earthquake risk. The disclosure mention of "California is earthquake-prone" is NOT a finding. The buyer hires a geotech if they want one; the agent counsels them. Do not flag.
+
+   - FEMA SPECIAL FLOOD HAZARD AREA. Zone AE/A/V/X-shaded are real lender-blocking findings, surface at high or critical (lender requires flood insurance, premium is real $). Zone X (unshaded, the baseline) is NOT a finding.
+
+   - HIGH FIRE HAZARD SEVERITY ZONE (CAL FIRE FHSZ). Tier 1 wildland-urban interface zones in the Oakland-Berkeley Hills, Marin headlands, Santa Cruz Mountains, parts of San Diego County, etc. ARE findings (insurance risk, hardening requirements). Outside those zones, the standard Cal Fire SRA designation is NOT itself a finding.
+
+   - GENERAL GROUNDWATER BASIN, SGMA HIGH-PRIORITY. The Santa Clara Valley basin, the Central Valley basins, and most populated CA aquifers are HIGH priority under SGMA. Future GSA fees are speculative and capped at modest annual amounts. Surface as INFORMATIONAL or MODERATE at most, never high or critical.
+
+   - NEARBY CONTAMINATION SITES (NPL, SLIC, RCRA, LUST). Within 1 mile of a Superfund site is the BASELINE for properties in the South Bay semiconductor corridor, parts of the Port of Oakland flats, the Hunters Point shoreline, etc. The fact of "N sites within 1 mile" is NOT itself a finding. What IS a finding: documented vapor-intrusion mitigation requirements on this property's parcel, soil-gas exceedances reported by a third-party consultant, deed restrictions for site activity, or a specific contaminant plume crossing the property's APN. Surface those at critical or high. Surface "general proximity to legacy semiconductor contamination" as informational at most.
+
+   When you cap a hazard at moderate or informational because of regional baseline, ALWAYS include a parenthetical or sentence calling that out: "(standard for the Santa Clara Valley floor)", "(typical for properties in the South Bay semiconductor corridor)", "(routine SGMA high-priority designation; potential GSA fees are modest)". The reader needs to see WHY the finding is not higher.
+
+   The synthesizer also DEDUPES seismic findings. If your output has both a STATE Seismic Hazard Zone (SHMA) entry AND a COUNTY liquefaction-zone entry that describe the same liquefaction designation, the synthesizer collapses them to a single entry. Write one entry that mentions both authorities (state SHMA + county GP), not two.
+
+8.8. SIGNED-BUT-BLANK DISCLOSURE FORMS, NOT FINDINGS WHEN FIELDS ARE "IF APPLICABLE". California disclosure forms (Parking and Storage Disclosure, Carbon Monoxide Detector affidavit, Water Heater Bracing certificate, Lead-Based Paint disclosure for pre-1978 properties, Smoke Detector disclosure, etc.) often have long lists of fields prefixed with "If applicable:" or "Where applicable:". A signed disclosure with most of those fields blank is the NORMAL state, NOT a missing-disclosure finding. The seller signed the form attesting that the inapplicable items don't apply.
+
+   DROP a "form X signed but fields left blank" finding when ALL of these hold:
+   (a) The form is signed and dated by the seller(s)
+   (b) The blank fields are prefixed with conditional language ("If applicable", "Where applicable", "Check if...", "Indicate any...")
+   (c) The property's actually-disclosed features make those fields inapplicable. Examples:
+       - Parking & Storage Disclosure with the assigned-spot fields blank, when the unit has its own attached garage and the form's blank fields all referenced HOA-assigned parking
+       - Lead-Based Paint disclosure with all "areas containing LBP" fields blank, when the property was built after 1978
+       - Pool Safety Compliance form blank, when the property has no pool
+       - Septic certification blank, when the property is on city sewer
+
+   When you spot one of these, do NOT surface a "form blank" finding. The disclosure is COMPLETE for the property's actual configuration.
+
+   When to actually surface a blank-disclosure finding: (i) the form is REQUIRED for this property's features (e.g., a Pool Safety Compliance form blank on a property WITH a pool), (ii) the form is unsigned, or (iii) the blank field is NOT conditional (e.g., the seller failed to mark Yes / No on a yes-or-no question).
+
+8.9. PAGE-COUNT VERIFICATION FOR "INCOMPLETE PACKAGE" FINDINGS. Do NOT flag a referenced document as "only N pages provided" or "incomplete" without first checking the document inventory the analyzer was given. The document_inventory you receive includes the page count of every file in the package. If a 63-page NHD report is in the document_inventory at 63 pages, it is COMPLETE; do not write a finding claiming "only the final 3 pages were included." The same rule applies to inspection reports, HOA packages, prelim title, and any multi-page document.
+
+   When you genuinely believe a document is truncated:
+   - The document_inventory page count for that file shows fewer pages than the document's own page numbering implies (e.g., the cover says "page 1 of 47" but the file is 12 pages)
+   - A referenced attachment in the source documents is not present in the document_inventory at all
+   - The cover sheet references "Appendix A through D" but the file ends mid-Appendix-B
+   Otherwise the document is complete; do not write a "report incomplete" finding.
+
 9. PROPERTY SNAPSHOT FIELDS, populate property_facts richly when this document group is the source of the information. Pull from the most likely document:
    - apn (Assessor's Parcel Number): typically in the prelim title report, escrow instructions, or county tax bill (usually formatted like "123-45-678" in California).
    - mls_number: from any MLS printout, listing sheet, or BAREIS/CRMLS export.
@@ -2088,12 +2131,49 @@ function synthesizeReportInCode(
   //
   // Dedupe by lowercased name so a vapor-intrusion entry written by
   // both the HOA pass and the hazards pass collapses into one.
+  // Additionally, collapse SEISMIC LIQUEFACTION entries that show up
+  // separately as STATE (SHMA) and COUNTY designations, into a single
+  // entry, because they describe the same hazard at the same
+  // location. Prefer the higher-severity / longer-description entry.
   const envSeenNames = new Set<string>();
   const environmentalHazards: NonNullable<ReportData["environmental"]>["hazards"] = [];
+  // Liquefaction-canonicalization helper: if the name mentions
+  // "liquefaction", normalize the dedupe key to a single value so
+  // STATE and COUNTY entries fold into one. Otherwise the lowercased
+  // name is the key.
+  const liquefactionKey = (rawName: string): string => {
+    if (/liquefaction/i.test(rawName)) return "__seismic_liquefaction__";
+    return rawName.trim().toLowerCase();
+  };
   for (const p of focused) {
     for (const h of p.environmental_hazards ?? []) {
-      const k = (h.name ?? "").trim().toLowerCase();
-      if (!k || envSeenNames.has(k)) continue;
+      const rawName = h.name ?? "";
+      const k = liquefactionKey(rawName);
+      if (!k) continue;
+      if (envSeenNames.has(k)) {
+        // For the liquefaction case: if the new entry has a more
+        // severe rating than what we already kept, promote. Otherwise
+        // drop the duplicate.
+        if (k === "__seismic_liquefaction__") {
+          const existingIdx = environmentalHazards.findIndex(
+            (existing) => liquefactionKey(existing.name ?? "") === k,
+          );
+          if (existingIdx >= 0) {
+            const existing = environmentalHazards[existingIdx];
+            const severityRank = (s: string | undefined): number => {
+              if (s === "critical") return 4;
+              if (s === "high") return 3;
+              if (s === "moderate") return 2;
+              if (s === "cosmetic") return 1;
+              return 0;
+            };
+            if (severityRank(h.severity) > severityRank(existing.severity)) {
+              environmentalHazards[existingIdx] = h;
+            }
+          }
+        }
+        continue;
+      }
       envSeenNames.add(k);
       environmentalHazards.push(h);
     }

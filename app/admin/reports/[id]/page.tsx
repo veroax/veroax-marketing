@@ -27,6 +27,7 @@ import { AdminDeleteReportButton } from "@/app/admin/_components/AdminDeleteRepo
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 import { composeAgentStrengthsAndConcerns } from "@/lib/reports/summary";
 import { deriveCostSummary } from "@/lib/reports/cost-summary";
+import { FormattedHazardSummary } from "@/lib/reports/format-hazards";
 import type { ReportData, Finding } from "@/lib/anthropic/schema";
 
 export const metadata = {
@@ -590,25 +591,21 @@ function AdminReportContent({ reportData }: { reportData: ReportData }) {
               }
             />
           ) : null}
-          {/* Cowork-parity fields populated by the 5f45a99 prompt
-              overhaul. All optional, only render when extracted. */}
+          {/* Hazard zones inventory with positive (NOT IN) entries
+              bolded. FEMA flood is included in the hazard summary
+              string, so it gets its own NOT IN segment rather than a
+              dedicated row. */}
           {(property as { hazard_zone_summary?: string | null } | null)
             ?.hazard_zone_summary ? (
             <Row
               label="Hazard zones"
               value={
-                (property as { hazard_zone_summary?: string | null })
-                  .hazard_zone_summary!
-              }
-            />
-          ) : null}
-          {(property as { fema_flood_zone?: string | null } | null)
-            ?.fema_flood_zone ? (
-            <Row
-              label="FEMA flood"
-              value={
-                (property as { fema_flood_zone?: string | null })
-                  .fema_flood_zone!
+                <FormattedHazardSummary
+                  summary={
+                    (property as { hazard_zone_summary?: string | null })
+                      .hazard_zone_summary!
+                  }
+                />
               }
             />
           ) : null}

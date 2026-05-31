@@ -1,4 +1,5 @@
 import Link from "next/link";
+import React from "react";
 import { notFound, redirect } from "next/navigation";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { resolveDashboardViewer } from "@/lib/admin/impersonation";
@@ -16,6 +17,7 @@ import {
 } from "@/lib/reports/summary";
 import { composeExecutiveNarrative } from "@/lib/reports/narrative";
 import { deriveCostSummary } from "@/lib/reports/cost-summary";
+import { FormattedHazardSummary } from "@/lib/reports/format-hazards";
 import { CompletionTimestamp } from "./_components/CompletionTimestamp";
 import { FindingFlagButton } from "./_components/FindingFlagButton";
 
@@ -1037,12 +1039,16 @@ function PropertySnapshotFactsSection({
 }: {
   snapshot: ReportData["property_snapshot"];
 }) {
-  const rows: Array<[string, string]> = [];
+  const rows: Array<[string, React.ReactNode]> = [];
   const push = (label: string, value: string | null | undefined) => {
     if (value == null) return;
     const v = typeof value === "string" ? value.trim() : String(value);
     if (!v) return;
     rows.push([label, v]);
+  };
+  const pushNode = (label: string, value: React.ReactNode) => {
+    if (value == null) return;
+    rows.push([label, value]);
   };
   push("Property type", snapshot?.property_type ?? null);
   if (snapshot?.unit_number) push("Unit", snapshot.unit_number);
@@ -1092,17 +1098,18 @@ function PropertySnapshotFactsSection({
   }
   push("Parking", snapshot?.parking ?? null);
   push("Market region", snapshot?.market_region ?? null);
-  // Cowork-parity fields populated by the 5f45a99 prompt overhaul.
-  push(
-    "Hazard zones",
+  // Hazard zones inventory. FEMA flood is rolled into this string,
+  // so we no longer render a separate FEMA row. Positive (NOT IN)
+  // entries get bolded by FormattedHazardSummary.
+  const hazardSummary =
     (snapshot as { hazard_zone_summary?: string | null } | undefined)
-      ?.hazard_zone_summary ?? null,
-  );
-  push(
-    "FEMA flood zone",
-    (snapshot as { fema_flood_zone?: string | null } | undefined)
-      ?.fema_flood_zone ?? null,
-  );
+      ?.hazard_zone_summary ?? null;
+  if (hazardSummary?.trim()) {
+    pushNode(
+      "Hazard zones",
+      <FormattedHazardSummary summary={hazardSummary} />,
+    );
+  }
   push(
     "Solar",
     (snapshot as { solar_status?: string | null } | undefined)?.solar_status ??
