@@ -1035,7 +1035,27 @@ Specific community-environmental conditions to watch for in HOA records:
 - Historic asbestos surveys for older common-area structures (built before 1981)
 - Active mold remediation programs in common areas
 
-A finding with name "Community vapor-intrusion mitigation system" is a CRITICAL when the package shows recent sampling exceedances; "uncertain long-term cost allocation" is the standard recommended_action item.`,
+A finding with name "Community vapor-intrusion mitigation system" is a CRITICAL when the package shows recent sampling exceedances; "uncertain long-term cost allocation" is the standard recommended_action item.
+
+VERBATIM-MATCH SEARCH STRINGS for HOA budget cover letters / board minutes. When you encounter any of these phrases (or close variants) ANYWHERE in the HOA package, the surfacing rules above are mandatory; do not skip them because the HOA pass is "supposed to" cover financial matters. These phrases name material conditions that DO surface as findings even though they appear in financial documents:
+
+- "Vapor Intrusion Mitigation system" / "vapor intrusion mitigation" / "VIM system" / "sub-slab depressurization" / "indoor air sampling": HOA-operated active environmental remediation. CRITICAL finding + environmental_hazards entry. Always populate.
+- "GeoKinetics" / "ENGEO" / "ERM" / "Stantec" / "AECOM" + sampling / monitoring / report: an environmental consultant under retainer indicates an active site. Pull the report date and the most recent sampling result if available; surface as critical (active exceedance) or high (monitoring without recent exceedances).
+- "Regional Water Quality Control Board" / "RWQCB" + correspondence / case number / site cleanup / GeoTracker ID: regulatory oversight is in place; the buyer's exposure is the long-term cost trajectory.
+- "underground water leak" / "unlocated leak" / "leak locator" / "leak under asphalt": common-area utility failure. When the leak is UNLOCATED or repair cost is UNDETERMINED, surface as HIGH (reserve-impact and assessment-risk pressure). Cite the building number(s) referenced.
+- "increases in the cost of insurance" / "California insurance market" in the HOA budget cover: surface the carrier-market pressure in hoa_facts.watch_items, not as a finding (it's industry-wide, not parcel-specific). Becomes a finding only when paired with a specific named non-renewal or coverage gap on THIS HOA's master policy.
+- "back-billed" / "back-billing" / "audit revealed" / "emergency assessment": disclosed assessment with explicit cause. Capture the dollar amount when stated; surface as HIGH (not Critical, the amount is known) per the calibration anti-patterns.
+
+WORKED EXAMPLE (use as a pattern). HOA budget cover letter contains the passage: "Costs related to increases in the cost of insurance across California, the uncertain costs related to the Vapor Intrusion Mitigation system testing and reportage continue to impact the finances, as have the massive increases in Utility costs, and a particular concern is the recent spate of underground water leaks under asphalt. The first one near building 2 was quickly located and corrected, but the most recent one between buildings 9 and 10 has not been pinpointed despite the involvement of a professional leak locator firm, so end cost for that remains to be determined."
+
+  Expected analyzer output for this passage:
+  - One CRITICAL finding titled "Community Vapor-Intrusion Mitigation System with Uncertain Long-Term Cost Allocation" with source_quote matching the passage verbatim, recommended_action listing OM&M plan + most recent sampling + RWQCB correspondence as the buyer's documents-to-request list.
+  - One environmental_hazards entry named "Community Vapor Intrusion Mitigation System" severity critical with notes referencing the legacy-semiconductor corridor context.
+  - One HIGH finding titled "Unlocated Underground Water Leak Between Buildings 9 and 10" with source_quote matching the leak portion verbatim, recommended_action listing the leak-locator report + the HOA's reserve / assessment plan as the buyer's documents-to-request list.
+  - The California insurance cost pressure goes into hoa_facts.watch_items as industry context, NOT a finding.
+  - The "massive increases in Utility costs" is informational reserve pressure, NOT a finding.
+
+If you see this exact passage or anything materially similar in the HOA package and do NOT produce both the vapor-intrusion finding and the water-leak finding, the analysis has failed its job on this property. Treat this passage as a high-priority pattern match.`,
 
   hazards: `You are analyzing the NATURAL HAZARDS group: NHD reports, environmental disclosures, supplemental hazard documents.
 
