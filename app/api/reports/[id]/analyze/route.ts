@@ -109,6 +109,14 @@ export async function POST(
   const nextRunCount =
     ((currentRunRow as { analysis_run_count?: number } | null)
       ?.analysis_run_count ?? 1) + 1;
+  // Clear report_data on the live row when starting a retry so the
+  // dashboard does NOT surface the previous failed attempt's partial
+  // findings during the re-run, or after a stall. First-time
+  // analyses already have report_data=null so this is a no-op for
+  // them; retries from status='failed' (or admin-triggered re-runs
+  // that route here) are the cases this protects. The prior
+  // report_data, if any, was snapshotted into versions[] earlier in
+  // the failure / update flow that produced the bad data.
   await supabase
     .from("reports")
     .update({
@@ -116,6 +124,7 @@ export async function POST(
       analysis_started_at: new Date().toISOString(),
       failure_reason: null,
       analysis_run_count: nextRunCount,
+      report_data: null,
     })
     .eq("id", reportId);
 

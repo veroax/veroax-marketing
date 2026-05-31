@@ -108,6 +108,15 @@ export async function POST(
     : [];
   const newVersions = [...existingVersions, priorSnapshot];
 
+  // Clear report_data on the live row when starting the re-run so
+  // a refresh during analysis (or a stalled / failed run) does NOT
+  // surface the previous attempt's findings. The prior data is
+  // safe in versions[] (snapshotted above), retrievable from the
+  // version-history block. Founder-stated requirement: "I want to
+  // get rid of the old data, if any, as there could have been an
+  // error and I don't want it read." Without this null-out, the
+  // admin-report page renders the stale findings alongside the
+  // "Analyzing now" progress panel, which is confusing.
   await admin
     .from("reports")
     .update({
@@ -117,6 +126,7 @@ export async function POST(
       analysis_run_count: nextRunCount,
       update_count: updateCount,
       versions: newVersions,
+      report_data: null,
     })
     .eq("id", reportId);
 
